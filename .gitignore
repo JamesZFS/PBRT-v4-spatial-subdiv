@@ -7,3 +7,4 @@ src/build
 build/
 install/
 .cache/
+.vscode/
