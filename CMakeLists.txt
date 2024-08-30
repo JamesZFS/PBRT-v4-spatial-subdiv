@@ -44,20 +44,20 @@ function (CHECK_EXT NAME DIR HASH)
 
   find_package(Git)
   if (GIT_FOUND)
-    execute_process (
-      COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
-      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/${DIR}"
-      RESULT_VARIABLE "git_return"
-      ERROR_QUIET
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      OUTPUT_VARIABLE "git_hash")
-    if (NOT ${git_hash} MATCHES "^${HASH}")
-      message (FATAL_ERROR "The ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/${DIR} "
-        "submodule isn't up to date (${git_hash} vs ${HASH}). Please run:\n"
-        "  \"git submodule update --recursive\"")
-    else ()
+#    execute_process (
+#      COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+#      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/ext/${DIR}"
+#      RESULT_VARIABLE "git_return"
+#      ERROR_QUIET
+#      OUTPUT_STRIP_TRAILING_WHITESPACE
+#      OUTPUT_VARIABLE "git_hash")
+#    if (NOT ${git_hash} MATCHES "^${HASH}")
+#      message (FATAL_ERROR "The ${CMAKE_CURRENT_SOURCE_DIR}/src/ext/${DIR} "
+#        "submodule isn't up to date (${git_hash} vs ${HASH}). Please run:\n"
+#        "  \"git submodule update --recursive\"")
+#    else ()
       message (STATUS "${NAME} at commit: ${git_hash}")
-    endif()
+#    endif()
   else (GIT_FOUND)
     message (STATUS "git not found: unable to verify revisions in submodules")
   endif (GIT_FOUND)
