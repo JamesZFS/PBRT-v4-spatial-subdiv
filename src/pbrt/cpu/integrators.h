@@ -320,7 +320,7 @@ class GuidedPathIntegrator : public RayIntegrator {
     openpgl::cpp::Device* guiding_device {nullptr};
     //ThreadLocal<Allocator> threadPathSegmentStorage;
 
-    openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer;
+    openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer {nullptr};
 
     bool imageSpaceGuidingBufferReady {false};
     bool calculateImageSpaceGuidingBuffer {false};
