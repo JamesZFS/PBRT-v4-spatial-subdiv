@@ -943,7 +943,7 @@ endif()
 if(PBRT_WITH_OIDN)
   set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
       OpenImageDenoise)
-  add_dependencies(pbrt_lib OIDN)
+#  add_dependencies(pbrt_lib OIDN)
 endif()
 
 if (PBRT_CUDA_ENABLED)
