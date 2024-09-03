@@ -4000,6 +4000,8 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
 
         if (depth == 1 && visibleSurf && guiding_field->GetIteration() > 0) {
             visibleSurf->guidingData.id = gbsdf.getId();
+            visibleSurf->guidingData.fluence = gbsdf.getFluence();
+            visibleSurf->guidingData.ce = gbsdf.getCE();
         }
 
         // Sample direct illumination from the light sources

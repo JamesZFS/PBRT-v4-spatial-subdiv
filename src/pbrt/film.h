@@ -136,6 +136,8 @@ inline Triplet PixelSensor::ProjectReflectance(Spectrum refl, Spectrum illum, Sp
 
 struct GuidingData{
     uint32_t id = -1;
+    float fluence = 0;
+    float ce = 0;
 };
 
 // VisibleSurface Definition
@@ -474,6 +476,8 @@ class GuidedGBufferFilm : public FilmBase {
         double gBufferWeightSum = 0.;
         AtomicDouble rgbSplat[3];
         uint32_t guidingId = -1;
+        float fluence;
+        float ce;
         //Point3f pSum;
         //Float dzdxSum = 0, dzdySum = 0;
         Normal3f nSum, nsSum;

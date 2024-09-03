@@ -878,6 +878,8 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
         }
 
         p.guidingId = visibleSurface->guidingData.id;
+        p.fluence = visibleSurface->guidingData.fluence;
+        p.ce = visibleSurface->guidingData.ce;
     }
 
     for (int c = 0; c < 3; ++c)
@@ -950,13 +952,17 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                  //"Ns.z",
                  "GuideId.R",
                  "GuideId.G",
-                 "GuideId.B",});
+                 "GuideId.B",
+                 "Fluence",
+                 "CE",
+                });
 
     ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
     //ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
     //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
     ImageChannelDesc guideIdRgbDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B"});
+    ImageChannelDesc entropyDesc = image.GetChannelDesc({"Fluence", "CE"});
 
     std::atomic<int> nClamped{0};
     ParallelFor2D(pixelBounds, [&](Point2i p) {
@@ -997,6 +1003,8 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
         image.SetChannels(pOffset, guideIdRgbDesc,
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2]});
+
+        image.SetChannels(pOffset, entropyDesc, {pixel.fluence, pixel.ce});
 
         //Normal3f n =
         //    LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
