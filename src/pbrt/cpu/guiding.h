@@ -290,6 +290,14 @@ struct GuidedBSDF{
         return m_surfaceSamplingDistribution->GetId();
     }
 
+    float getFluence() const {
+        return m_surfaceSamplingDistribution->GetFluence();
+    }
+
+    float getCE() const {
+        return m_surfaceSamplingDistribution->GetCE();
+    }
+
 #ifdef OPENPGL_RADIANCE_CACHES
     SampledSpectrum IncomingRadiance(const Vector3f wiRender, const bool misWeighted) const {
         SampledSpectrum spec(0.f);
