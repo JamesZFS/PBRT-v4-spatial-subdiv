@@ -258,6 +258,10 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool knnLookup {true};
         int guideNumTrainingWaves {128};
 
+        int treemaxsamplesperleaf {PGL_TREE_MAX_SAMPLE_PER_LEAF};
+        int treemaxdepth {32};
+        float treecethreshold {std::numeric_limits<float>::infinity()};
+
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};
         std::string guidingCacheFileName {""};
