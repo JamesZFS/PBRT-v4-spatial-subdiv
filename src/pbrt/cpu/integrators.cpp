@@ -3882,7 +3882,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     float rr_correction = 1.0f;
 
     Float misPDF, etaScale = 1;
-    bool specularBounce = false, anyNonSpecularBounces = false;
+    bool specularBounce = false, anyNonSpecularBounces = false, wasRRorTT = true;
     LightSampleContext prevIntrCtx;
     
     bool add_direct_contribution = false;
@@ -3992,14 +3992,18 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
         Float v = guideSettings.knnLookup ? sampler.Get1D(): -1.0f;
-        gbsdf.init(&bsdf, ray, si, v);
+        bool cacheInitialized = gbsdf.init(&bsdf, ray, si, v);
         adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);
 
         if (guideRR && depth > minRRDepth) {
             survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
         }
 
-        if (depth == 1 && visibleSurf && guiding_field->GetIteration() > 0) {
+        // Initialize _visibleSurf_ at first nonspecular intersection
+        // To avoid the ambiguity from specular transmissive surfaces (reflective or transmissive), we only store if it was a transmission
+        bool shouldCreateVisbleSurf = visibleSurf && !anyNonSpecularBounces && wasRRorTT && IsNonSpecular(bsdf.Flags());
+
+        if (cacheInitialized && shouldCreateVisbleSurf) {
             visibleSurf->guidingData.id = gbsdf.getId();
             visibleSurf->guidingData.fluence = gbsdf.getFluence();
             visibleSurf->guidingData.ce = gbsdf.getCE();
@@ -4034,6 +4038,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         anyNonSpecularBounces |= !bs->IsSpecular();
         if (bs->IsTransmission())
             etaScale *= Sqr(bs->eta);
+        wasRRorTT &= !IsTransmissive(bsdf.Flags()) || bs->IsTransmission();
         prevIntrCtx = si->intr;
 
         ray = isect.SpawnRay(ray, bsdf, bs->wi, bs->flags, bs->eta);
