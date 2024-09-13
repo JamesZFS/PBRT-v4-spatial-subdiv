@@ -128,6 +128,26 @@ set_property (TARGET glfw PROPERTY FOLDER "ext")
 set_property (TARGET glad PROPERTY FOLDER "ext")
 
 ###########################################################################
+# imgui
+
+set (IMGUI_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
+set (IMGUI_INCLUDE ${IMGUI_INCLUDE} PARENT_SCOPE)
+
+set (IMGUI_SOURCES
+        ${IMGUI_INCLUDE}/imgui.cpp
+        ${IMGUI_INCLUDE}/imgui_demo.cpp
+        ${IMGUI_INCLUDE}/imgui_draw.cpp
+        ${IMGUI_INCLUDE}/imgui_tables.cpp
+        ${IMGUI_INCLUDE}/imgui_widgets.cpp
+        ${IMGUI_INCLUDE}/backends/imgui_impl_glfw.cpp
+        ${IMGUI_INCLUDE}/backends/imgui_impl_opengl3.cpp
+)
+
+add_library(imgui STATIC ${IMGUI_SOURCES})
+target_include_directories(imgui PUBLIC ${IMGUI_INCLUDE})
+target_compile_options(imgui PRIVATE -lGL)  # for Linux
+
+###########################################################################
 # TBB
 if (PBRT_WITH_PATH_GUIDING OR PBRT_WITH_OIDN)
 include(ExternalProject)

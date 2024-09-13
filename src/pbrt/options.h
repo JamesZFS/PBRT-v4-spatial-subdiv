@@ -28,6 +28,7 @@ struct BasicPBRTOptions {
     bool forceDiffuse = false;
     bool useGPU = false;
     bool wavefront = false;
+    bool guidingViewer = false;
     bool interactive = false;
     bool fullscreen = false;
     RenderingCoordinateSystem renderingSpace = RenderingCoordinateSystem::CameraWorld;
