@@ -122,6 +122,14 @@ if(PBRT_WITH_RGB)
   list (APPEND PBRT_DEFINITIONS "PBRT_RGB_RENDERING")
 endif()
 
+###########################################################################
+# interactive guiding viewer (Open PGL)
+option(PBRT_BUILD_GUIDING_VIEWER "Build PBRT with interactive guiding viewer support." ON)
+
+if(PBRT_BUILD_GUIDING_VIEWER)
+    list (APPEND PBRT_DEFINITIONS "PBRT_BUILD_GUIDING_VIEWER")
+endif()
+
 #######################################
 ## ext
 
@@ -605,6 +613,10 @@ SET (PBRT_CPU_SOURCE
   src/pbrt/cpu/render.cpp
 )
 
+if (PBRT_WITH_PATH_GUIDING)
+    SET (PBRT_CPU_SOURCE ${PBRT_CPU_SOURCE} src/pbrt/guiding/guiding.cpp)
+endif()
+
 SET (PBRT_CPU_SOURCE_HEADERS
   src/pbrt/cpu/aggregates.h
   src/pbrt/cpu/integrators.h
@@ -633,6 +645,14 @@ SET (PBRT_WAVEFRONT_SOURCE_HEADERS
   src/pbrt/wavefront/workitems.soa
   src/pbrt/wavefront/workqueue.h
 )
+
+if (PBRT_BUILD_GUIDING_VIEWER)
+SET (PBRT_GUIDING_VIEWER_SOURCE
+        src/pbrt/guiding/guidingviewer.cpp
+)
+else ()
+SET (PBRT_GUIDING_VIEWER_SOURCE)
+endif ()
 
 SET (PBRT_UTIL_SOURCE
   src/pbrt/util/args.cpp
@@ -859,6 +879,7 @@ add_library (pbrt_lib STATIC
   ${PBRT_UTIL_SOURCE_HEADERS}
   ${PBRT_WAVEFRONT_SOURCE}
   ${PBRT_WAVEFRONT_SOURCE_HEADERS}
+  ${PBRT_GUIDING_VIEWER_SOURCE}
   ${PBRT_GPU_SOURCE}
   ${PBRT_GPU_SOURCE_HEADERS}
 
@@ -892,6 +913,8 @@ target_include_directories (pbrt_lib PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}
   ${GLFW_INCLUDE}
   ${GLAD_INCLUDE}
+  ${IMGUI_INCLUDE}
+  ${IMGUI_INCLUDE}/backends
 )
 
 if (PBRT_WITH_PATH_GUIDING)
@@ -944,6 +967,11 @@ if(PBRT_WITH_OIDN)
   set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
       OpenImageDenoise)
 #  add_dependencies(pbrt_lib OIDN)
+endif()
+
+if(PBRT_BUILD_GUIDING_VIEWER)
+  set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
+    imgui)
 endif()
 
 if (PBRT_CUDA_ENABLED)

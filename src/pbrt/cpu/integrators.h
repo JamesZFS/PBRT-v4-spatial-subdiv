@@ -24,7 +24,7 @@
 #include <pbrt/util/sampling.h>
 
 #ifdef PBRT_WITH_PATH_GUIDING
-#include <pbrt/cpu/guiding.h>
+#include <pbrt/guiding/guiding.h>
 #endif
 
 #include <functional>
@@ -281,6 +281,8 @@ class GuidedPathIntegrator : public RayIntegrator {
 
     ~GuidedPathIntegrator() override;
 
+    void Render() override;
+
     SampledSpectrum Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda, Sampler sampler,
                        ScratchBuffer &scratchBuffer,
                        VisibleSurface *visibleSurface) const override;
@@ -302,7 +304,7 @@ class GuidedPathIntegrator : public RayIntegrator {
                              SampledWavelengths &lambda, Sampler sampler) const;
 
     const PixelSensor *sensor {nullptr};
-    
+
     // GuidedPathIntegrator Private Members
     int maxDepth;
     int minRRDepth;
@@ -447,7 +449,7 @@ class GuidedVolPathIntegrator : public RayIntegrator {
                              SampledSpectrum inv_w_u) const;
 
     const PixelSensor *sensor {nullptr};
-    
+
     // GuidedVolPathIntegrator Private Members
     int maxDepth;
     int minRRDepth;
