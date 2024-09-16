@@ -128,6 +128,7 @@ option(PBRT_BUILD_GUIDING_VIEWER "Build PBRT with interactive guiding viewer sup
 
 if(PBRT_BUILD_GUIDING_VIEWER)
     list (APPEND PBRT_DEFINITIONS "PBRT_BUILD_GUIDING_VIEWER")
+    list (APPEND PBRT_DEFINITIONS "PBRT_ROOT_DIR=\"${CMAKE_SOURCE_DIR}/\"")
 endif()
 
 #######################################
