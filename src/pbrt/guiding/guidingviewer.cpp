@@ -23,36 +23,6 @@
 
 #include "guidingviewer.h"
 
-#define GL_CHECK(call)                                                   \
-    do {                                                                 \
-        call;                                                            \
-        if (GLenum err = glGetError(); err != GL_NO_ERROR)               \
-            LOG_FATAL("GL error: %s for " #call, getGLErrorString(err)); \
-    } while (0)
-
-#define GL_CHECK_ERRORS()                                     \
-    do {                                                      \
-        if (GLenum err = glGetError(); err != GL_NO_ERROR)    \
-            LOG_FATAL("GL error: %s", getGLErrorString(err)); \
-    } while (0)
-
-const char *getGLErrorString(GLenum error) {
-    switch (error) {
-        case GL_NO_ERROR:
-            return "No error";
-        case GL_INVALID_ENUM:
-            return "Invalid enum";
-        case GL_INVALID_VALUE:
-            return "Invalid value";
-        case GL_INVALID_OPERATION:
-            return "Invalid operation";
-        case GL_OUT_OF_MEMORY:
-            return "Out of memory";
-        default:
-            return "Unknown GL error";
-    }
-}
-
 static void glfw_error_callback(int error, const char *description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
@@ -65,6 +35,7 @@ GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive aggregate, int spp,
       renderWave(renderWave), postprocessWave(postprocessWave) {
     Bounds2i pixelBounds = film.PixelBounds();
     resolution = pixelBounds.Diagonal();
+    windowWidth = resolution.x + inspectorWidth, windowHeight = resolution.y + statusBarHeight;
     cpuFramebuffer = new RGB[resolution.x * resolution.y];
     for (int i = 0; i < resolution.x * resolution.y; ++i)
         cpuFramebuffer[i] = RGB(0.0f, 0.0f, 0.0f);
@@ -87,9 +58,10 @@ void GuidingViewerGUI::Launch() {
     const char *glsl_version = "#version 130";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     // Create window with graphics context
-    GLFWwindow *window = glfwCreateWindow(resolution.x, resolution.y, "Guiding Viewer", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(windowWidth, windowHeight, "Guiding Viewer", nullptr, nullptr);
     if (window == nullptr) return;
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
@@ -98,9 +70,7 @@ void GuidingViewerGUI::Launch() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
-    (void) io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
 
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
@@ -111,7 +81,7 @@ void GuidingViewerGUI::Launch() {
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     // Our state
-    ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.00f);
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Main GUI loop
     while (!glfwWindowShouldClose(window)) {
@@ -131,49 +101,12 @@ void GuidingViewerGUI::Launch() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // A GUI window
-        {
-            ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!" and append into it.
-
-            ImGui::BeginDisabled(renderState == Rendering || renderState == Completed);
-            if (ImGui::Button("Render Next Wave")) {
-                // Simulating a render wave request
-                std::lock_guard lock(mtx);
-                command = NextWave;
-                cv.notify_one();
-            }
-            ImGui::EndDisabled();
-
-            if (renderState != Completed)
-                ImGui::Text("Progress:");
-            else
-                ImGui::Text("Done!");
-            ImGui::SameLine();
-            ImGui::ProgressBar((float) waveStart / (float) spp);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
+        Inspector();
+        StatusBar();
 
         // GUI Render
-        int display_w, display_h;
-        glfwGetFramebufferSize(window, &display_w, &display_h);
-        int windowWidth, windowHeight;
-        glfwGetWindowSize(window, &windowWidth, &windowHeight);
-        float pixelScales[2] = {(float)display_w / (float)windowWidth,
-                                (float)display_h / (float)windowHeight};
-
-        GL_CHECK(glViewport(0, 0, display_w, display_h));
-        GL_CHECK(
-            glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w,
-                clear_color.w));
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        // Draw the current rendering result
-        GL_CHECK(glEnable(GL_FRAMEBUFFER_SRGB));
-        GL_CHECK(glRasterPos2f(-1, 1));
-        GL_CHECK(glPixelZoom(pixelScales[0], -pixelScales[1]));
-        GL_CHECK(glDrawPixels(resolution.x, resolution.y, GL_RGB, GL_FLOAT, cpuFramebuffer));
+        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w,clear_color.w);
+        DrawRendering();
 
         // Draw GUI
         ImGui::Render();
@@ -239,6 +172,65 @@ void GuidingViewerGUI::UpdateFramebufferFromFilm() {
             Point2i p(index % resolution.x, index / resolution.x);
             cpuFramebuffer[index] = 1 * film.GetPixelRGB(p + film.PixelBounds().pMin);
         });
+}
+
+void GuidingViewerGUI::Inspector() {
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
+    ImGui::SetNextWindowSize(ImVec2(inspectorWidth, windowHeight));
+    ImGui::SetNextWindowPos(ImVec2(resolution.x, 0));
+    ImGui::SetNextWindowBgAlpha(0.9f);
+    ImGui::Begin("Inspector", nullptr, flags);
+
+    {
+        ImGui::BeginDisabled(renderState == Rendering || renderState == Completed);
+        if (ImGui::Button("Render Next Wave")) {
+            // Simulating a render wave request
+            std::lock_guard lock(mtx);
+            command = NextWave;
+            cv.notify_one();
+        }
+        ImGui::EndDisabled();
+    }
+
+    if (renderState != Completed)
+        ImGui::Text("Progress:");
+    else
+        ImGui::Text("Done!");
+    ImGui::SameLine();
+    ImGui::ProgressBar((float) waveStart / (float) spp);
+
+    ImGui::End();
+}
+
+void GuidingViewerGUI::StatusBar() {
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav;
+    ImGui::SetNextWindowSize(ImVec2(resolution.x, statusBarHeight));
+    ImGui::SetNextWindowPos(ImVec2(0, resolution.y));
+    ImGui::SetNextWindowBgAlpha(0.6f);
+
+    ImGui::Begin("StatusBar", nullptr, flags);
+
+    ImGuiIO &io = ImGui::GetIO();
+    std::string mouseInfo;
+    if (ImGui::IsMousePosValid())
+        mouseInfo = StringPrintf("Mouse: (%.0f, %.0f)", io.MousePos.x, io.MousePos.y);
+    else
+        mouseInfo = "Mouse: <invalid>";
+    ImGui::Text("%.3f ms/frame (%.1f FPS) | %s", 1000.0f / io.Framerate, io.Framerate, mouseInfo.c_str());
+
+    ImGui::End();
+}
+
+void GuidingViewerGUI::DrawRendering() {
+    glViewport(0, statusBarHeight, resolution.x, resolution.y);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // Draw the current rendering result
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    glRasterPos2f(-1, 1);
+
+    glPixelZoom(1, -1);
+    glDrawPixels(resolution.x, resolution.y, GL_RGB, GL_FLOAT, cpuFramebuffer);
 }
 
 } // namespace pbrt

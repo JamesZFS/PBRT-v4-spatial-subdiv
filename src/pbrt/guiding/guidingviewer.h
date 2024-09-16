@@ -29,6 +29,12 @@ private:
 
     void UpdateFramebufferFromFilm();
 
+    void Inspector();
+
+    void StatusBar();
+
+    void DrawRendering();
+
     Camera camera;
     Film film;
     Vector2i resolution;
@@ -37,7 +43,10 @@ private:
     int waveStart;
     std::function<void(int waveStart)> renderWave;
     std::function<void(int waveEnd)> postprocessWave;
-    RGB *cpuFramebuffer = nullptr;
+    RGB *cpuFramebuffer = nullptr;  // CPU framebuffer for display, written by the render thread, read by the GUI thread.
+
+    constexpr static int inspectorWidth = 300, statusBarHeight = 30;
+    int windowWidth, windowHeight;
 
     enum RendererState {
         Initial = 0,
