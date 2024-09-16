@@ -23,11 +23,57 @@
 
 #include "guidingviewer.h"
 
+#define STBI_NO_PIC
+#define STBI_ASSERT CHECK
+#include <stb/stb_image.h>
+
+// Simple helper function to load an image into a OpenGL texture with common settings
+static bool LoadTextureFromFile(const char *filename, GLuint &out_texture, int &out_width, int &out_height)
+{
+    // Load from file
+    int image_width = 0;
+    int image_height = 0;
+    unsigned char* image_data = stbi_load(filename, &image_width, &image_height, nullptr, 4);
+    if (image_data == nullptr)
+        return false;
+
+    // Create a OpenGL texture identifier
+    GLuint image_texture;
+    glGenTextures(1, &image_texture);
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+
+    // Setup filtering parameters for display
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    // Upload pixels into texture
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+    stbi_image_free(image_data);
+
+    out_texture = image_texture;
+    out_width = image_width;
+    out_height = image_height;
+
+    return true;
+}
+
 static void glfw_error_callback(int error, const char *description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
 namespace pbrt {
+
+const static std::map<GuidingViewerGUI::ControlCommand, std::pair<const char *, const char *>> commandNames = {
+    {GuidingViewerGUI::Resume, {"Resume", "Continue rendering"}},
+    {GuidingViewerGUI::Pause, {"Pause", "Pause the rendering"}},
+    {GuidingViewerGUI::Forward, {"Forward", "Render the next wave of samples"}},
+    {GuidingViewerGUI::Terminate, {"Terminate", "Terminate rendering"}},
+    {GuidingViewerGUI::Restart, {"Restart", "Restart rendering"}},
+};
+
+static std::string controlButtonTexPath = PBRT_ROOT_DIR "images/control_buttons.png";
+
 GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive aggregate, int spp,
                                    std::function<void(int waveStart)> renderWave,
                                    std::function<void(int waveEnd)> postprocessWave)
@@ -36,6 +82,7 @@ GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive aggregate, int spp,
     Bounds2i pixelBounds = film.PixelBounds();
     resolution = pixelBounds.Diagonal();
     windowWidth = resolution.x + inspectorWidth, windowHeight = resolution.y + statusBarHeight;
+
     cpuFramebuffer = new RGB[resolution.x * resolution.y];
     for (int i = 0; i < resolution.x * resolution.y; ++i)
         cpuFramebuffer[i] = RGB(0.0f, 0.0f, 0.0f);
@@ -80,8 +127,10 @@ void GuidingViewerGUI::Launch() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // Our state
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+    if (!LoadTextureFromFile(PBRT_ROOT_DIR "images/control_buttons.png", reinterpret_cast<GLuint&>(controlButtonTextureID), controlButtonTextureWidth, controlButtonTextureHeight))
+        Error("Failed to load control_texture.png from disk");
 
     // Main GUI loop
     while (!glfwWindowShouldClose(window)) {
@@ -142,11 +191,11 @@ void GuidingViewerGUI::RenderThread() {
     while (waveStart < spp) {
         {
             std::unique_lock lock(mtx);
-            cv.wait(lock, [this] { return command != None; });
+            cv.wait(lock, [this] { return command != Pause; });
         }
 
         int waveEnd = waveStart + 1;
-        if (command == NextWave) {
+        if (command == Forward) {
             renderState = Rendering;
             renderWave(waveStart);
             UpdateFramebufferFromFilm();
@@ -157,9 +206,9 @@ void GuidingViewerGUI::RenderThread() {
             std::cout << "Terminating rendering" << std::endl;
             break;
         } else {
-            Error("Unexpected command in RenderThread");
+            Error("Unexpected command \"%s\" in RenderThread", commandNames.at(command).first);
         }
-        command = None;
+        command = Pause;
     }
 
     renderState = Completed;
@@ -180,22 +229,47 @@ void GuidingViewerGUI::Inspector() {
     ImGui::SetNextWindowPos(ImVec2(resolution.x, 0));
     ImGui::SetNextWindowBgAlpha(0.9f);
     ImGui::Begin("Inspector", nullptr, flags);
+    ImGuiIO& io = ImGui::GetIO();
 
-    {
-        ImGui::BeginDisabled(renderState == Rendering || renderState == Completed);
-        if (ImGui::Button("Render Next Wave")) {
-            // Simulating a render wave request
-            std::lock_guard lock(mtx);
-            command = NextWave;
-            cv.notify_one();
+    {  // Control buttons
+        // ImGui::BeginDisabled(renderState == Rendering || renderState == Completed);  // Disable buttons during rendering
+        ImTextureID my_tex_id = io.Fonts->TexID;
+
+        ImVec2 size = ImVec2(20.0f, 20.0f);
+        ImVec4 bg_col = ImVec4(0.15f, 0.25f, 0.30f, 1.00f);
+        ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);           // No tint
+        auto cmd2uv0 = [](ControlCommand i) {
+            assert(i >= Play && i <= Restart);
+            return ImVec2((float) i / (float) ControlCommandCount, 0.0f);
+        };
+        auto cmd2uv1 = [](ControlCommand i) {
+            assert(i >= Play && i <= Restart);
+            return ImVec2((float) (i + 1) / (float) ControlCommandCount, 1.0f);
+        };
+
+        for (int i = 0; i < (int) ControlCommandCount; ++i) {
+            auto cmd = static_cast<ControlCommand>(i);
+            auto nameTip = commandNames.at(cmd);
+            if (ImGui::ImageButton(nameTip.first, controlButtonTextureID, size, cmd2uv0(cmd), cmd2uv1(cmd), bg_col, tint_col)) {
+                std::lock_guard lock(mtx);
+                command = cmd;
+                cv.notify_one();  // Notify the render thread
+            }
+            ImGui::SetItemTooltip("%s", nameTip.second);
+            ImGui::SameLine();
         }
-        ImGui::EndDisabled();
+        ImGui::NewLine();
+        // ImGui::EndDisabled();
     }
 
-    if (renderState != Completed)
-        ImGui::Text("Progress:");
-    else
-        ImGui::Text("Done!");
+    static std::map<RendererState, const char *> stateNames = {
+        {Initial,   "Initial    "},
+        {Rendering, "Rendering.."},
+        {WaveEnd,     "Wave End   "},
+        {Completed, "Completed! "},
+    };
+    ImGui::Text("%s", stateNames.at(renderState));
+
     ImGui::SameLine();
     ImGui::ProgressBar((float) waveStart / (float) spp);
 

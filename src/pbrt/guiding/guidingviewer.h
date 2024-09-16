@@ -24,6 +24,22 @@ public:
 
     void Launch();  // The GUI runs in the main thread, while the rendering runs in a separate thread.
 
+    enum RendererState {
+        Initial = 0,
+        Rendering,
+        WaveEnd,
+        Completed
+    };
+
+    enum ControlCommand {
+        Resume = 0,
+        Pause,
+        Forward,
+        Terminate,
+        Restart,
+        ControlCommandCount
+    };
+
 private:
     void RenderThread();
 
@@ -48,22 +64,12 @@ private:
     constexpr static int inspectorWidth = 300, statusBarHeight = 30;
     int windowWidth, windowHeight;
 
-    enum RendererState {
-        Initial = 0,
-        Rendering,
-        WaveEnd,
-        Completed
-    };
-
-    enum GUICommand {
-        None = 0,
-        NextWave,
-        Terminate
-    };
+    void* controlButtonTextureID = nullptr;
+    int controlButtonTextureWidth = 0, controlButtonTextureHeight = 0;
 
     std::mutex mtx;
     std::condition_variable cv;
-    GUICommand command = None;
+    ControlCommand command = Pause;
     RendererState renderState = Initial;
 };
 

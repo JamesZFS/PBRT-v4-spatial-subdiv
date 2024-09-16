@@ -38,8 +38,6 @@
 #include <cmath>
 #include <numeric>
 
-// use lodepng and get 16-bit.
-#define STBI_NO_PNG
 // too old school
 #define STBI_NO_PIC
 #define STBI_ASSERT CHECK
