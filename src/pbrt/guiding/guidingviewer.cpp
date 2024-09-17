@@ -21,6 +21,12 @@
 #endif
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
+#include <pbrt/cameras.h>
+#include <pbrt/samplers.h>
+#include <pbrt/film.h>
+#include <pbrt/interaction.h>
+#include <pbrt/shapes.h>
+#include <pbrt/scene.h>
 #include "guidingviewer.h"
 
 #define STBI_NO_PIC
@@ -208,10 +214,8 @@ void GuidingViewerGUI::Inspector() {
     ImGui::Begin("Inspector", nullptr, flags);
     ImGuiIO& io = ImGui::GetIO();
 
+    ImGui::SeparatorText("Playback Controls");
     {  // Control buttons
-        // ImGui::BeginDisabled(renderState == Rendering || renderState == Completed);  // Disable buttons during rendering
-        ImTextureID my_tex_id = io.Fonts->TexID;
-
         ImVec2 size = ImVec2(ImGui::GetTextLineHeight(), ImGui::GetTextLineHeight());
         ImVec4 bg_col = ImVec4(0.15f, 0.25f, 0.30f, 1.00f);
         ImVec4 accent_col = ImVec4(0.15f, 0.60f, 0.15f, 1.00f);
@@ -239,8 +243,8 @@ void GuidingViewerGUI::Inspector() {
             auto nameTip = commandNames.at(cmd);
             ImVec4 color = (wasAutoPlayed && cmd == AutoPlay) || (!wasAutoPlayed && cmd == Pause) ? accent_col : bg_col;
             bool activate = ImGui::ImageButton(nameTip.first, controlButtonTextureID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
-            activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space);  // Space key for AutoPlay / Pause
-            activate |= cmd == Forward && ImGui::IsKeyPressed(ImGuiKey_Enter);  // Enter key for Forward
+            activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
+            activate |= cmd == Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
             if (activate) {
                 std::cout << "Command: " << nameTip.first << std::endl;
                 std::lock_guard lock(mtx);
@@ -256,10 +260,50 @@ void GuidingViewerGUI::Inspector() {
             ImGui::PopID();
         }
         ImGui::NewLine();
-        // ImGui::EndDisabled();
     }
 
-    ImGui::ProgressBar((float) waveStart / (float) spp, {}, waveStart == spp ? "Done" : StringPrintf("%d/%d SPP", waveStart+1, spp).c_str());
+    ImGui::ProgressBar((float) waveStart / (float) spp, {ImGui::GetColumnWidth(), 0}, waveStart == spp ? "Done" : StringPrintf("%d/%d SPP", waveStart+1, spp).c_str());
+
+    ImGui::SeparatorText("Ray Tracing");
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+            rayTracingPixel = !rayTracingPixel;
+        }
+        ImGui::Checkbox("Ray Tracing Mouse Pixel", &rayTracingPixel);
+        if (rayTracingPixel) {
+            bool valid = false;
+            Point3f hit;
+            Normal3f normal;
+            Point2i pixel;
+            Point2f uv;
+            if (ImGui::IsMousePosValid()) {
+                pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y);
+                if (rayTracingPixel) {
+                    IndependentSampler sampler(spp, 0);
+                    Filter filter = camera.GetFilm().GetFilter();
+                    CameraSample cameraSample = GetCameraSample(sampler, pixel, filter);
+                    SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
+                    auto cameraRay = camera.GenerateRay(cameraSample, lambda);
+                    if (cameraRay) {
+                        auto sit = aggregate.Intersect(cameraRay->ray);
+                        if (sit) {
+                            valid = true;
+                            hit = cameraRay->ray(sit->tHit);
+                            normal = sit->intr.n;
+                            uv = sit->intr.uv;
+                        }
+                    }
+                }
+            }
+            if (valid) {
+                ImGui::Text("Hit: (%.2f, %.2f, %.2f)", hit.x, hit.y, hit.z);
+                ImGui::Text("Normal: (%.2f, %.2f, %.2f)", normal.x, normal.y, normal.z);
+                ImGui::Text("UV: (%.2f, %.2f)", uv.x, uv.y);
+            } else {
+                ImGui::Text("No intersection");
+            }
+        }
+    }
 
     ImGui::End();
 }
@@ -274,10 +318,13 @@ void GuidingViewerGUI::StatusBar() {
 
     ImGuiIO &io = ImGui::GetIO();
     std::string mouseInfo;
-    if (ImGui::IsMousePosValid())
-        mouseInfo = StringPrintf("Mouse: (%.0f, %.0f)", io.MousePos.x, io.MousePos.y);
+    Point2i pixel;
+    if (ImGui::IsMousePosValid()) {
+        pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y);
+        mouseInfo = StringPrintf("Pixel: (%d, %d)", pixel.x, pixel.y);
+    }
     else
-        mouseInfo = "Mouse: <invalid>";
+        mouseInfo = "Pixel: <invalid>";
     ImGui::Text("%s | %.3f ms/frame (%.1f FPS) | %s", stateNames.at(renderState), 1000.0f / io.Framerate, io.Framerate, mouseInfo.c_str());
 
     ImGui::End();
