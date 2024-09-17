@@ -17,12 +17,17 @@ class GuidingViewerGUI {
 public:
     GuidingViewerGUI(
         Camera camera, Primitive aggregate, int spp,
-        std::function<void(int waveStart)> renderWave,
-        std::function<void(int waveEnd)> postprocessWave);
+        const std::function<void(int waveStart)> &renderWave,
+        const std::function<void(int waveEnd)> &postprocessWave,
+        const std::function<void(int waveEnd)> &saveImage);
 
     ~GuidingViewerGUI();
 
     void Launch();  // The GUI runs in the main thread, while the rendering runs in a separate thread.
+
+    int RenderedWaves() const { return waveStart; }
+
+    void ClearFilm();
 
     enum RendererState {
         Initial = 0,
@@ -31,13 +36,16 @@ public:
         Completed
     };
 
-    enum ControlCommand {
-        Resume = 0,
+    enum GUICommand {
+        // Control buttons begin
+        AutoPlay = 0,
         Pause,
         Forward,
-        Terminate,
+        Save,
         Restart,
-        ControlCommandCount
+        // Control buttons end
+        Terminate,
+        None,
     };
 
 private:
@@ -59,6 +67,7 @@ private:
     int waveStart;
     std::function<void(int waveStart)> renderWave;
     std::function<void(int waveEnd)> postprocessWave;
+    std::function<void(int waveEnd)> saveImage;
     RGB *cpuFramebuffer = nullptr;  // CPU framebuffer for display, written by the render thread, read by the GUI thread.
 
     constexpr static int inspectorWidth = 300, statusBarHeight = 30;
@@ -69,8 +78,10 @@ private:
 
     std::mutex mtx;
     std::condition_variable cv;
-    ControlCommand command = Pause;
+    GUICommand command = None;
     RendererState renderState = Initial;
+    bool autoPlayed = false;
+    int forwardWaves = 1;
 };
 
 }
