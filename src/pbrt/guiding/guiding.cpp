@@ -195,35 +195,8 @@ void GuidedPathIntegrator::Render() {
     if (Options->recordPixelStatistics)
         StatsEnablePixelStats(pixelBounds,
                               RemoveExtension(camera.GetFilm().GetFilename()));
-    // Handle MSE reference image, if provided
-    pstd::optional<Image> referenceImage;
-    FILE *mseOutFile = nullptr;
     if (!Options->mseReferenceImage.empty()) {
-        auto mse = Image::Read(Options->mseReferenceImage);
-        referenceImage = mse.image;
-
-        Bounds2i msePixelBounds =
-            mse.metadata.pixelBounds
-                ? *mse.metadata.pixelBounds
-                : Bounds2i(Point2i(0, 0), referenceImage->Resolution());
-        if (!Inside(pixelBounds, msePixelBounds))
-            ErrorExit("Output image pixel bounds %s aren't inside the MSE "
-                      "image's pixel bounds %s.",
-                      pixelBounds, msePixelBounds);
-
-        // Transform the pixelBounds of the image we're rendering to the
-        // coordinate system with msePixelBounds.pMin at the origin, which
-        // in turn gives us the section of the MSE image to crop. (This is
-        // complicated by the fact that Image doesn't support pixel
-        // bounds...)
-        Bounds2i cropBounds(Point2i(pixelBounds.pMin - msePixelBounds.pMin),
-                            Point2i(pixelBounds.pMax - msePixelBounds.pMin));
-        *referenceImage = referenceImage->Crop(cropBounds);
-        CHECK_EQ(referenceImage->Resolution(), Point2i(pixelBounds.Diagonal()));
-
-        mseOutFile = FOpenWrite(Options->mseReferenceOutput);
-        if (!mseOutFile)
-            ErrorExit("%s: %s", Options->mseReferenceOutput, ErrorString());
+        Warning("Not supporting MSE reference image with --guidingviewer");
     }
 
     if (!Options->displayServer.empty()) {
@@ -262,34 +235,18 @@ void GuidedPathIntegrator::Render() {
         [&](int waveEnd) {
             std::cout << "Postprocessing wave " << waveEnd << std::endl;
             PostProcessWave();  // Update guiding cache
-
-            // Optionally write current image to disk
-            if (waveEnd == spp || Options->writePartialImages || referenceImage) {
-                LOG_VERBOSE("Writing image with spp = %d", waveEnd);
-                ImageMetadata metadata;
-                metadata.renderTimeSeconds = totalRenderingTimer.ElapsedSeconds();
-                metadata.samplesPerPixel = waveEnd;
-                if (referenceImage) {
-                    ImageMetadata filmMetadata;
-                    Image filmImage =
-                        camera.GetFilm().GetImage(&filmMetadata, 1.f / waveEnd);
-                    ImageChannelValues mse =
-                        filmImage.MSE(filmImage.AllChannelsDesc(), *referenceImage);
-                    fprintf(mseOutFile, "%d, %.9g\n", waveEnd, mse.Average());
-                    metadata.MSE = mse.Average();
-                    fflush(mseOutFile);
-                }
-                if (waveEnd == spp || Options->writePartialImages) {
-                    camera.InitMetadata(&metadata);
-                    camera.GetFilm().WriteImage(metadata, 1.0f / waveEnd);
-                }
-            }
+        },
+        [&](int waveEnd) {
+            std::cout << "Writing image with spp = " << waveEnd << std::endl;
+            ImageMetadata metadata;
+            metadata.renderTimeSeconds = totalRenderingTimer.ElapsedSeconds();
+            metadata.samplesPerPixel = waveEnd;
+            camera.InitMetadata(&metadata);
+            camera.GetFilm().WriteImage(metadata, 1.0f / waveEnd);
         });
 
     gui.Launch();
 
-    if (mseOutFile)
-        fclose(mseOutFile);
     LOG_VERBOSE("Rendering finished");
 }
 
