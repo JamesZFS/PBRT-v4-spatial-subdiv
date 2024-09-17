@@ -82,6 +82,7 @@ private:
     RendererState renderState = Initial;
     bool autoPlayed = false;
     int forwardWaves = 1;
+    bool rayTracingPixel = false;
 };
 
 }
