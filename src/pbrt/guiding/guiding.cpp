@@ -583,6 +583,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     std::string strSurfaceGuidingType = parameters.GetOneString("surfaceguidingtype", "ris");
     settings.surfaceGuidingType = strSurfaceGuidingType == "mis" ? EGuideMIS : EGuideRIS;
 
+    settings.guideNumTrainingWaves = parameters.GetOneInt("numtrainingwaves", 128);
     settings.treemaxsamplesperleaf = parameters.GetOneInt("treemaxsamplesperleaf", PGL_TREE_MAX_SAMPLE_PER_LEAF);
     settings.treeminsamplesperleaf = parameters.GetOneInt("treeminsamplesperleaf", 100);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);

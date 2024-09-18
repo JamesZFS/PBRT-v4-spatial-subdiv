@@ -250,6 +250,8 @@ void GuidingViewerGUI::Launch() {
     }
     renderThread.join();
     assert(renderState == Completed);
+    if (waveStart > 0)
+        postprocessWave(waveStart);
 
     // Cleanup
     ImGui_ImplOpenGL3_Shutdown();
@@ -413,7 +415,7 @@ void GuidingViewerGUI::Inspector() {
         ImGui::NewLine();
     }
 
-    ImGui::ProgressBar((float) waveStart / (float) spp, {ImGui::GetColumnWidth(), 0}, waveStart == spp ? "Done" : StringPrintf("%d/%d SPP", waveStart+1, spp).c_str());
+    ImGui::ProgressBar((float) waveStart / (float) spp, {ImGui::GetColumnWidth(), 0}, waveStart == spp ? "Done" : StringPrintf("%d/%d SPP", waveStart, spp).c_str());
 
     ImGui::SeparatorText("Ray Tracing");
     {
@@ -422,39 +424,62 @@ void GuidingViewerGUI::Inspector() {
         }
         ImGui::Checkbox("Ray Tracing Mouse Pixel", &rayTracingPixel);
         if (rayTracingPixel) {
-            bool valid = false;
+            bool hitSomething = false;
             Point3f hit;
             Normal3f normal;
             Point2i pixel;
             Point2f uv;
+            uint32_t cacheId = -1;
+            static openpgl::cpp::SurfaceSamplingDistribution ssd(field);
+            static ScratchBuffer scratchBuffer;
             if (ImGui::IsMousePosValid()) {
                 pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y - tabHeight);
                 if (rayTracingPixel) {
-                    IndependentSampler sampler(spp, 0);
+                    IndependentSampler _sampler(spp, 0);
+                    Sampler sampler(&_sampler);
                     Filter filter = camera.GetFilm().GetFilter();
                     CameraSample cameraSample = GetCameraSample(sampler, pixel, filter);
                     SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
-                    auto cameraRay = camera.GenerateRay(cameraSample, lambda);
+                    auto cameraRay = camera.GenerateRayDifferential(cameraSample, lambda);
                     if (cameraRay) {
                         auto sit = scene.Intersect(cameraRay->ray);
                         if (sit) {
-                            valid = true;
+                            hitSomething = true;
                             hit = cameraRay->ray(sit->tHit);
                             normal = sit->intr.n;
                             uv = sit->intr.uv;
+                            auto bsdf = sit->intr.GetBSDF(cameraRay->ray, lambda, camera, scratchBuffer, sampler);
+                            if (bsdf) {
+                                GuidedBSDF gbsdf(&sampler, field, &ssd, true, EGuideMIS);
+                                float rnd = 0.0f;
+                                if (gbsdf.init(&bsdf, cameraRay->ray, sit, rnd)) {
+                                    cacheId = gbsdf.getId();
+                                }
+                            }
+                            scratchBuffer.Reset();
                         }
                     }
                 }
             }
-            if (valid) {
+            if (hitSomething) {
                 ImGui::Text("Hit: (%.2f, %.2f, %.2f)", hit.x, hit.y, hit.z);
                 ImGui::Text("Normal: (%.2f, %.2f, %.2f)", normal.x, normal.y, normal.z);
                 ImGui::Text("UV: (%.2f, %.2f)", uv.x, uv.y);
+                if (cacheId == -1)
+                    ImGui::Text("Cache ID: <invalid>");
+                else
+                    ImGui::Text("Cache ID: %u", cacheId);
             } else {
                 ImGui::Text("No intersection");
             }
         }
     }
+
+    ImGui::SeparatorText("Guiding");
+    {}
+
+    ImGui::SeparatorText("Spatial Subdivision");
+    {}
 
     ImGui::End();
 }
@@ -543,21 +568,20 @@ void GuidingViewerGUI::RenderThread() {
         if (autoPlayed) {
             if (waveStart < spp) {
                 renderState = Rendering;
-                int waveEnd = waveStart + 1;
-                renderWave(waveStart);
+                if (waveStart > 0)
+                    postprocessWave(waveStart);
+                renderWave(waveStart++);
                 UpdateCPUFramebufferFromFilm();
-                postprocessWave(waveEnd);
-                waveStart = waveEnd;
                 renderedSomething = true;
             }
         } else if (oldCommand == Forward) {
             renderState = Rendering;
             int wavesLeft = forwardWaves;
-            while (waveStart < spp && wavesLeft > 0) {
-                --wavesLeft;
+            while (waveStart < spp && wavesLeft-- > 0) {
+                if (waveStart > 0)
+                    postprocessWave(waveStart);
                 renderWave(waveStart++);
                 UpdateCPUFramebufferFromFilm();
-                postprocessWave(waveStart);
                 renderedSomething = true;
             }
         }
