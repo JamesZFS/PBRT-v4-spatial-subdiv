@@ -59,6 +59,7 @@ public:
         Channel_CacheID,
         Channel_Fluence,
         Channel_CE,
+        Channel_Count,
     };
 
 private:
@@ -75,6 +76,8 @@ private:
     void StatusBar();
 
     void UpdateRayTracingResult();
+
+    std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c);
 
     Camera camera;
     Film film;
@@ -103,7 +106,7 @@ private:
     int controlButtonTexWidth = 0, controlButtonTexHeight = 0;
     void* renderingTexID = nullptr;
 
-    std::mutex mtx;
+    std::mutex mtxCommand, mtxCPUFramebuffer;
     std::condition_variable cv;
     GUICommand command = None;
     RendererState renderState = Initial;
@@ -122,6 +125,11 @@ private:
         float fluence;
         float ce;
     } rtResult;
+
+    struct {
+        float scale = 1.0f;
+        float bias = 0.0f;
+    } colormap[Channel_Count];
 
     SelectedChannel selectedChannel = Channel_Radiance;
 };
