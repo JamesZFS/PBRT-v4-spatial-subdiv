@@ -64,6 +64,22 @@ static bool LoadTextureFromFile(const char *filename, GLuint &out_texture, int &
     return true;
 }
 
+// Simple helper function to load an image from CPU framebuffer into a OpenGL texture with common settings
+static void UpdateTextureFromRGBData(GLuint image_texture, const pbrt::RGB *image_data, int image_width, int image_height)
+{
+    // Bind the texture
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+    glEnable(GL_FRAMEBUFFER_SRGB);
+
+    // Setup filtering parameters for display
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Upload pixels into texture
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image_width, image_height, 0, GL_RGB, GL_FLOAT, image_data);
+}
+
 static void glfw_error_callback(int error, const char *description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
@@ -143,10 +159,13 @@ void GuidingViewerGUI::Launch() {
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-    if (!LoadTextureFromFile(controlButtonTexPath.c_str(), reinterpret_cast<GLuint&>(controlButtonTextureID), controlButtonTextureWidth, controlButtonTextureHeight))
+    if (!LoadTextureFromFile(controlButtonTexPath.c_str(), reinterpret_cast<GLuint&>(controlButtonTexID), controlButtonTexWidth, controlButtonTexHeight))
         Error("Failed to load control_texture.png from disk");
+
+    glGenTextures(1, reinterpret_cast<GLuint*>(&renderingTexID));
+    UpdateGPUFramebufferFromCPU();
+
+    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     // Main GUI loop
     while (!glfwWindowShouldClose(window)) {
@@ -166,12 +185,16 @@ void GuidingViewerGUI::Launch() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        DrawRendering();
         Inspector();
         StatusBar();
 
         // GUI Render
-        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w,clear_color.w);
-        DrawRendering();
+        int display_w, display_h;
+        glfwGetFramebufferSize(window, &display_w, &display_h);
+        glViewport(0, 0, display_w, display_h);
+        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+        glClear(GL_COLOR_BUFFER_BIT);
 
         // Draw GUI
         ImGui::Render();
@@ -198,12 +221,18 @@ void GuidingViewerGUI::Launch() {
     glfwTerminate();
 }
 
-void GuidingViewerGUI::UpdateFramebufferFromFilm() {
+void GuidingViewerGUI::UpdateCPUFramebufferFromFilm() {
     ParallelFor(0, resolution.x * resolution.y,
         PBRT_CPU_GPU_LAMBDA(int index) {
             Point2i p(index % resolution.x, index / resolution.x);
             cpuFramebuffer[index] = 1 * film.GetPixelRGB(p + film.PixelBounds().pMin);
         });
+    shouldUpdateGPUFramebuffer = true;
+}
+
+// This has to be called in the GUI thread
+void GuidingViewerGUI::UpdateGPUFramebufferFromCPU() {
+    UpdateTextureFromRGBData((GLuint) (uintptr_t) renderingTexID, cpuFramebuffer, resolution.x, resolution.y);
 }
 
 void GuidingViewerGUI::Inspector() {
@@ -242,7 +271,7 @@ void GuidingViewerGUI::Inspector() {
 
             auto nameTip = commandNames.at(cmd);
             ImVec4 color = (wasAutoPlayed && cmd == AutoPlay) || (!wasAutoPlayed && cmd == Pause) ? accent_col : bg_col;
-            bool activate = ImGui::ImageButton(nameTip.first, controlButtonTextureID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
+            bool activate = ImGui::ImageButton(nameTip.first, controlButtonTexID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
             activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
             activate |= cmd == Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
             if (activate) {
@@ -376,7 +405,7 @@ void GuidingViewerGUI::RenderThread() {
                 waveStart = 0;
                 renderState = Initial;
                 ClearFilm();
-                UpdateFramebufferFromFilm();
+                UpdateCPUFramebufferFromFilm();
                 continue;
             case Terminate:
                 std::cout << "Terminating rendering" << std::endl;
@@ -395,7 +424,7 @@ void GuidingViewerGUI::RenderThread() {
                 renderState = Rendering;
                 int waveEnd = waveStart + 1;
                 renderWave(waveStart);
-                UpdateFramebufferFromFilm();
+                UpdateCPUFramebufferFromFilm();
                 postprocessWave(waveEnd);
                 waveStart = waveEnd;
                 renderedSomething = true;
@@ -406,7 +435,7 @@ void GuidingViewerGUI::RenderThread() {
             while (waveStart < spp && wavesLeft > 0) {
                 --wavesLeft;
                 renderWave(waveStart++);
-                UpdateFramebufferFromFilm();
+                UpdateCPUFramebufferFromFilm();
                 postprocessWave(waveStart);
                 renderedSomething = true;
             }
@@ -419,15 +448,19 @@ void GuidingViewerGUI::RenderThread() {
 }
 
 void GuidingViewerGUI::DrawRendering() {
-    glViewport(0, statusBarHeight, resolution.x, resolution.y);
-    glClear(GL_COLOR_BUFFER_BIT);
-
     // Draw the current rendering result
-    glEnable(GL_FRAMEBUFFER_SRGB);
-    glRasterPos2f(-1, 1);
-
-    glPixelZoom(1, -1);
-    glDrawPixels(resolution.x, resolution.y, GL_RGB, GL_FLOAT, cpuFramebuffer);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(resolution.x, resolution.y));
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::Begin("Rendering", nullptr, flags);
+    if (shouldUpdateGPUFramebuffer) {
+        UpdateGPUFramebufferFromCPU();
+        shouldUpdateGPUFramebuffer = false;
+    }
+    ImGui::Image(renderingTexID, ImVec2(resolution.x, resolution.y));
+    ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 } // namespace pbrt
