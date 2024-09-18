@@ -48,6 +48,13 @@ public:
         None,
     };
 
+    enum SelectedChannel {
+        Channel_Radiance = 0,
+        Channel_CacheID,
+        Channel_Fluence,
+        Channel_CE,
+    };
+
 private:
     void RenderThread();
 
@@ -55,14 +62,15 @@ private:
 
     void UpdateGPUFramebufferFromCPU();
 
+    void Canvas();
+
     void Inspector();
 
     void StatusBar();
 
-    void DrawRendering();
-
     Camera camera;
     Film film;
+    const bool isMultiChannel;
     Vector2i resolution;
     Primitive aggregate;
     const int spp;
@@ -70,10 +78,17 @@ private:
     std::function<void(int waveStart)> renderWave;
     std::function<void(int waveEnd)> postprocessWave;
     std::function<void(int waveEnd)> saveImage;
-    RGB *cpuFramebuffer = nullptr;  // CPU framebuffer for display, written by the render thread, read by the GUI thread.
+    // CPU framebuffer for display, written by the render thread, read by the GUI thread.
+    struct {
+        RGB *radiance = nullptr;
+        RGB *cacheID = nullptr;
+        float *fluence = nullptr;
+        float *ce = nullptr;
+    } cpuFramebuffer;
 
+    int tabHeight = 0;
     constexpr static int inspectorWidth = 300, statusBarHeight = 30;
-    int windowWidth, windowHeight;
+    Vector2i windowSize;
 
     void* controlButtonTexID = nullptr;
     int controlButtonTexWidth = 0, controlButtonTexHeight = 0;
@@ -87,6 +102,8 @@ private:
     bool autoPlayed = false;
     int forwardWaves = 1;
     bool rayTracingPixel = false;
+
+    SelectedChannel selectedChannel = Channel_Radiance;
 };
 
 }

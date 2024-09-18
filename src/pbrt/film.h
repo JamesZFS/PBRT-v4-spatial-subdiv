@@ -467,7 +467,6 @@ class GuidedGBufferFilm : public FilmBase {
 
     PBRT_CPU_GPU void ResetPixel(Point2i p) { std::memset(&pixels[p], 0, sizeof(Pixel)); }
 
-  private:
     // GuidedGBufferFilm::Pixel Definition
     struct Pixel {
         Pixel() = default;
@@ -485,6 +484,10 @@ class GuidedGBufferFilm : public FilmBase {
         //double rgbAlbedoSum[3] = {0., 0., 0.};
         //VarianceEstimator<Float> rgbVariance[3];
     };
+
+    PBRT_CPU_GPU const Pixel &GetPixel(const Point2i &p) const { return pixels[p]; }
+
+  private:
 
     // GuidedGBufferFilm Private Members
     AnimatedTransform outputFromRender;
