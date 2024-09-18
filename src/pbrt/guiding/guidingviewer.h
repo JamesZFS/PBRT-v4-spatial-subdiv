@@ -51,7 +51,9 @@ public:
 private:
     void RenderThread();
 
-    void UpdateFramebufferFromFilm();
+    void UpdateCPUFramebufferFromFilm();
+
+    void UpdateGPUFramebufferFromCPU();
 
     void Inspector();
 
@@ -73,13 +75,15 @@ private:
     constexpr static int inspectorWidth = 300, statusBarHeight = 30;
     int windowWidth, windowHeight;
 
-    void* controlButtonTextureID = nullptr;
-    int controlButtonTextureWidth = 0, controlButtonTextureHeight = 0;
+    void* controlButtonTexID = nullptr;
+    int controlButtonTexWidth = 0, controlButtonTexHeight = 0;
+    void* renderingTexID = nullptr;
 
     std::mutex mtx;
     std::condition_variable cv;
     GUICommand command = None;
     RendererState renderState = Initial;
+    bool shouldUpdateGPUFramebuffer = false;
     bool autoPlayed = false;
     int forwardWaves = 1;
     bool rayTracingPixel = false;
