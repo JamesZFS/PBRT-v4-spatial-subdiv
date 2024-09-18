@@ -309,6 +309,7 @@ void GuidingViewerGUI::UpdateGPUFramebufferFromCPU() {
 void GuidingViewerGUI::Canvas() {
     // Draw the current rendering result
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove;
+    ImVec2 defaultPadding = ImGui::GetStyle().WindowPadding;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::SetNextWindowSize(ImVec2(resolution.x, tabHeight + resolution.y));
     ImGui::SetNextWindowPos(ImVec2(0, 0));
@@ -352,6 +353,17 @@ void GuidingViewerGUI::Canvas() {
     }
 
     ImGui::Image(renderingTexID, ImVec2(resolution.x, resolution.y));
+    if (rayTracingPixel && ImGui::IsItemHovered()) {  // Ray trace mouse position when hovering over the rendering
+        UpdateRayTracingResult();
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, defaultPadding);
+        if (rtResult.cacheId != -1 && ImGui::BeginTooltip()) {
+            ImGui::Text("Cache ID: %u", rtResult.cacheId);
+            ImGui::Text("Fluence: %f", rtResult.fluence);
+            ImGui::Text("CE: %f", rtResult.ce);
+            ImGui::EndTooltip();
+        }
+        ImGui::PopStyleVar();
+    }
 
     ImGui::End();
     ImGui::PopStyleVar();
@@ -363,7 +375,6 @@ void GuidingViewerGUI::Inspector() {
     ImGui::SetNextWindowPos(ImVec2(resolution.x, 0));
     ImGui::SetNextWindowBgAlpha(0.9f);
     ImGui::Begin("Inspector", nullptr, flags);
-    ImGuiIO& io = ImGui::GetIO();
 
     ImGui::SeparatorText("Playback Controls");
     {  // Control buttons
@@ -424,51 +435,17 @@ void GuidingViewerGUI::Inspector() {
         }
         ImGui::Checkbox("Ray Tracing Mouse Pixel", &rayTracingPixel);
         if (rayTracingPixel) {
-            bool hitSomething = false;
-            Point3f hit;
-            Normal3f normal;
-            Point2i pixel;
-            Point2f uv;
-            uint32_t cacheId = -1;
-            static openpgl::cpp::SurfaceSamplingDistribution ssd(field);
-            static ScratchBuffer scratchBuffer;
-            if (ImGui::IsMousePosValid()) {
-                pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y - tabHeight);
-                if (rayTracingPixel) {
-                    IndependentSampler _sampler(spp, 0);
-                    Sampler sampler(&_sampler);
-                    Filter filter = camera.GetFilm().GetFilter();
-                    CameraSample cameraSample = GetCameraSample(sampler, pixel, filter);
-                    SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
-                    auto cameraRay = camera.GenerateRayDifferential(cameraSample, lambda);
-                    if (cameraRay) {
-                        auto sit = scene.Intersect(cameraRay->ray);
-                        if (sit) {
-                            hitSomething = true;
-                            hit = cameraRay->ray(sit->tHit);
-                            normal = sit->intr.n;
-                            uv = sit->intr.uv;
-                            auto bsdf = sit->intr.GetBSDF(cameraRay->ray, lambda, camera, scratchBuffer, sampler);
-                            if (bsdf) {
-                                GuidedBSDF gbsdf(&sampler, field, &ssd, true, EGuideMIS);
-                                float rnd = 0.0f;
-                                if (gbsdf.init(&bsdf, cameraRay->ray, sit, rnd)) {
-                                    cacheId = gbsdf.getId();
-                                }
-                            }
-                            scratchBuffer.Reset();
-                        }
-                    }
-                }
-            }
-            if (hitSomething) {
-                ImGui::Text("Hit: (%.2f, %.2f, %.2f)", hit.x, hit.y, hit.z);
-                ImGui::Text("Normal: (%.2f, %.2f, %.2f)", normal.x, normal.y, normal.z);
-                ImGui::Text("UV: (%.2f, %.2f)", uv.x, uv.y);
-                if (cacheId == -1)
+            if (rtResult.valid) {
+                ImGui::Text("Hit: (%.2f, %.2f, %.2f)", rtResult.hit.x, rtResult.hit.y, rtResult.hit.z);
+                ImGui::Text("Normal: (%.2f, %.2f, %.2f)", rtResult.normal.x, rtResult.normal.y, rtResult.normal.z);
+                ImGui::Text("UV: (%.2f, %.2f)", rtResult.uv.x, rtResult.uv.y);
+                if (rtResult.cacheId == -1)
                     ImGui::Text("Cache ID: <invalid>");
-                else
-                    ImGui::Text("Cache ID: %u", cacheId);
+                else {
+                    ImGui::Text("Cache ID: %u", rtResult.cacheId);
+                    ImGui::Text("Fluence: %f", rtResult.fluence);
+                    ImGui::Text("CE: %f", rtResult.ce);
+                }
             } else {
                 ImGui::Text("No intersection");
             }
@@ -504,6 +481,47 @@ void GuidingViewerGUI::StatusBar() {
     ImGui::Text("%s | %.3f ms/frame (%.1f FPS) | %s", stateNames[renderState], 1000.0f / io.Framerate, io.Framerate, mouseInfo.c_str());
 
     ImGui::End();
+}
+
+void GuidingViewerGUI::UpdateRayTracingResult() {
+    rtResult.valid = false;
+    rtResult.cacheId = -1;
+    static openpgl::cpp::SurfaceSamplingDistribution ssd(field);
+    static ScratchBuffer scratchBuffer;
+    ImGuiIO &io = ImGui::GetIO();
+    if (ImGui::IsMousePosValid()) {
+        Point2i pixel((int) io.MousePos.x, (int) io.MousePos.y - tabHeight);
+        if (rayTracingPixel) {
+            IndependentSampler _sampler(spp, 0);
+            Sampler sampler(&_sampler);
+            Filter filter = camera.GetFilm().GetFilter();
+            CameraSample cameraSample = GetCameraSample(sampler, pixel, filter);
+            SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
+            auto cameraRay = camera.GenerateRayDifferential(cameraSample, lambda);
+            if (cameraRay) {
+                auto sit = scene.Intersect(cameraRay->ray);
+                if (sit) {
+                    // Intersection found
+                    rtResult.valid = true;
+                    rtResult.hit = cameraRay->ray(sit->tHit);
+                    rtResult.normal = sit->intr.n;
+                    rtResult.uv = sit->intr.uv;
+                    auto bsdf = sit->intr.GetBSDF(cameraRay->ray, lambda, camera, scratchBuffer, sampler);
+                    if (bsdf) {
+                        GuidedBSDF gbsdf(&sampler, field, &ssd, true, EGuideMIS);
+                        float rnd = 0.0f;
+                        if (gbsdf.init(&bsdf, cameraRay->ray, sit, rnd)) {
+                            // Guiding region available
+                            rtResult.cacheId = gbsdf.getId();
+                            rtResult.fluence = gbsdf.getFluence();
+                            rtResult.ce = gbsdf.getCE();
+                        }
+                    }
+                    scratchBuffer.Reset();
+                }
+            }
+        }
+    }
 }
 
 void GuidingViewerGUI::ClearFilm() {
