@@ -9,6 +9,12 @@
 #include <pbrt/scene.h>
 #include <pbrt/cameras.h>
 
+namespace openpgl {
+namespace cpp {
+    struct Field;
+}
+}
+
 namespace pbrt {
 
 void RenderGuidingViewer(BasicScene &scene);
@@ -16,7 +22,7 @@ void RenderGuidingViewer(BasicScene &scene);
 class GuidingViewerGUI {
 public:
     GuidingViewerGUI(
-        Camera camera, Primitive aggregate, int spp,
+        Camera camera, Primitive scene, openpgl::cpp::Field* field, int spp,
         const std::function<void(int waveStart)> &renderWave,
         const std::function<void(int waveEnd)> &postprocessWave,
         const std::function<void(int waveEnd)> &saveImage);
@@ -72,7 +78,8 @@ private:
     Film film;
     const bool isMultiChannel;
     Vector2i resolution;
-    Primitive aggregate;
+    Primitive scene;
+    openpgl::cpp::Field* field;
     const int spp;
     int waveStart;
     std::function<void(int waveStart)> renderWave;

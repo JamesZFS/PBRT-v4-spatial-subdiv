@@ -204,7 +204,7 @@ void GuidedPathIntegrator::Render() {
     }
 
     // Launch the GUI and render image in waves
-    GuidingViewerGUI gui(camera, aggregate, spp,
+    GuidingViewerGUI gui(camera, aggregate, guiding_field, spp,
         [&](int waveStart) {
             std::cout << "Rendering wave " << waveStart << std::endl;
             Timer pureRenderingTimer;

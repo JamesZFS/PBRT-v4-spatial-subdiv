@@ -28,6 +28,7 @@
 #include <pbrt/shapes.h>
 #include <pbrt/scene.h>
 #include "guidingviewer.h"
+#include "guiding.h"
 
 #define STBI_NO_PIC
 #define STBI_ASSERT CHECK
@@ -126,12 +127,12 @@ static std::vector<const char *> selectedChannelNames = {
 
 static std::string controlButtonTexPath = PBRT_ROOT_DIR "images/control_buttons.png";
 
-GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive aggregate, int spp,
+GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive scene, openpgl::cpp::Field* field, int spp,
                                    const std::function<void(int waveStart)> &renderWave,
                                    const std::function<void(int waveEnd)> &postprocessWave,
                                    const std::function<void(int waveEnd)> &saveImage)
     : camera(camera), film(camera.GetFilm()), isMultiChannel(film.Is<GuidedGBufferFilm>()),
-      aggregate(aggregate), spp(spp), waveStart(0),
+      scene(scene), field(field), spp(spp), waveStart(0),
       renderWave(renderWave), postprocessWave(postprocessWave), saveImage(saveImage) {
     Bounds2i pixelBounds = film.PixelBounds();
     resolution = pixelBounds.Diagonal();
@@ -393,6 +394,8 @@ void GuidingViewerGUI::Inspector() {
             bool activate = ImGui::ImageButton(nameTip.first, controlButtonTexID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
             activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
             activate |= cmd == Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
+            activate |= cmd == Restart && ImGui::IsKeyPressed(ImGuiKey_R, false);  // R key for Restart
+            activate |= cmd == Save && ImGui::IsKeyPressed(ImGuiKey_S, false);  // S key for Save
             if (activate) {
                 std::cout << "Command: " << nameTip.first << std::endl;
                 std::lock_guard lock(mtx);
@@ -414,7 +417,7 @@ void GuidingViewerGUI::Inspector() {
 
     ImGui::SeparatorText("Ray Tracing");
     {
-        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+        if (ImGui::IsKeyPressed(ImGuiKey_T, false)) {
             rayTracingPixel = !rayTracingPixel;
         }
         ImGui::Checkbox("Ray Tracing Mouse Pixel", &rayTracingPixel);
@@ -425,7 +428,7 @@ void GuidingViewerGUI::Inspector() {
             Point2i pixel;
             Point2f uv;
             if (ImGui::IsMousePosValid()) {
-                pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y);
+                pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y - tabHeight);
                 if (rayTracingPixel) {
                     IndependentSampler sampler(spp, 0);
                     Filter filter = camera.GetFilm().GetFilter();
@@ -433,7 +436,7 @@ void GuidingViewerGUI::Inspector() {
                     SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
                     auto cameraRay = camera.GenerateRay(cameraSample, lambda);
                     if (cameraRay) {
-                        auto sit = aggregate.Intersect(cameraRay->ray);
+                        auto sit = scene.Intersect(cameraRay->ray);
                         if (sit) {
                             valid = true;
                             hit = cameraRay->ray(sit->tHit);
@@ -479,11 +482,9 @@ void GuidingViewerGUI::StatusBar() {
 }
 
 void GuidingViewerGUI::ClearFilm() {
-    for (int x = 0; x < resolution.x; ++x) {
-        for (int y = 0; y < resolution.y; ++y) {
-            film.ResetPixel(Point2i(x, y));
-        }
-    }
+    ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
+        film.ResetPixel(p);
+    });
 }
 
 void GuidingViewerGUI::RenderThread() {
@@ -524,6 +525,7 @@ void GuidingViewerGUI::RenderThread() {
                 waveStart = 0;
                 renderState = Initial;
                 ClearFilm();
+                field->Reset();
                 UpdateCPUFramebufferFromFilm();
                 continue;
             case Terminate:
