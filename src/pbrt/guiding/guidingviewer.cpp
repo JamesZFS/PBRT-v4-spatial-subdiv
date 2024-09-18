@@ -80,27 +80,48 @@ static void UpdateTextureFromRGBData(GLuint image_texture, const pbrt::RGB *imag
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image_width, image_height, 0, GL_RGB, GL_FLOAT, image_data);
 }
 
+static void UpdateTextureFromFloatData(GLuint image_texture, const float *image_data, int image_width, int image_height)
+{
+    // Bind the texture
+    glBindTexture(GL_TEXTURE_2D, image_texture);
+
+    // Setup filtering parameters for display
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    // Upload pixels into texture
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, image_width, image_height, 0, GL_RED, GL_FLOAT, image_data);
+}
+
 static void glfw_error_callback(int error, const char *description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
 
 namespace pbrt {
 
-const static std::map<GuidingViewerGUI::GUICommand, std::pair<const char *, const char *>> commandNames = {
-    {GuidingViewerGUI::AutoPlay, {"AutoPlay", "Automatically resume the rendering"}},
-    {GuidingViewerGUI::Pause, {"Pause", "Pause the rendering"}},
-    {GuidingViewerGUI::Forward, {"Forward", "Render the next wave of samples"}},
-    {GuidingViewerGUI::Save, {"Save", "Save the current rendering"}},
-    {GuidingViewerGUI::Restart, {"Restart", "Restart rendering"}},
-    {GuidingViewerGUI::Terminate, {"Terminate", "Terminate rendering"}},
-    {GuidingViewerGUI::None, {"None", "No command"}},
+const static std::vector<std::pair<const char *, const char *>> commandNames = {
+    {"AutoPlay", "Automatically resume the rendering"},
+    {"Pause", "Pause the rendering"},
+    {"Forward", "Render the next wave of samples"},
+    {"Save", "Save the current rendering"},
+    {"Restart", "Restart rendering"},
+    {"Terminate", "Terminate rendering"},
+    {"None", "No command"},
 };
 
-static std::map<GuidingViewerGUI::RendererState, const char *> stateNames = {
-    {GuidingViewerGUI::Initial,   "Initial    "},
-    {GuidingViewerGUI::Rendering, "Rendering.."},
-    {GuidingViewerGUI::WaveEnd,   "Wave End   "},
-    {GuidingViewerGUI::Completed, "Completed! "},
+static std::vector<const char *> stateNames = {
+    "Initial    ",
+    "Rendering..",
+    "Wave End   ",
+    "Completed! ",
+};
+
+static std::vector<const char *> selectedChannelNames = {
+    "Radiance (1)",
+    "Cache ID (2)",
+    "Fluence (3)",
+    "CE (4)",
 };
 
 static std::string controlButtonTexPath = PBRT_ROOT_DIR "images/control_buttons.png";
@@ -109,19 +130,35 @@ GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive aggregate, int spp,
                                    const std::function<void(int waveStart)> &renderWave,
                                    const std::function<void(int waveEnd)> &postprocessWave,
                                    const std::function<void(int waveEnd)> &saveImage)
-    : camera(camera), film(camera.GetFilm()), aggregate(aggregate), spp(spp), waveStart(0),
+    : camera(camera), film(camera.GetFilm()), isMultiChannel(film.Is<GuidedGBufferFilm>()),
+      aggregate(aggregate), spp(spp), waveStart(0),
       renderWave(renderWave), postprocessWave(postprocessWave), saveImage(saveImage) {
     Bounds2i pixelBounds = film.PixelBounds();
     resolution = pixelBounds.Diagonal();
-    windowWidth = resolution.x + inspectorWidth, windowHeight = resolution.y + statusBarHeight;
+    if (isMultiChannel) {
+        tabHeight = 24;
+    }
+    windowSize = {resolution.x + inspectorWidth, tabHeight + resolution.y + statusBarHeight};
 
-    cpuFramebuffer = new RGB[resolution.x * resolution.y];
+    cpuFramebuffer.radiance = new RGB[resolution.x * resolution.y];
     for (int i = 0; i < resolution.x * resolution.y; ++i)
-        cpuFramebuffer[i] = RGB(0.0f, 0.0f, 0.0f);
+        cpuFramebuffer.radiance[i] = RGB(0.0f, 0.0f, 0.0f);
+    cpuFramebuffer.cacheID = new RGB[resolution.x * resolution.y];
+    for (int i = 0; i < resolution.x * resolution.y; ++i)
+        cpuFramebuffer.cacheID[i] = RGB(0.0f, 0.0f, 0.0f);
+    cpuFramebuffer.fluence = new float[resolution.x * resolution.y];
+    for (int i = 0; i < resolution.x * resolution.y; ++i)
+        cpuFramebuffer.fluence[i] = 0.0f;
+    cpuFramebuffer.ce = new float[resolution.x * resolution.y];
+    for (int i = 0; i < resolution.x * resolution.y; ++i)
+        cpuFramebuffer.ce[i] = 0.0f;
 }
 
 GuidingViewerGUI::~GuidingViewerGUI() {
-    delete[] cpuFramebuffer;
+    delete[] cpuFramebuffer.radiance;
+    delete[] cpuFramebuffer.cacheID;
+    delete[] cpuFramebuffer.fluence;
+    delete[] cpuFramebuffer.ce;
 }
 
 void GuidingViewerGUI::Launch() {
@@ -140,7 +177,7 @@ void GuidingViewerGUI::Launch() {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     // Create window with graphics context
-    GLFWwindow *window = glfwCreateWindow(windowWidth, windowHeight, "Guiding Viewer", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(windowSize.x, windowSize.y, "Guiding Viewer", nullptr, nullptr);
     if (window == nullptr) return;
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
@@ -165,7 +202,8 @@ void GuidingViewerGUI::Launch() {
     glGenTextures(1, reinterpret_cast<GLuint*>(&renderingTexID));
     UpdateGPUFramebufferFromCPU();
 
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    // ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
     // Main GUI loop
     while (!glfwWindowShouldClose(window)) {
@@ -185,7 +223,7 @@ void GuidingViewerGUI::Launch() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        DrawRendering();
+        Canvas();
         Inspector();
         StatusBar();
 
@@ -222,22 +260,103 @@ void GuidingViewerGUI::Launch() {
 }
 
 void GuidingViewerGUI::UpdateCPUFramebufferFromFilm() {
-    ParallelFor(0, resolution.x * resolution.y,
-        PBRT_CPU_GPU_LAMBDA(int index) {
-            Point2i p(index % resolution.x, index / resolution.x);
-            cpuFramebuffer[index] = 1 * film.GetPixelRGB(p + film.PixelBounds().pMin);
+    if (isMultiChannel) {
+        auto *gFilm = film.Cast<GuidedGBufferFilm>();
+        // Update all channels
+        ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
+            size_t index = (p.y - film.PixelBounds().pMin.y) * resolution.x + (p.x - film.PixelBounds().pMin.x);
+            auto &pixel = gFilm->GetPixel(p);
+            cpuFramebuffer.radiance[index] = gFilm->GetPixelRGB(p + film.PixelBounds().pMin);
+            if (pixel.guidingId != -1) {
+                IndependentSampler sampler(3, pixel.guidingId * pixel.guidingId);
+                sampler.StartPixelSample(Point2i(0, 0), 0, 0);
+                cpuFramebuffer.cacheID[index] = RGB(sampler.Get1D(), sampler.Get1D(), sampler.Get1D());
+            }
+            cpuFramebuffer.fluence[index] = pixel.fluence;
+            cpuFramebuffer.ce[index] = pixel.ce;
         });
+    } else {
+        ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
+            size_t index = (p.y - film.PixelBounds().pMin.y) * resolution.x + (p.x - film.PixelBounds().pMin.x);
+            cpuFramebuffer.radiance[index] = film.GetPixelRGB(p + film.PixelBounds().pMin);
+        });
+    }
+
     shouldUpdateGPUFramebuffer = true;
 }
 
 // This has to be called in the GUI thread
 void GuidingViewerGUI::UpdateGPUFramebufferFromCPU() {
-    UpdateTextureFromRGBData((GLuint) (uintptr_t) renderingTexID, cpuFramebuffer, resolution.x, resolution.y);
+    switch (selectedChannel) {
+        case Channel_Radiance:
+            UpdateTextureFromRGBData((GLuint) (uintptr_t) renderingTexID, cpuFramebuffer.radiance, resolution.x, resolution.y);
+            break;
+        case Channel_CacheID:
+            UpdateTextureFromRGBData((GLuint) (uintptr_t) renderingTexID, cpuFramebuffer.cacheID, resolution.x, resolution.y);
+            break;
+        case Channel_Fluence:
+            UpdateTextureFromFloatData((GLuint) (uintptr_t) renderingTexID, cpuFramebuffer.fluence, resolution.x, resolution.y);
+            break;
+        case Channel_CE:
+            UpdateTextureFromFloatData((GLuint) (uintptr_t) renderingTexID, cpuFramebuffer.ce, resolution.x, resolution.y);
+            break;
+    }
+}
+
+void GuidingViewerGUI::Canvas() {
+    // Draw the current rendering result
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove;
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::SetNextWindowSize(ImVec2(resolution.x, tabHeight + resolution.y));
+    ImGui::SetNextWindowPos(ImVec2(0, 0));
+    ImGui::Begin("Rendering", nullptr, flags);
+
+    // Add a channel selection bar for GuidedGBufferFilm
+    if (isMultiChannel) {
+        SelectedChannel newlySelectedChannel = selectedChannel;
+        if (ImGui::IsKeyPressed(ImGuiKey_1, false))
+            newlySelectedChannel = Channel_Radiance;
+        if (ImGui::IsKeyPressed(ImGuiKey_2, false))
+            newlySelectedChannel = Channel_CacheID;
+        if (ImGui::IsKeyPressed(ImGuiKey_3, false))
+            newlySelectedChannel = Channel_Fluence;
+        if (ImGui::IsKeyPressed(ImGuiKey_4, false))
+            newlySelectedChannel = Channel_CE;
+
+        if (ImGui::BeginTabBar("ChannelSelector")) {
+            for (int i = 0; i < selectedChannelNames.size(); ++i) {
+                if (newlySelectedChannel == i)
+                    ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.4f, 0.45f, 0.6f, 1.0f));
+                else
+                    ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.1f, 0.15f, 0.3f, 1.0f));
+                if (ImGui::TabItemButton(selectedChannelNames[i])) {
+                    newlySelectedChannel = (SelectedChannel) i;
+                }
+                ImGui::PopStyleColor();
+            }
+            ImGui::EndTabBar();
+        }
+
+        if (newlySelectedChannel != selectedChannel) {
+            selectedChannel = newlySelectedChannel;
+            shouldUpdateGPUFramebuffer = true;
+        }
+    }
+    // Possibly update the GPU framebuffer
+    if (shouldUpdateGPUFramebuffer) {
+        UpdateGPUFramebufferFromCPU();
+        shouldUpdateGPUFramebuffer = false;
+    }
+
+    ImGui::Image(renderingTexID, ImVec2(resolution.x, resolution.y));
+
+    ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 void GuidingViewerGUI::Inspector() {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
-    ImGui::SetNextWindowSize(ImVec2(inspectorWidth, windowHeight));
+    ImGui::SetNextWindowSize(ImVec2(inspectorWidth, windowSize.y));
     ImGui::SetNextWindowPos(ImVec2(resolution.x, 0));
     ImGui::SetNextWindowBgAlpha(0.9f);
     ImGui::Begin("Inspector", nullptr, flags);
@@ -269,7 +388,7 @@ void GuidingViewerGUI::Inspector() {
                 ImGui::SameLine();
             }
 
-            auto nameTip = commandNames.at(cmd);
+            auto nameTip = commandNames[cmd];
             ImVec4 color = (wasAutoPlayed && cmd == AutoPlay) || (!wasAutoPlayed && cmd == Pause) ? accent_col : bg_col;
             bool activate = ImGui::ImageButton(nameTip.first, controlButtonTexID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
             activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
@@ -340,7 +459,7 @@ void GuidingViewerGUI::Inspector() {
 void GuidingViewerGUI::StatusBar() {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav;
     ImGui::SetNextWindowSize(ImVec2(resolution.x, statusBarHeight));
-    ImGui::SetNextWindowPos(ImVec2(0, resolution.y));
+    ImGui::SetNextWindowPos(ImVec2(0, tabHeight + resolution.y));
     ImGui::SetNextWindowBgAlpha(0.6f);
 
     ImGui::Begin("StatusBar", nullptr, flags);
@@ -350,11 +469,11 @@ void GuidingViewerGUI::StatusBar() {
     Point2i pixel;
     if (ImGui::IsMousePosValid()) {
         pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y);
-        mouseInfo = StringPrintf("Pixel: (%d, %d)", pixel.x, pixel.y);
+        mouseInfo = StringPrintf("Mouse: (%d, %d)", pixel.x, pixel.y);
     }
     else
-        mouseInfo = "Pixel: <invalid>";
-    ImGui::Text("%s | %.3f ms/frame (%.1f FPS) | %s", stateNames.at(renderState), 1000.0f / io.Framerate, io.Framerate, mouseInfo.c_str());
+        mouseInfo = "Mouse: <invalid>";
+    ImGui::Text("%s | %.3f ms/frame (%.1f FPS) | %s", stateNames[renderState], 1000.0f / io.Framerate, io.Framerate, mouseInfo.c_str());
 
     ImGui::End();
 }
@@ -414,7 +533,7 @@ void GuidingViewerGUI::RenderThread() {
             case None:
                 break;
             default:
-                Error("Unexpected command \"%s\" in RenderThread", commandNames.at(oldCommand).first);
+                Error("Unexpected command \"%s\" in RenderThread", commandNames[oldCommand].first);
         }
 
         // Process AutoPlay, Pause, and Forward
@@ -445,22 +564,6 @@ void GuidingViewerGUI::RenderThread() {
         }
         renderState = WaveEnd;
     }
-}
-
-void GuidingViewerGUI::DrawRendering() {
-    // Draw the current rendering result
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(resolution.x, resolution.y));
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::Begin("Rendering", nullptr, flags);
-    if (shouldUpdateGPUFramebuffer) {
-        UpdateGPUFramebufferFromCPU();
-        shouldUpdateGPUFramebuffer = false;
-    }
-    ImGui::Image(renderingTexID, ImVec2(resolution.x, resolution.y));
-    ImGui::End();
-    ImGui::PopStyleVar();
 }
 
 } // namespace pbrt
