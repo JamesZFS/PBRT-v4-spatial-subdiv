@@ -74,6 +74,8 @@ private:
 
     void StatusBar();
 
+    void UpdateRayTracingResult();
+
     Camera camera;
     Film film;
     const bool isMultiChannel;
@@ -109,6 +111,17 @@ private:
     bool autoPlayed = false;
     int forwardWaves = 1;
     bool rayTracingPixel = false;
+
+    struct {
+        bool valid;
+        Point3f hit;
+        Normal3f normal;
+        Point2i pixel;
+        Point2f uv;
+        uint32_t cacheId;
+        float fluence;
+        float ce;
+    } rtResult;
 
     SelectedChannel selectedChannel = Channel_Radiance;
 };
