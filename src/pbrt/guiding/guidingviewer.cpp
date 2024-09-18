@@ -244,7 +244,7 @@ void GuidingViewerGUI::Launch() {
 
     // Terminate renderer
     {
-        std::lock_guard lock(mtx);
+        std::lock_guard lock(mtxCommand);
         command = Terminate;
         cv.notify_one();
     }
@@ -263,29 +263,72 @@ void GuidingViewerGUI::Launch() {
 }
 
 void GuidingViewerGUI::UpdateCPUFramebufferFromFilm() {
+    std::lock_guard lock(mtxCPUFramebuffer);
     if (isMultiChannel) {
         auto *gFilm = film.Cast<GuidedGBufferFilm>();
         // Update all channels
         ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
             size_t index = (p.y - film.PixelBounds().pMin.y) * resolution.x + (p.x - film.PixelBounds().pMin.x);
             auto &pixel = gFilm->GetPixel(p);
-            cpuFramebuffer.radiance[index] = gFilm->GetPixelRGB(p + film.PixelBounds().pMin);
+            float b = colormap[Channel_Radiance].bias;
+            cpuFramebuffer.radiance[index] = colormap[Channel_Radiance].scale * gFilm->GetPixelRGB(p) + RGB(b, b, b);
             if (pixel.guidingId != -1) {
                 IndependentSampler sampler(3, pixel.guidingId * pixel.guidingId);
                 sampler.StartPixelSample(Point2i(0, 0), 0, 0);
                 cpuFramebuffer.cacheID[index] = RGB(sampler.Get1D(), sampler.Get1D(), sampler.Get1D());
             }
-            cpuFramebuffer.fluence[index] = pixel.fluence;
-            cpuFramebuffer.ce[index] = pixel.ce;
+            cpuFramebuffer.fluence[index] = colormap[Channel_Fluence].scale * pixel.fluence + colormap[Channel_Fluence].bias;
+            cpuFramebuffer.ce[index] = colormap[Channel_CE].scale * pixel.ce + colormap[Channel_CE].bias;
         });
     } else {
         ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
             size_t index = (p.y - film.PixelBounds().pMin.y) * resolution.x + (p.x - film.PixelBounds().pMin.x);
-            cpuFramebuffer.radiance[index] = film.GetPixelRGB(p + film.PixelBounds().pMin);
+            float b = colormap[Channel_Radiance].bias;
+            cpuFramebuffer.radiance[index] = colormap[Channel_Radiance].scale * film.GetPixelRGB(p) + RGB(b, b, b);
         });
     }
 
     shouldUpdateGPUFramebuffer = true;
+}
+
+std::pair<float, float> GuidingViewerGUI::GetMinMaxFromFilm(SelectedChannel c) {
+    std::lock_guard lock(mtxCPUFramebuffer);
+    float minVal = std::numeric_limits<float>::infinity(), maxVal = -std::numeric_limits<float>::infinity();
+    if (isMultiChannel) {
+        auto *gFilm = film.Cast<GuidedGBufferFilm>();
+        for (int y = film.PixelBounds().pMin.y; y < film.PixelBounds().pMax.y; ++y) {
+            for (int x = film.PixelBounds().pMin.x; x < film.PixelBounds().pMax.x; ++x) {
+                auto &pixel = gFilm->GetPixel(Point2i(x, y));
+                float val;
+                switch (c) {
+                    case Channel_Radiance:
+                        val = gFilm->GetPixelRGB(Point2i(x, y)).Average();
+                        break;
+                    case Channel_Fluence:
+                        val = pixel.fluence;
+                        break;
+                    case Channel_CE:
+                        val = pixel.ce;
+                        break;
+                    case Channel_Count:
+                        break;
+                    default:
+                        Error("Unknown channel type %d", c);
+                }
+                minVal = std::min(minVal, val);
+                maxVal = std::max(maxVal, val);
+            }
+        }
+    } else {
+        for (int y = film.PixelBounds().pMin.y; y < film.PixelBounds().pMax.y; ++y) {
+            for (int x = film.PixelBounds().pMin.x; x < film.PixelBounds().pMax.x; ++x) {
+                float val = film.GetPixelRGB(Point2i(x, y)).Average();
+                minVal = std::min(minVal, val);
+                maxVal = std::max(maxVal, val);
+            }
+        }
+    }
+    return {minVal, maxVal};
 }
 
 // This has to be called in the GUI thread
@@ -328,7 +371,7 @@ void GuidingViewerGUI::Canvas() {
             newlySelectedChannel = Channel_CE;
 
         if (ImGui::BeginTabBar("ChannelSelector")) {
-            for (int i = 0; i < selectedChannelNames.size(); ++i) {
+            for (int i = 0; i < Channel_Count; ++i) {
                 if (newlySelectedChannel == i)
                     ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.4f, 0.45f, 0.6f, 1.0f));
                 else
@@ -407,11 +450,11 @@ void GuidingViewerGUI::Inspector() {
             bool activate = ImGui::ImageButton(nameTip.first, controlButtonTexID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
             activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
             activate |= cmd == Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
-            activate |= cmd == Restart && ImGui::IsKeyPressed(ImGuiKey_R, false);  // R key for Restart
+            activate |= cmd == Restart && ImGui::IsKeyPressed(ImGuiKey_F5, false);  // F5 key for Restart
             activate |= cmd == Save && ImGui::IsKeyPressed(ImGuiKey_S, false);  // S key for Save
             if (activate) {
                 std::cout << "Command: " << nameTip.first << std::endl;
-                std::lock_guard lock(mtx);
+                std::lock_guard lock(mtxCommand);
                 command = cmd;
                 cv.notify_one();  // Notify the render thread
             }
@@ -450,6 +493,27 @@ void GuidingViewerGUI::Inspector() {
                 ImGui::Text("No intersection");
             }
         }
+    }
+
+    if (selectedChannel != Channel_CacheID) {
+        ImGui::SeparatorText("Color Map");
+        ImGui::PushID(selectedChannel);
+        float oldScale = colormap[selectedChannel].scale, oldBias = colormap[selectedChannel].bias;
+        ImGui::InputFloat("Scale", &colormap[selectedChannel].scale, 0.1f, 1.0f);
+        ImGui::InputFloat("Bias", &colormap[selectedChannel].bias, 0.1f, 1.0f);
+        if (ImGui::Button("Reset") || ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+            colormap[selectedChannel].scale = 1.0f;
+            colormap[selectedChannel].bias = 0.0f;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Normalize") || ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+            auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
+            colormap[selectedChannel].scale = 1.0f / std::max(1e-6f, maxVal - minVal);
+            colormap[selectedChannel].bias = -minVal / std::max(1e-6f, maxVal - minVal);
+        }
+        if (renderState != Rendering && (oldScale != colormap[selectedChannel].scale || oldBias != colormap[selectedChannel].bias))
+            UpdateCPUFramebufferFromFilm();
+        ImGui::PopID();
     }
 
     ImGui::SeparatorText("Guiding");
@@ -539,7 +603,7 @@ void GuidingViewerGUI::RenderThread() {
     while (true) {
         if (!autoPlayed || waveStart == spp) {
             // Listen for commands from the GUI
-            std::unique_lock lock(mtx);
+            std::unique_lock lock(mtxCommand);
             cv.wait(lock, [this] { return command != None; });
         }
 
