@@ -26,13 +26,9 @@ public:
         const std::function<void(int waveStart)> &renderWave,
         const std::function<void(int waveEnd)> &postprocessWave,
         const std::function<void(int waveEnd)> &saveImage);
-
     ~GuidingViewerGUI();
-
     void Launch();  // The GUI runs in the main thread, while the rendering runs in a separate thread.
-
     int RenderedWaves() const { return waveStart; }
-
     void ClearFilm();
 
     enum RendererState {
@@ -62,21 +58,24 @@ public:
         Channel_Count,
     };
 
+    enum CMaps {
+        CMap_Cividis = 0,
+        CMap_Inferno,
+        CMap_Magma,
+        CMap_Plasma,
+        CMap_Viridis,
+        CMap_Count,
+    };
+
 private:
     void RenderThread();
-
     void UpdateCPUFramebufferFromFilm();
-
     void UpdateGPUFramebufferFromCPU();
-
+    void Tab();
     void Canvas();
-
     void Inspector();
-
     void StatusBar();
-
-    void UpdateRayTracingResult();
-
+    void UpdateRayCastingResult();
     std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c);
 
     Camera camera;
@@ -99,7 +98,7 @@ private:
     } cpuFramebuffer;
 
     int tabHeight = 0;
-    constexpr static int inspectorWidth = 300, statusBarHeight = 30;
+    constexpr static int inspectorWidth = 200, statusBarHeight = 30;
     Vector2i windowSize;
 
     void* controlButtonTexID = nullptr;
@@ -113,25 +112,27 @@ private:
     bool shouldUpdateGPUFramebuffer = false;
     bool autoPlayed = false;
     int forwardWaves = 1;
-    bool rayTracingPixel = false;
+    bool enableRayCasting = false;
 
     struct {
+        Point2i pixel;
         bool valid;
         Point3f hit;
         Normal3f normal;
-        Point2i pixel;
         Point2f uv;
         uint32_t cacheId;
         float fluence;
         float ce;
-    } rtResult;
+    } rcData;
 
     struct {
         float scale = 1.0f;
-        float bias = 0.0f;
-    } colormap[Channel_Count];
+        float offset = 0.0f;
+        bool tonemapped = false;
+    } shaderData[Channel_Count];
 
     SelectedChannel selectedChannel = Channel_Radiance;
+    CMaps selectedCMap = CMap_Viridis;
 };
 
 }

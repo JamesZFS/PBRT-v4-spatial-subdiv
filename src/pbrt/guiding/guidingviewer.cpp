@@ -19,6 +19,7 @@
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
 #endif
+#include <pbrt/util/shader.h>  // Will include glad
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
 #include <pbrt/cameras.h>
@@ -52,6 +53,8 @@ static bool LoadTextureFromFile(const char *filename, GLuint &out_texture, int &
     // Setup filtering parameters for display
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     // Upload pixels into texture
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -75,6 +78,8 @@ static void UpdateTextureFromRGBData(GLuint image_texture, const pbrt::RGB *imag
     // Setup filtering parameters for display
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     // Upload pixels into texture
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -97,6 +102,120 @@ static void UpdateTextureFromFloatData(GLuint image_texture, const float *image_
 
 static void glfw_error_callback(int error, const char *description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+}
+
+GLuint _vao_full_screen;
+Shader _image_tonemapped_shader;
+
+static const char* _cmap_names[pbrt::GuidingViewerGUI::CMap_Count] = {
+    "Cividis",
+    "Inferno",
+    "Magma",
+    "Plasma",
+    "Viridis"
+};
+static std::string _cmap_paths[pbrt::GuidingViewerGUI::CMap_Count] = {
+    PBRT_ROOT_DIR "images/cmaps/cividis.png",
+    PBRT_ROOT_DIR "images/cmaps/inferno.png",
+    PBRT_ROOT_DIR "images/cmaps/magma.png",
+    PBRT_ROOT_DIR "images/cmaps/plasma.png",
+    PBRT_ROOT_DIR "images/cmaps/viridis.png"
+};
+static GLuint _cmap_tex_ids[pbrt::GuidingViewerGUI::CMap_Count] = { 0 };
+enum TonemappingMode {
+    Mode_Original = 1,
+    Mode_Tonemapped = 2
+};
+
+static void InitializeTonemappedImageContext() {
+    //Create Quad covering the entire screen
+    struct Vertex {
+        float x, y, z;
+        float u, v;
+    };
+
+    int quad_indices[6] = { 0,1,2, 0,2,3 };
+    Vertex quad_vertices[4] = {
+        Vertex { -1.0f, -1.0f, 0.0f, 0.0f, 0.0f },
+        Vertex { 1.0f, -1.0f, 0.0f, 1.0f, 0.0f },
+        Vertex { 1.0f, 1.0f, 0.0f, 1.0f, 1.0f },
+        Vertex { -1.0f, 1.0f, 0.0f, 0.0f, 1.0f }
+    };
+
+    _image_tonemapped_shader = ShaderBuilder()
+        .addStage(GL_VERTEX_SHADER, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.vert")
+        .addStage(GL_FRAGMENT_SHADER, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag").build();
+        // .addStage(GL_VERTEX_SHADER, PBRT_ROOT_DIR "src/pbrt/shaders/debug.vert")
+        // .addStage(GL_FRAGMENT_SHADER, PBRT_ROOT_DIR "src/pbrt/shaders/debug.frag").build();
+
+    // Create vertex (vbo) and index (ibo) buffer objects and fill them with the data for the quad, this will be the only geometry we need.
+    GLuint vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(Vertex), quad_vertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    GLuint ibo;
+    glGenBuffers(1, &ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(int), quad_indices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    //Setup vertex array object so we dont have to mess with binding the buffers every time
+    glGenVertexArrays(1, &_vao_full_screen);
+    glBindVertexArray(_vao_full_screen);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+
+    // Enable pos and uv attributes
+    GLuint ind_pos = _image_tonemapped_shader.getAttributeLocation("pos");
+    GLuint ind_uv = _image_tonemapped_shader.getAttributeLocation("uv");
+    glEnableVertexAttribArray(ind_pos);
+    glEnableVertexAttribArray(ind_uv);
+    glVertexAttribPointer(ind_pos, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, x));
+    glVertexAttribPointer(ind_uv, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)offsetof(Vertex, u));
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    // Load cmaps
+    for (int i = 0; i < pbrt::GuidingViewerGUI::CMap_Count; i++) {
+        int width, height;
+        if (!LoadTextureFromFile(_cmap_paths[i].c_str(), _cmap_tex_ids[i], width, height))
+            pbrt::Error("Failed to load colormap %s from disk", _cmap_paths[i].c_str());
+        std::cout << "Loaded a " << width << "x" << height << " colormap from " << _cmap_paths[i] << std::endl;
+    }
+
+    std::cout << "Initialized tonemapped image context." << std::endl;
+}
+
+// Create an ImGui::Image-like region at the current cursor that displays image_tex_id tonemapped with cmap_tex_id, with the given size and UV coordinates
+static void DrawTonemappedImage(GLuint image_tex_id, GLuint cmap_tex_id,
+    ImVec2 screen_pos, ImVec2 image_size, ImVec2 window_size,
+    float scale, float offset, bool single_channel, bool tonemapped) {
+    glBindVertexArray(_vao_full_screen);
+    // ImVec2 cursor_min = ImGui::GetCursorScreenPos();
+    ImVec2 lower_left(screen_pos.x, window_size.y - screen_pos.y - image_size.y);
+    ImVec2 upper_right(lower_left.x + image_size.x, lower_left.y + image_size.y);
+    _image_tonemapped_shader.bind();
+    _image_tonemapped_shader.setUniform2f("lower_left", &lower_left.x);
+    _image_tonemapped_shader.setUniform2f("upper_right", &upper_right.x);
+    _image_tonemapped_shader.setUniform2f("window_size", &window_size.x);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, image_tex_id);
+    _image_tonemapped_shader.setUniform1i("image_tex", 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, cmap_tex_id);
+    _image_tonemapped_shader.setUniform1i("cmap_tex", 1);
+    _image_tonemapped_shader.setUniform1f("scale", scale);
+    _image_tonemapped_shader.setUniform1f("offset", offset);
+    _image_tonemapped_shader.setUniform1i("single_channel", single_channel);
+    _image_tonemapped_shader.setUniform1i("mode", tonemapped ? Mode_Tonemapped : Mode_Original);
+    // Render!
+    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(6), GL_UNSIGNED_INT, nullptr);
+    glBindVertexArray(0);
 }
 
 namespace pbrt {
@@ -171,10 +290,10 @@ void GuidingViewerGUI::Launch() {
         Error("Failed to initialize GLFW");
     }
 
-    // GL 3.0 + GLSL 130
-    const char *glsl_version = "#version 130";
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
+    // GL 4.1
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     // Create window with graphics context
@@ -182,6 +301,17 @@ void GuidingViewerGUI::Launch() {
     if (window == nullptr) return;
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Enable vsync
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        glfwTerminate();
+        std::cerr << "Could not initialize GLEW" << std::endl;
+        exit(1);
+    }
+
+    int glVersionMajor, glVersionMinor;
+    glGetIntegerv(GL_MAJOR_VERSION, &glVersionMajor);
+    glGetIntegerv(GL_MINOR_VERSION, &glVersionMinor);
+    std::cout << "Initialized OpenGL version " << glVersionMajor << "." << glVersionMinor << std::endl;
 
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -195,13 +325,14 @@ void GuidingViewerGUI::Launch() {
 
     // Setup Platform/Renderer backends
     ImGui_ImplGlfw_InitForOpenGL(window, true);
-    ImGui_ImplOpenGL3_Init(glsl_version);
+    ImGui_ImplOpenGL3_Init();
 
     if (!LoadTextureFromFile(controlButtonTexPath.c_str(), reinterpret_cast<GLuint&>(controlButtonTexID), controlButtonTexWidth, controlButtonTexHeight))
         Error("Failed to load control_texture.png from disk");
 
     glGenTextures(1, reinterpret_cast<GLuint*>(&renderingTexID));
     UpdateGPUFramebufferFromCPU();
+    InitializeTonemappedImageContext();
 
     // ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -224,16 +355,19 @@ void GuidingViewerGUI::Launch() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        Canvas();
-        Inspector();
-        StatusBar();
-
         // GUI Render
         int display_w, display_h;
         glfwGetFramebufferSize(window, &display_w, &display_h);
         glViewport(0, 0, display_w, display_h);
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(10, 10));
+        Tab();
+        Canvas();
+        Inspector();
+        StatusBar();
+        ImGui::PopStyleVar();
 
         // Draw GUI
         ImGui::Render();
@@ -270,21 +404,19 @@ void GuidingViewerGUI::UpdateCPUFramebufferFromFilm() {
         ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
             size_t index = (p.y - film.PixelBounds().pMin.y) * resolution.x + (p.x - film.PixelBounds().pMin.x);
             auto &pixel = gFilm->GetPixel(p);
-            float b = colormap[Channel_Radiance].bias;
-            cpuFramebuffer.radiance[index] = colormap[Channel_Radiance].scale * gFilm->GetPixelRGB(p) + RGB(b, b, b);
+            cpuFramebuffer.radiance[index] = gFilm->GetPixelRGB(p);
             if (pixel.guidingId != -1) {
                 IndependentSampler sampler(3, pixel.guidingId * pixel.guidingId);
                 sampler.StartPixelSample(Point2i(0, 0), 0, 0);
                 cpuFramebuffer.cacheID[index] = RGB(sampler.Get1D(), sampler.Get1D(), sampler.Get1D());
             }
-            cpuFramebuffer.fluence[index] = colormap[Channel_Fluence].scale * pixel.fluence + colormap[Channel_Fluence].bias;
-            cpuFramebuffer.ce[index] = colormap[Channel_CE].scale * pixel.ce + colormap[Channel_CE].bias;
+            cpuFramebuffer.fluence[index] = pixel.fluence;
+            cpuFramebuffer.ce[index] = pixel.ce;
         });
     } else {
         ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
             size_t index = (p.y - film.PixelBounds().pMin.y) * resolution.x + (p.x - film.PixelBounds().pMin.x);
-            float b = colormap[Channel_Radiance].bias;
-            cpuFramebuffer.radiance[index] = colormap[Channel_Radiance].scale * film.GetPixelRGB(p) + RGB(b, b, b);
+            cpuFramebuffer.radiance[index] = film.GetPixelRGB(p);
         });
     }
 
@@ -349,17 +481,14 @@ void GuidingViewerGUI::UpdateGPUFramebufferFromCPU() {
     }
 }
 
-void GuidingViewerGUI::Canvas() {
-    // Draw the current rendering result
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove;
-    ImVec2 defaultPadding = ImGui::GetStyle().WindowPadding;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::SetNextWindowSize(ImVec2(resolution.x, tabHeight + resolution.y));
-    ImGui::SetNextWindowPos(ImVec2(0, 0));
-    ImGui::Begin("Rendering", nullptr, flags);
-
+void GuidingViewerGUI::Tab() {
     // Add a channel selection bar for GuidedGBufferFilm
     if (isMultiChannel) {
+        ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove;
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::SetNextWindowSize(ImVec2(resolution.x, tabHeight));
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::Begin("Tab", nullptr, flags);
         SelectedChannel newlySelectedChannel = selectedChannel;
         if (ImGui::IsKeyPressed(ImGuiKey_1, false))
             newlySelectedChannel = Channel_Radiance;
@@ -388,31 +517,45 @@ void GuidingViewerGUI::Canvas() {
             selectedChannel = newlySelectedChannel;
             shouldUpdateGPUFramebuffer = true;
         }
+
+        ImGui::End();
+        ImGui::PopStyleVar();
     }
+}
+
+void GuidingViewerGUI::Canvas() {
     // Possibly update the GPU framebuffer
     if (shouldUpdateGPUFramebuffer) {
         UpdateGPUFramebufferFromCPU();
         shouldUpdateGPUFramebuffer = false;
     }
 
-    ImGui::Image(renderingTexID, ImVec2(resolution.x, resolution.y));
-    if (rayTracingPixel && ImGui::IsItemHovered()) {  // Ray trace mouse position when hovering over the rendering
-        UpdateRayTracingResult();
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, defaultPadding);
-        if (rtResult.cacheId != -1 && ImGui::BeginTooltip()) {
-            ImGui::Text("Cache ID: %u", rtResult.cacheId);
-            ImGui::Text("Fluence: %f", rtResult.fluence);
-            ImGui::Text("CE: %f", rtResult.ce);
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove;
+    ImGui::SetNextWindowSize(ImVec2(resolution.x, resolution.y));
+    ImGui::SetNextWindowPos(ImVec2(0, tabHeight));
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::Begin("Canvas", nullptr, flags);
+
+    auto &sd = shaderData[selectedChannel];
+    DrawTonemappedImage((GLuint) (uintptr_t) renderingTexID, _cmap_tex_ids[selectedCMap],
+        ImVec2(0, tabHeight), ImVec2(resolution.x, resolution.y), ImVec2(windowSize.x, windowSize.y),
+        sd.scale, sd.offset, selectedChannel > Channel_CacheID, sd.tonemapped);
+
+    if (enableRayCasting && ImGui::IsWindowHovered()) {  // Ray trace mouse position when hovering over the rendering
+        UpdateRayCastingResult();
+        if (rcData.cacheId != -1 && ImGui::BeginTooltip()) {
+            ImGui::Text("Cache ID: %u", rcData.cacheId);
+            ImGui::Text("Fluence: %f", rcData.fluence);
+            ImGui::Text("CE: %f", rcData.ce);
             ImGui::EndTooltip();
         }
-        ImGui::PopStyleVar();
     }
 
     ImGui::End();
-    ImGui::PopStyleVar();
 }
 
 void GuidingViewerGUI::Inspector() {
+    ImGuiIO &io = ImGui::GetIO();
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
     ImGui::SetNextWindowSize(ImVec2(inspectorWidth, windowSize.y));
     ImGui::SetNextWindowPos(ImVec2(resolution.x, 0));
@@ -451,7 +594,7 @@ void GuidingViewerGUI::Inspector() {
             activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
             activate |= cmd == Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
             activate |= cmd == Restart && ImGui::IsKeyPressed(ImGuiKey_F5, false);  // F5 key for Restart
-            activate |= cmd == Save && ImGui::IsKeyPressed(ImGuiKey_S, false);  // S key for Save
+            activate |= cmd == Save && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);  // Ctrl + S for Save
             if (activate) {
                 std::cout << "Command: " << nameTip.first << std::endl;
                 std::lock_guard lock(mtxCommand);
@@ -471,23 +614,25 @@ void GuidingViewerGUI::Inspector() {
 
     ImGui::ProgressBar((float) waveStart / (float) spp, {ImGui::GetColumnWidth(), 0}, waveStart == spp ? "Done" : StringPrintf("%d/%d SPP", waveStart, spp).c_str());
 
-    ImGui::SeparatorText("Ray Tracing");
+    ImGui::SeparatorText("Ray Casting");
     {
-        if (ImGui::IsKeyPressed(ImGuiKey_T, false)) {
-            rayTracingPixel = !rayTracingPixel;
+        if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
+            enableRayCasting = !enableRayCasting;
         }
-        ImGui::Checkbox("Ray Tracing Mouse Pixel", &rayTracingPixel);
-        if (rayTracingPixel) {
-            if (rtResult.valid) {
-                ImGui::Text("Hit: (%.2f, %.2f, %.2f)", rtResult.hit.x, rtResult.hit.y, rtResult.hit.z);
-                ImGui::Text("Normal: (%.2f, %.2f, %.2f)", rtResult.normal.x, rtResult.normal.y, rtResult.normal.z);
-                ImGui::Text("UV: (%.2f, %.2f)", rtResult.uv.x, rtResult.uv.y);
-                if (rtResult.cacheId == -1)
+        ImGui::Checkbox("Ray Casting Mouse Pixel", &enableRayCasting);
+        if (enableRayCasting) {
+            if (rcData.valid) {
+                auto radiance = film.GetPixelRGB(rcData.pixel);
+                ImGui::Text("Radiance: (%.2f, %.2f, %.2f)", radiance.r, radiance.g, radiance.b);
+                ImGui::Text("Hit: (%.2f, %.2f, %.2f)", rcData.hit.x, rcData.hit.y, rcData.hit.z);
+                ImGui::Text("Normal: (%.2f, %.2f, %.2f)", rcData.normal.x, rcData.normal.y, rcData.normal.z);
+                ImGui::Text("UV: (%.2f, %.2f)", rcData.uv.x, rcData.uv.y);
+                if (rcData.cacheId == -1)
                     ImGui::Text("Cache ID: <invalid>");
                 else {
-                    ImGui::Text("Cache ID: %u", rtResult.cacheId);
-                    ImGui::Text("Fluence: %f", rtResult.fluence);
-                    ImGui::Text("CE: %f", rtResult.ce);
+                    ImGui::Text("Cache ID: %u", rcData.cacheId);
+                    ImGui::Text("Fluence: %f", rcData.fluence);
+                    ImGui::Text("CE: %f", rcData.ce);
                 }
             } else {
                 ImGui::Text("No intersection");
@@ -498,21 +643,32 @@ void GuidingViewerGUI::Inspector() {
     if (selectedChannel != Channel_CacheID) {
         ImGui::SeparatorText("Color Map");
         ImGui::PushID(selectedChannel);
-        float oldScale = colormap[selectedChannel].scale, oldBias = colormap[selectedChannel].bias;
-        ImGui::InputFloat("Scale", &colormap[selectedChannel].scale, 0.1f, 1.0f);
-        ImGui::InputFloat("Bias", &colormap[selectedChannel].bias, 0.1f, 1.0f);
+        if (ImGui::IsKeyPressed(ImGuiKey_E)) {
+            if (!io.KeyShift) {
+                shaderData[selectedChannel].scale *= 1.1f;
+            } else {
+                shaderData[selectedChannel].scale /= 1.1f;
+            }
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_M)) {
+            shaderData[selectedChannel].tonemapped ^= true;
+        }
+        ImGui::InputFloat("Scale", &shaderData[selectedChannel].scale, 0.1f, 1.0f);
+        ImGui::InputFloat("Offset", &shaderData[selectedChannel].offset, 0.1f, 1.0f);
         if (ImGui::Button("Reset") || ImGui::IsKeyPressed(ImGuiKey_R, false)) {
-            colormap[selectedChannel].scale = 1.0f;
-            colormap[selectedChannel].bias = 0.0f;
+            shaderData[selectedChannel].scale = 1.0f;
+            shaderData[selectedChannel].offset = 0.0f;
         }
         ImGui::SameLine();
         if (ImGui::Button("Normalize") || ImGui::IsKeyPressed(ImGuiKey_N, false)) {
             auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
-            colormap[selectedChannel].scale = 1.0f / std::max(1e-6f, maxVal - minVal);
-            colormap[selectedChannel].bias = -minVal / std::max(1e-6f, maxVal - minVal);
+            shaderData[selectedChannel].scale = 1.0f / std::max(1e-6f, maxVal - minVal);
+            shaderData[selectedChannel].offset = -minVal;
         }
-        if (renderState != Rendering && (oldScale != colormap[selectedChannel].scale || oldBias != colormap[selectedChannel].bias))
-            UpdateCPUFramebufferFromFilm();
+        ImGui::SetNextItemWidth(80);
+        ImGui::Combo("Color Map", reinterpret_cast<int*>(&selectedCMap), _cmap_names, CMap_Count);
+        ImGui::SameLine();
+        ImGui::Checkbox("", &shaderData[selectedChannel].tonemapped);
         ImGui::PopID();
     }
 
@@ -535,10 +691,8 @@ void GuidingViewerGUI::StatusBar() {
 
     ImGuiIO &io = ImGui::GetIO();
     std::string mouseInfo;
-    Point2i pixel;
     if (ImGui::IsMousePosValid()) {
-        pixel = Point2i((int) io.MousePos.x, (int) io.MousePos.y);
-        mouseInfo = StringPrintf("Mouse: (%d, %d)", pixel.x, pixel.y);
+        mouseInfo = StringPrintf("Mouse: (%d, %d)", (int) io.MousePos.x, (int) io.MousePos.y);
     }
     else
         mouseInfo = "Mouse: <invalid>";
@@ -547,38 +701,38 @@ void GuidingViewerGUI::StatusBar() {
     ImGui::End();
 }
 
-void GuidingViewerGUI::UpdateRayTracingResult() {
-    rtResult.valid = false;
-    rtResult.cacheId = -1;
+void GuidingViewerGUI::UpdateRayCastingResult() {
+    rcData.valid = false;
+    rcData.cacheId = -1;
     static openpgl::cpp::SurfaceSamplingDistribution ssd(field);
     static ScratchBuffer scratchBuffer;
     ImGuiIO &io = ImGui::GetIO();
     if (ImGui::IsMousePosValid()) {
-        Point2i pixel((int) io.MousePos.x, (int) io.MousePos.y - tabHeight);
-        if (rayTracingPixel) {
+        rcData.pixel = {(int) io.MousePos.x, (int) io.MousePos.y - tabHeight};
+        if (enableRayCasting) {
             IndependentSampler _sampler(spp, 0);
             Sampler sampler(&_sampler);
             Filter filter = camera.GetFilm().GetFilter();
-            CameraSample cameraSample = GetCameraSample(sampler, pixel, filter);
+            CameraSample cameraSample = GetCameraSample(sampler, rcData.pixel, filter);
             SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
             auto cameraRay = camera.GenerateRayDifferential(cameraSample, lambda);
             if (cameraRay) {
                 auto sit = scene.Intersect(cameraRay->ray);
                 if (sit) {
                     // Intersection found
-                    rtResult.valid = true;
-                    rtResult.hit = cameraRay->ray(sit->tHit);
-                    rtResult.normal = sit->intr.n;
-                    rtResult.uv = sit->intr.uv;
+                    rcData.valid = true;
+                    rcData.hit = cameraRay->ray(sit->tHit);
+                    rcData.normal = sit->intr.n;
+                    rcData.uv = sit->intr.uv;
                     auto bsdf = sit->intr.GetBSDF(cameraRay->ray, lambda, camera, scratchBuffer, sampler);
                     if (bsdf) {
                         GuidedBSDF gbsdf(&sampler, field, &ssd, true, EGuideMIS);
                         float rnd = 0.0f;
                         if (gbsdf.init(&bsdf, cameraRay->ray, sit, rnd)) {
                             // Guiding region available
-                            rtResult.cacheId = gbsdf.getId();
-                            rtResult.fluence = gbsdf.getFluence();
-                            rtResult.ce = gbsdf.getCE();
+                            rcData.cacheId = gbsdf.getId();
+                            rcData.fluence = gbsdf.getFluence();
+                            rcData.ce = gbsdf.getCE();
                         }
                     }
                     scratchBuffer.Reset();
