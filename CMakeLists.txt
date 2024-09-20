@@ -693,6 +693,7 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/string.cpp
   src/pbrt/util/transform.cpp
   src/pbrt/util/vecmath.cpp
+  src/pbrt/util/shader.cpp
 )
 
 SET (PBRT_UTIL_SOURCE_HEADERS
