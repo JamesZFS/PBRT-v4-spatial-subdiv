@@ -650,6 +650,7 @@ SET (PBRT_WAVEFRONT_SOURCE_HEADERS
 if (PBRT_BUILD_GUIDING_VIEWER)
 SET (PBRT_GUIDING_VIEWER_SOURCE
         src/pbrt/guiding/guidingviewer.cpp
+        src/pbrt/guiding/helper.cpp
 )
 else ()
 SET (PBRT_GUIDING_VIEWER_SOURCE)
