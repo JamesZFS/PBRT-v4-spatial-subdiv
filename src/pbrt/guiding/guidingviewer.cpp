@@ -73,7 +73,6 @@ static void UpdateTextureFromRGBData(GLuint image_texture, const pbrt::RGB *imag
 {
     // Bind the texture
     glBindTexture(GL_TEXTURE_2D, image_texture);
-    glEnable(GL_FRAMEBUFFER_SRGB);
 
     // Setup filtering parameters for display
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -83,7 +82,8 @@ static void UpdateTextureFromRGBData(GLuint image_texture, const pbrt::RGB *imag
 
     // Upload pixels into texture
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image_width, image_height, 0, GL_RGB, GL_FLOAT, image_data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, image_width, image_height, 0, GL_RGB, GL_FLOAT, image_data);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 static void UpdateTextureFromFloatData(GLuint image_texture, const float *image_data, int image_width, int image_height)
@@ -94,10 +94,13 @@ static void UpdateTextureFromFloatData(GLuint image_texture, const float *image_
     // Setup filtering parameters for display
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
     // Upload pixels into texture
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, image_width, image_height, 0, GL_RED, GL_FLOAT, image_data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, image_width, image_height, 0, GL_RED, GL_FLOAT, image_data);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 static void glfw_error_callback(int error, const char *description) {
@@ -191,7 +194,7 @@ static void InitializeTonemappedImageContext() {
     std::cout << "Initialized tonemapped image context." << std::endl;
 }
 
-// Create an ImGui::Image-like region at the current cursor that displays image_tex_id tonemapped with cmap_tex_id, with the given size and UV coordinates
+// Create an ImGui::Image-like region at the screen_pos that displays image_tex_id tonemapped with cmap_tex_id, with the given size and UV coordinates
 static void DrawTonemappedImage(GLuint image_tex_id, GLuint cmap_tex_id,
     ImVec2 screen_pos, ImVec2 image_size, ImVec2 window_size,
     float scale, float offset, bool single_channel, bool tonemapped) {
@@ -237,7 +240,7 @@ static std::vector<const char *> stateNames = {
     "Completed! ",
 };
 
-static std::vector<const char *> selectedChannelNames = {
+static std::vector<const char *> channelNames = {
     "Radiance (1)",
     "Cache ID (2)",
     "Fluence (3)",
@@ -333,6 +336,7 @@ void GuidingViewerGUI::Launch() {
     glGenTextures(1, reinterpret_cast<GLuint*>(&renderingTexID));
     UpdateGPUFramebufferFromCPU();
     InitializeTonemappedImageContext();
+    glEnable(GL_FRAMEBUFFER_SRGB);
 
     // ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -505,7 +509,7 @@ void GuidingViewerGUI::Tab() {
                     ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.4f, 0.45f, 0.6f, 1.0f));
                 else
                     ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.1f, 0.15f, 0.3f, 1.0f));
-                if (ImGui::TabItemButton(selectedChannelNames[i])) {
+                if (ImGui::TabItemButton(channelNames[i])) {
                     newlySelectedChannel = (SelectedChannel) i;
                 }
                 ImGui::PopStyleColor();
@@ -665,10 +669,12 @@ void GuidingViewerGUI::Inspector() {
             shaderData[selectedChannel].scale = 1.0f / std::max(1e-6f, maxVal - minVal);
             shaderData[selectedChannel].offset = -minVal;
         }
-        ImGui::SetNextItemWidth(80);
-        ImGui::Combo("Color Map", reinterpret_cast<int*>(&selectedCMap), _cmap_names, CMap_Count);
+        ImGui::SetNextItemWidth(90);
+        ImGui::Combo("Tonemap", reinterpret_cast<int*>(&selectedCMap), _cmap_names, CMap_Count);
         ImGui::SameLine();
-        ImGui::Checkbox("", &shaderData[selectedChannel].tonemapped);
+        ImGui::Checkbox("##check_tonemap", &shaderData[selectedChannel].tonemapped);
+        if (shaderData[selectedChannel].tonemapped)
+            ImGui::Image((void*) (uintptr_t) _cmap_tex_ids[selectedCMap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
         ImGui::PopID();
     }
 

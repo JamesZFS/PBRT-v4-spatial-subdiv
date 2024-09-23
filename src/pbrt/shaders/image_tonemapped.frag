@@ -23,7 +23,6 @@ void main()
 	vec3 color = texture(image_tex, uv).rgb;
 	// Linear transformation
 	color = scale * (color + offset);
-	color = clamp(color, 0, 1);
 
 	if (mode == 1) {  // no tonemapping
 		if (single_channel == 1)
