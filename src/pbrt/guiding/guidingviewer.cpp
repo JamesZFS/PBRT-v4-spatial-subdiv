@@ -561,25 +561,41 @@ void GuidingViewerGUI::UpdateRayCastingResult() {
             SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
             auto cameraRay = camera.GenerateRayDifferential(cameraSample, lambda);
             if (cameraRay) {
-                auto sit = scene.Intersect(cameraRay->ray);
-                if (sit) {
-                    // Intersection found
-                    rcData.valid = true;
-                    rcData.hit = cameraRay->ray(sit->tHit);
-                    rcData.normal = sit->intr.n;
-                    rcData.uv = sit->intr.uv;
-                    auto bsdf = sit->intr.GetBSDF(cameraRay->ray, lambda, camera, scratchBuffer, sampler);
-                    if (bsdf) {
+                RayDifferential ray = cameraRay->ray;
+                while (true) {
+                    auto sit = scene.Intersect(ray);
+                    if (!sit) break;
+                    auto bsdf = sit->intr.GetBSDF(ray, lambda, camera, scratchBuffer, sampler);
+                    if (!bsdf) {
+                        sit->intr.SkipIntersection(&ray, sit->tHit);
+                        continue;
+                    }
+                    auto flags = bsdf.Flags();
+                    if (IsSpecular(flags)) {
+                        BxDFReflTransFlags sFlags = IsTransmissive(flags) ? BxDFReflTransFlags::Transmission : BxDFReflTransFlags::Reflection;
+                        auto bs = bsdf.Sample_f(-ray.d, 0, {0, 0}, TransportMode::Radiance, sFlags);
+                        if (!bs) break;
+                        // ray = sit->intr.SpawnRay(ray, bsdf, bs->wi, bs->flags, bs->eta);
+                        ray = sit->intr.SpawnRay(bs->wi);  // Continue tracing
+                    } else {
+                        // Found a diffuse surface, Good!
+                        // Intersection found
+                        rcData.valid = true;
+                        rcData.hit = ray(sit->tHit);
+                        rcData.normal = sit->intr.n;
+                        rcData.uv = sit->intr.uv;
+                        // Query the guiding cache
                         GuidedBSDF gbsdf(&sampler, field, &ssd, true, EGuideMIS);
                         float rnd = 0.0f;
-                        if (gbsdf.init(&bsdf, cameraRay->ray, sit, rnd)) {
+                        if (gbsdf.init(&bsdf, ray, sit, rnd)) {
                             // Guiding region available
                             rcData.cacheId = gbsdf.getId();
                             rcData.fluence = gbsdf.getFluence();
                             rcData.ce = gbsdf.getCE();
                         }
+                        scratchBuffer.Reset();
+                        break;
                     }
-                    scratchBuffer.Reset();
                 }
             }
         }
