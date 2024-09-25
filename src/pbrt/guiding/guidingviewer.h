@@ -75,7 +75,8 @@ private:
     void Canvas();
     void Inspector();
     void StatusBar();
-    void CacheCurves();
+    void ColormapNode();
+    void CacheCurvesNode();
     void UpdateRayCastingResult();
     void ResetCECurves();
     void AppendToCECurves();
@@ -134,6 +135,7 @@ private:
         float scale = 1.0f;
         float offset = 0.0f;
         bool tonemapped = false;
+        bool firstNormalized = false;
     } shaderData[Channel_Count];
 
     SelectedChannel selectedChannel = Channel_Radiance;

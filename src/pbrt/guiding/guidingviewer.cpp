@@ -96,6 +96,9 @@ GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive scene, openpgl::cpp:
     cpuFramebuffer.ce = new float[resolution.x * resolution.y];
     for (int i = 0; i < resolution.x * resolution.y; ++i)
         cpuFramebuffer.ce[i] = 0.0f;
+
+    shaderData[Channel_Radiance].firstNormalized = true;
+    shaderData[Channel_CacheID].firstNormalized = true;
 }
 
 GuidingViewerGUI::~GuidingViewerGUI() {
@@ -210,7 +213,7 @@ std::pair<float, float> GuidingViewerGUI::GetMinMaxFromFilm(SelectedChannel c) {
                     case Channel_Count:
                         break;
                     default:
-                        Error("Unknown channel type %d", c);
+                        Error("Unknown channel type %d", (int) c);
                 }
                 minVal = std::min(minVal, val);
                 maxVal = std::max(maxVal, val);
@@ -437,46 +440,8 @@ void GuidingViewerGUI::Inspector() {
         ImGui::TreePop();
     }
 
-    bool disableColorMap = selectedChannel == Channel_CacheID;
-    ImGui::BeginDisabled(disableColorMap);
-    if (ImGui::TreeNode("Color Map")) {
-        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_E)) {
-            if (!io.KeyShift) {
-                shaderData[selectedChannel].scale *= 1.1f;
-            } else {
-                shaderData[selectedChannel].scale /= 1.1f;
-            }
-        }
-        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_M)) {
-            shaderData[selectedChannel].tonemapped ^= true;
-        }
-        ImGui::InputFloat("Scale", &shaderData[selectedChannel].scale, 0.1f, 1.0f);
-        ImGui::InputFloat("Offset", &shaderData[selectedChannel].offset, 0.1f, 1.0f);
-        if (ImGui::Button("Reset") || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_R, false))) {
-            shaderData[selectedChannel].scale = 1.0f;
-            shaderData[selectedChannel].offset = 0.0f;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Normalize") || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_N, false))) {
-            auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
-            shaderData[selectedChannel].scale = 1.0f / std::max(1e-6f, maxVal - minVal);
-            shaderData[selectedChannel].offset = -minVal;
-        }
-        ImGui::SetNextItemWidth(90);
-        ImGui::Combo("Tonemap", reinterpret_cast<int*>(&selectedCMap), cmap_names, CMap_Count);
-        ImGui::SameLine();
-        ImGui::Checkbox("##check_tonemap", &shaderData[selectedChannel].tonemapped);
-        if (shaderData[selectedChannel].tonemapped)
-            ImGui::Image((void*) (uintptr_t) cmap_tex_ids[selectedCMap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
-        ImGui::TreePop();
-    }
-    ImGui::EndDisabled();
-
-    cacheCurvesNodeOpened = ImGui::TreeNode("Cache Curves");
-    if (cacheCurvesNodeOpened) {
-        CacheCurves();
-        ImGui::TreePop();
-    }
+    ColormapNode();
+    CacheCurvesNode();
 
     ImGui::SeparatorText("Spatial Subdivision");
     {}
@@ -505,23 +470,77 @@ void GuidingViewerGUI::StatusBar() {
     ImGui::End();
 }
 
-void GuidingViewerGUI::CacheCurves() {
-    ImGui::BulletText("Left click canvas to insert a guiding cache probe");
-    ImGui::BulletText("Right click a probe to remove it");
-
-    ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
-    if (ImPlot::BeginPlot("CE vs. Iter", ImVec2(-1, 200))) {
-        std::lock_guard lock(mtxCECurves);
-        ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
-        for (const auto &[id, curve] : ceCurves) if (curve.active) {
-            auto &data = curve.data;
-            ImPlot::PlotLine(std::to_string(id).c_str(), &data[0].x, &data[0].y, data.size(), 0, 0, sizeof(PlotDataEntry));
+void GuidingViewerGUI::ColormapNode() {
+    bool disableColorMap = selectedChannel == Channel_CacheID;
+    ImGui::BeginDisabled(disableColorMap);
+    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    auto &io = ImGui::GetIO();
+    if (ImGui::TreeNode("Color Map")) {
+        auto &sd = shaderData[selectedChannel];
+        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_E)) {
+            if (!io.KeyShift) {
+                sd.scale *= 1.1f;
+            } else {
+                sd.scale /= 1.1f;
+            }
         }
-        ImPlot::EndPlot();
+        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_M)) {
+            sd.tonemapped ^= true;
+        }
+        ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f);
+        ImGui::InputFloat("Offset", &sd.offset, 0.1f, 1.0f);
+        if (ImGui::Button("Reset") || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_R, false))) {
+            sd.scale = 1.0f;
+            sd.offset = 0.0f;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Normalize") || !sd.firstNormalized
+            || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_N, false))) {
+            sd.firstNormalized = true;
+            auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
+            sd.scale = 1.0f / std::max(1e-6f, maxVal - minVal);
+            sd.offset = -minVal;
+            }
+        ImGui::SetNextItemWidth(90);
+        ImGui::Combo("Tonemap", reinterpret_cast<int*>(&selectedCMap), cmap_names, CMap_Count);
+        ImGui::SameLine();
+        ImGui::Checkbox("##check_tonemap", &sd.tonemapped);
+        if (sd.tonemapped)
+            ImGui::Image((void*) (uintptr_t) cmap_tex_ids[selectedCMap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
+        float xmin = ImGui::GetItemRectMin().x, xmax = ImGui::GetItemRectMax().x;
+        if (ImGui::IsItemHovered() && ImGui::BeginTooltip()) {
+            float t = (io.MousePos.x - xmin) / (xmax - xmin);
+            ImGui::Text("Pos: %.2f", t);
+            ImGui::Text("Value: %.4f", t / sd.scale - sd.offset);
+            ImGui::EndTooltip();
+        }
+        ImGui::TreePop();
     }
+    ImGui::EndDisabled();
+}
 
-    if (ImGui::Button("Reset All"))
-        ResetCECurves();
+void GuidingViewerGUI::CacheCurvesNode() {
+    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    cacheCurvesNodeOpened = ImGui::TreeNode("Cache Curves");
+    if (cacheCurvesNodeOpened) {
+        ImGui::BulletText("Left click canvas to insert a guiding cache probe");
+        ImGui::BulletText("Right click a probe to remove it");
+
+        ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
+        if (ImPlot::BeginPlot("CE vs. Iter", ImVec2(-1, 200))) {
+            std::lock_guard lock(mtxCECurves);
+            ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
+            for (const auto &[id, curve] : ceCurves) if (curve.active) {
+                auto &data = curve.data;
+                ImPlot::PlotLine(std::to_string(id).c_str(), &data[0].x, &data[0].y, data.size(), 0, 0, sizeof(PlotDataEntry));
+            }
+            ImPlot::EndPlot();
+        }
+
+        if (ImGui::Button("Reset All"))
+            ResetCECurves();
+        ImGui::TreePop();
+    }
 }
 
 void GuidingViewerGUI::UpdateRayCastingResult() {
