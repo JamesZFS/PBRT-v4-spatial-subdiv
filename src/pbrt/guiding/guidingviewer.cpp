@@ -19,6 +19,7 @@
 #include <pbrt/interaction.h>
 #include <pbrt/shapes.h>
 #include <pbrt/scene.h>
+#include <pbrt/util/progressreporter.h>
 #include "guidingviewer.h"
 
 #include <implot_internal.h>
@@ -465,7 +466,8 @@ void GuidingViewerGUI::StatusBar() {
     }
     else
         mouseInfo = "Mouse: <invalid>";
-    ImGui::Text("%s | %.3f ms/frame (%.1f FPS) | %s", stateNames[renderState], 1000.0f / io.Framerate, io.Framerate, mouseInfo.c_str());
+    ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | %s",
+        stateNames[renderState], waveTimeStats.renderMS, waveTimeStats.postprocessMS, mouseInfo.c_str());
 
     ImGui::End();
 }
@@ -606,6 +608,19 @@ void GuidingViewerGUI::ClearFilm() {
     });
 }
 
+void GuidingViewerGUI::PostprocessWave() {
+    Timer timer;
+    if (waveStart > 0)
+        postprocessWave(waveStart);
+    waveTimeStats.postprocessMS = timer.ElapsedSeconds() * 1e3;
+}
+
+void GuidingViewerGUI::RenderWave() {
+    Timer timer;
+    renderWave(waveStart);
+    waveTimeStats.renderMS = timer.ElapsedSeconds() * 1e3;
+}
+
 void GuidingViewerGUI::RenderThread() {
     // This function runs in a separate thread than the GUI.
     // It listens for pending render commands from the GUI thread and calls the renderWave function until the rendering is completed.
@@ -663,10 +678,10 @@ void GuidingViewerGUI::RenderThread() {
         if (autoPlayed) {
             if (waveStart < spp) {
                 renderState = Rendering;
-                if (waveStart > 0)
-                    postprocessWave(waveStart);
+                PostprocessWave();
                 AppendToCECurves();
-                renderWave(waveStart++);
+                RenderWave();
+                ++waveStart;
                 UpdateCPUFramebufferFromFilm();
                 renderedSomething = true;
             }
@@ -674,10 +689,10 @@ void GuidingViewerGUI::RenderThread() {
             renderState = Rendering;
             int wavesLeft = forwardWaves;
             while (waveStart < spp && wavesLeft-- > 0) {
-                if (waveStart > 0)
-                    postprocessWave(waveStart);
+                PostprocessWave();
                 AppendToCECurves();
-                renderWave(waveStart++);
+                RenderWave();
+                ++waveStart;
                 UpdateCPUFramebufferFromFilm();
                 renderedSomething = true;
             }
