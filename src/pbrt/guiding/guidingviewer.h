@@ -81,6 +81,8 @@ private:
     void ResetCECurves();
     void AppendToCECurves();
     std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c);
+    void PostprocessWave();
+    void RenderWave();
 
     Camera camera;
     Film film;
@@ -149,6 +151,11 @@ private:
         std::vector<PlotDataEntry> data;
     };
     std::map<uint32_t, PlotData> ceCurves;  // from cache ID to CE curve
+
+    struct {
+        double renderMS = 0;
+        double postprocessMS = 0;
+    } waveTimeStats;
 };
 
 }
