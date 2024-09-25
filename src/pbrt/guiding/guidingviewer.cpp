@@ -20,6 +20,9 @@
 #include <pbrt/shapes.h>
 #include <pbrt/scene.h>
 #include "guidingviewer.h"
+
+#include <implot_internal.h>
+
 #include "guiding.h"
 
 
@@ -58,6 +61,14 @@ static const char* cmap_names[pbrt::GuidingViewerGUI::CMap_Count] = {
 };
 
 static std::string controlButtonTexPath = PBRT_ROOT_DIR "images/control_buttons.png";
+
+static inline ImU32 CacheID2ColorU32(uint32_t id) {
+    return IM_COL32(Hash(id, 0) % 255, Hash(id, 1) % 255, Hash(id, 2) % 255, 255);
+}
+
+static inline ImVec4 CacheID2Color(uint32_t id) {
+    return {(float) (Hash(id, 0) % 255) / 255.0f, (float) (Hash(id, 1) % 255) / 255.0f, (float) (Hash(id, 2) % 255) / 255.0f, 1.0f};
+}
 
 GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive scene, openpgl::cpp::Field* field, int spp,
                                    const std::function<void(int waveStart)> &renderWave,
@@ -125,6 +136,8 @@ void GuidingViewerGUI::Launch() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(10, 10));
+        // ImGui::ShowDemoWindow();
+        // ImPlot::ShowDemoWindow();
         Canvas();
         Tab();
         Inspector();
@@ -276,6 +289,8 @@ void GuidingViewerGUI::Tab() {
 }
 
 void GuidingViewerGUI::Canvas() {
+    ImGuiIO &io = ImGui::GetIO();
+    Point2f mousePos(io.MousePos.x, io.MousePos.y);
     // Possibly update the GPU framebuffer
     if (shouldUpdateGPUFramebuffer) {
         UpdateGPUFramebufferFromCPU();
@@ -293,13 +308,48 @@ void GuidingViewerGUI::Canvas() {
         ImVec2(0, tabHeight), ImVec2(resolution.x, resolution.y), ImVec2(windowSize.x, windowSize.y),
         sd.scale, sd.offset, selectedChannel > Channel_CacheID, sd.tonemapped);
 
-    if (enableRayCasting && ImGui::IsWindowHovered()) {  // Ray trace mouse position when hovering over the rendering
-        UpdateRayCastingResult();
-        if (rcData.cacheId != -1 && ImGui::BeginTooltip()) {
-            ImGui::Text("Cache ID: %u", rcData.cacheId);
-            ImGui::Text("Fluence: %f", rcData.fluence);
-            ImGui::Text("CE: %f", rcData.ce);
-            ImGui::EndTooltip();
+    {   // Handle CE Probes Interaction
+        std::lock_guard lock(mtxCECurves);
+        if (enableRayCasting && ImGui::IsWindowHovered()) {  // Ray trace mouse position when hovering over the rendering
+            UpdateRayCastingResult();
+            if (rcData.cacheId != -1) {
+                if (ImGui::BeginTooltip()) {
+                    ImGui::Text("Cache ID: %u", rcData.cacheId);
+                    ImGui::Text("Fluence: %f", rcData.fluence);
+                    ImGui::Text("CE: %f", rcData.ce);
+                    ImGui::EndTooltip();
+                }
+                if (cacheCurvesNodeOpened) {
+                    // Left click to insert a probe
+                    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                        std::vector<PlotDataEntry> data;
+                        if (renderState != Rendering)
+                            data.emplace_back(waveStart, rcData.ce);
+                        auto [it, success] = ceCurves.emplace(rcData.cacheId, PlotData{true, (int) ceCurves.size(), mousePos, std::move(data)});
+                        if (!success) {
+                            it->second.active = true;
+                            it->second.mousePos = mousePos;  // Update the mouse position
+                        }
+                    }
+                }
+            }
+        }
+        if (cacheCurvesNodeOpened) {
+            // Draw all the clicked positions
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            for (auto &[id, curve] : ceCurves) if (curve.active) {
+                bool isHovered = Distance(mousePos, curve.mousePos) < 10;
+                // Right click to remove a probe
+                if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+                    curve.active = false;
+                }
+                ImVec2 center(curve.mousePos.x, curve.mousePos.y);
+                // ImU32 col = CacheID2ColorU32(id);
+                ImU32 col = ImPlot::GetColormapColorU32(curve.order, -1);
+                ImU32 border_col = isHovered ? IM_COL32_WHITE : IM_COL32_BLACK;
+                draw_list->AddCircleFilled(center, 3, col);
+                draw_list->AddCircle(center, 4, border_col);
+            }
         }
     }
 
@@ -366,53 +416,48 @@ void GuidingViewerGUI::Inspector() {
 
     ImGui::ProgressBar((float) waveStart / (float) spp, {ImGui::GetColumnWidth(), 0}, waveStart == spp ? "Done" : StringPrintf("%d/%d SPP", waveStart, spp).c_str());
 
-    ImGui::SeparatorText("Ray Casting");
-    {
-        if (ImGui::IsKeyPressed(ImGuiKey_C, false)) {
-            enableRayCasting = !enableRayCasting;
-        }
-        ImGui::Checkbox("Ray Casting Mouse Pixel", &enableRayCasting);
-        if (enableRayCasting) {
-            if (rcData.valid) {
-                auto radiance = film.GetPixelRGB(rcData.pixel);
-                ImGui::Text("Radiance: (%.2f, %.2f, %.2f)", radiance.r, radiance.g, radiance.b);
-                ImGui::Text("Hit: (%.2f, %.2f, %.2f)", rcData.hit.x, rcData.hit.y, rcData.hit.z);
-                ImGui::Text("Normal: (%.2f, %.2f, %.2f)", rcData.normal.x, rcData.normal.y, rcData.normal.z);
-                ImGui::Text("UV: (%.2f, %.2f)", rcData.uv.x, rcData.uv.y);
-                if (rcData.cacheId == -1)
-                    ImGui::Text("Cache ID: <invalid>");
-                else {
-                    ImGui::Text("Cache ID: %u", rcData.cacheId);
-                    ImGui::Text("Fluence: %f", rcData.fluence);
-                    ImGui::Text("CE: %f", rcData.ce);
-                }
-            } else {
-                ImGui::Text("No intersection");
+    rayCastingNodeOpened = ImGui::TreeNode("Ray Casting");
+    if (rayCastingNodeOpened) {
+        if (rcData.valid) {
+            auto radiance = film.GetPixelRGB(rcData.pixel);
+            ImGui::Text("Radiance: (%.2f, %.2f, %.2f)", radiance.r, radiance.g, radiance.b);
+            ImGui::Text("Hit: (%.2f, %.2f, %.2f)", rcData.hit.x, rcData.hit.y, rcData.hit.z);
+            ImGui::Text("Normal: (%.2f, %.2f, %.2f)", rcData.normal.x, rcData.normal.y, rcData.normal.z);
+            ImGui::Text("UV: (%.2f, %.2f)", rcData.uv.x, rcData.uv.y);
+            if (rcData.cacheId == -1)
+                ImGui::Text("Cache ID: <invalid>");
+            else {
+                ImGui::Text("Cache ID: %u", rcData.cacheId);
+                ImGui::Text("Fluence: %f", rcData.fluence);
+                ImGui::Text("CE: %f", rcData.ce);
             }
+        } else {
+            ImGui::Text("No intersection");
         }
+        ImGui::TreePop();
     }
 
-    if (selectedChannel != Channel_CacheID) {
-        ImGui::SeparatorText("Color Map");
-        ImGui::PushID(selectedChannel);
-        if (ImGui::IsKeyPressed(ImGuiKey_E)) {
+    bool disableColorMap = selectedChannel == Channel_CacheID;
+    ImGui::BeginDisabled(disableColorMap);
+    if (ImGui::TreeNode("Color Map")) {
+        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_E)) {
             if (!io.KeyShift) {
                 shaderData[selectedChannel].scale *= 1.1f;
             } else {
                 shaderData[selectedChannel].scale /= 1.1f;
             }
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_M)) {
+        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_M)) {
             shaderData[selectedChannel].tonemapped ^= true;
         }
         ImGui::InputFloat("Scale", &shaderData[selectedChannel].scale, 0.1f, 1.0f);
         ImGui::InputFloat("Offset", &shaderData[selectedChannel].offset, 0.1f, 1.0f);
-        if (ImGui::Button("Reset") || ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+        if (ImGui::Button("Reset") || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_R, false))) {
             shaderData[selectedChannel].scale = 1.0f;
             shaderData[selectedChannel].offset = 0.0f;
         }
         ImGui::SameLine();
-        if (ImGui::Button("Normalize") || ImGui::IsKeyPressed(ImGuiKey_N, false)) {
+        if (ImGui::Button("Normalize") || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_N, false))) {
             auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
             shaderData[selectedChannel].scale = 1.0f / std::max(1e-6f, maxVal - minVal);
             shaderData[selectedChannel].offset = -minVal;
@@ -423,16 +468,21 @@ void GuidingViewerGUI::Inspector() {
         ImGui::Checkbox("##check_tonemap", &shaderData[selectedChannel].tonemapped);
         if (shaderData[selectedChannel].tonemapped)
             ImGui::Image((void*) (uintptr_t) cmap_tex_ids[selectedCMap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
-        ImGui::PopID();
+        ImGui::TreePop();
     }
+    ImGui::EndDisabled();
 
-    ImGui::SeparatorText("Guiding");
-    {}
+    cacheCurvesNodeOpened = ImGui::TreeNode("Cache Curves");
+    if (cacheCurvesNodeOpened) {
+        CacheCurves();
+        ImGui::TreePop();
+    }
 
     ImGui::SeparatorText("Spatial Subdivision");
     {}
 
     ImGui::End();
+    enableRayCasting = rayCastingNodeOpened || cacheCurvesNodeOpened;
 }
 
 void GuidingViewerGUI::StatusBar() {
@@ -453,6 +503,25 @@ void GuidingViewerGUI::StatusBar() {
     ImGui::Text("%s | %.3f ms/frame (%.1f FPS) | %s", stateNames[renderState], 1000.0f / io.Framerate, io.Framerate, mouseInfo.c_str());
 
     ImGui::End();
+}
+
+void GuidingViewerGUI::CacheCurves() {
+    ImGui::BulletText("Left click canvas to insert a guiding cache probe");
+    ImGui::BulletText("Right click a probe to remove it");
+
+    ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
+    if (ImPlot::BeginPlot("CE vs. Iter", ImVec2(-1, 200))) {
+        std::lock_guard lock(mtxCECurves);
+        ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
+        for (const auto &[id, curve] : ceCurves) if (curve.active) {
+            auto &data = curve.data;
+            ImPlot::PlotLine(std::to_string(id).c_str(), &data[0].x, &data[0].y, data.size(), 0, 0, sizeof(PlotDataEntry));
+        }
+        ImPlot::EndPlot();
+    }
+
+    if (ImGui::Button("Reset All"))
+        ResetCECurves();
 }
 
 void GuidingViewerGUI::UpdateRayCastingResult() {
@@ -494,6 +563,22 @@ void GuidingViewerGUI::UpdateRayCastingResult() {
             }
         }
     }
+}
+
+void GuidingViewerGUI::ResetCECurves() {
+    std::lock_guard lock(mtxCECurves);
+    ceCurves.clear();
+    ImPlot::DestroyContext();
+    ImPlot::CreateContext();
+}
+
+// Called by the render thread
+void GuidingViewerGUI::AppendToCECurves() {
+    std::lock_guard lock(mtxCECurves);
+    for (auto &[id, curve] : ceCurves) if (curve.active) {
+        curve.data.emplace_back(waveStart, field->GetCESurface(id));
+    }
+    ImPlot::SetNextAxisToFit(ImAxis_X1);
 }
 
 void GuidingViewerGUI::ClearFilm() {
@@ -542,6 +627,7 @@ void GuidingViewerGUI::RenderThread() {
                 ClearFilm();
                 field->Reset();
                 UpdateCPUFramebufferFromFilm();
+                ResetCECurves();
                 continue;
             case Terminate:
                 std::cout << "Terminating rendering" << std::endl;
@@ -560,6 +646,7 @@ void GuidingViewerGUI::RenderThread() {
                 renderState = Rendering;
                 if (waveStart > 0)
                     postprocessWave(waveStart);
+                AppendToCECurves();
                 renderWave(waveStart++);
                 UpdateCPUFramebufferFromFilm();
                 renderedSomething = true;
@@ -570,6 +657,7 @@ void GuidingViewerGUI::RenderThread() {
             while (waveStart < spp && wavesLeft-- > 0) {
                 if (waveStart > 0)
                     postprocessWave(waveStart);
+                AppendToCECurves();
                 renderWave(waveStart++);
                 UpdateCPUFramebufferFromFilm();
                 renderedSomething = true;
