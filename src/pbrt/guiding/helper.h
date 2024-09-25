@@ -7,6 +7,7 @@
 
 #include "guidingviewer.h"
 #include "imgui.h"
+#include "implot.h"
 
 #include <pbrt/util/shader.h>  // Will include glad
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers

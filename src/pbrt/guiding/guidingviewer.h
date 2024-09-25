@@ -75,7 +75,10 @@ private:
     void Canvas();
     void Inspector();
     void StatusBar();
+    void CacheCurves();
     void UpdateRayCastingResult();
+    void ResetCECurves();
+    void AppendToCECurves();
     std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c);
 
     Camera camera;
@@ -98,26 +101,28 @@ private:
     } cpuFramebuffer;
 
     int tabHeight = 0;
-    constexpr static int inspectorWidth = 200, statusBarHeight = 30;
+    constexpr static int inspectorWidth = 400, statusBarHeight = 30;
     Vector2i windowSize;
 
     void* controlButtonTexID = nullptr;
     int controlButtonTexWidth = 0, controlButtonTexHeight = 0;
     void* renderingTexID = nullptr;
 
-    std::mutex mtxCommand, mtxCPUFramebuffer;
+    std::mutex mtxCommand, mtxCPUFramebuffer, mtxCECurves;
     std::condition_variable cv;
     GUICommand command = None;
     RendererState renderState = Initial;
     bool shouldUpdateGPUFramebuffer = false;
     bool autoPlayed = false;
     int forwardWaves = 1;
+    bool rayCastingNodeOpened = false;
+    bool cacheCurvesNodeOpened = false;
     bool enableRayCasting = false;
 
     struct {
-        Point2i pixel;
-        bool valid;
-        Point3f hit;
+        Point2i pixel;  // pixel coordinate at the mouse position
+        bool valid;   // if the hit is valid
+        Point3f hit;  // hit point in world space
         Normal3f normal;
         Point2f uv;
         uint32_t cacheId;
@@ -133,6 +138,15 @@ private:
 
     SelectedChannel selectedChannel = Channel_Radiance;
     CMaps selectedCMap = CMap_Viridis;
+
+    typedef Vector2f PlotDataEntry;
+    struct PlotData {
+        bool active;  // should collect data and be plotted
+        int order;  // order of the curve created
+        Point2f mousePos;  // mouse position when the probe is created
+        std::vector<PlotDataEntry> data;
+    };
+    std::map<uint32_t, PlotData> ceCurves;  // from cache ID to CE curve
 };
 
 }

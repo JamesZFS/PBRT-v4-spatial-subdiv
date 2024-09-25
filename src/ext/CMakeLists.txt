@@ -192,6 +192,22 @@ target_include_directories(imgui PUBLIC ${IMGUI_INCLUDE})
 target_compile_options(imgui PRIVATE -lGL)  # for Linux
 
 ###########################################################################
+# implot
+
+set (IMPLOT_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/implot)
+set (IMPLOT_INCLUDE ${IMPLOT_INCLUDE} PARENT_SCOPE)
+
+set (IMPLOT_SOURCES
+        ${IMPLOT_INCLUDE}/implot.cpp
+        ${IMPLOT_INCLUDE}/implot_demo.cpp
+        ${IMPLOT_INCLUDE}/implot_items.cpp
+)
+
+add_library(implot STATIC ${IMPLOT_SOURCES})
+target_include_directories(implot PUBLIC ${IMPLOT_INCLUDE} ${IMGUI_INCLUDE})
+target_link_libraries(implot imgui)
+
+###########################################################################
 # TBB
 #if (PBRT_WITH_PATH_GUIDING OR PBRT_WITH_OIDN)
 #include(ExternalProject)

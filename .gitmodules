@@ -51,3 +51,6 @@
 [submodule "src/ext/imgui"]
 	path = src/ext/imgui
 	url = https://github.com/ocornut/imgui
+[submodule "src/ext/implot"]
+	path = src/ext/implot
+	url = https://github.com/epezent/implot

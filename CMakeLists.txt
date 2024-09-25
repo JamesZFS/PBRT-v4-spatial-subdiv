@@ -918,6 +918,7 @@ target_include_directories (pbrt_lib PUBLIC
   ${GLAD_INCLUDE}
   ${IMGUI_INCLUDE}
   ${IMGUI_INCLUDE}/backends
+  ${IMPLOT_INCLUDE}
 )
 
 if (PBRT_WITH_PATH_GUIDING)
@@ -974,7 +975,7 @@ endif()
 
 if(PBRT_BUILD_GUIDING_VIEWER)
   set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
-    imgui)
+    imgui implot)
 endif()
 
 if (PBRT_CUDA_ENABLED)
