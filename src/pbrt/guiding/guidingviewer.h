@@ -40,14 +40,14 @@ public:
 
     enum GUICommand {
         // Control buttons begin
-        AutoPlay = 0,
-        Pause,
-        Forward,
-        Save,
-        Restart,
+        Cmd_AutoPlay = 0,
+        Cmd_Pause,
+        Cmd_Forward,
+        Cmd_Save,
+        Cmd_Restart,
         // Control buttons end
-        Terminate,
-        None,
+        Cmd_Terminate,
+        Cmd_None,
     };
 
     enum SelectedChannel {
@@ -83,6 +83,7 @@ private:
     std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c);
     void PostprocessWave();
     void RenderWave();
+    void Restart();
 
     Camera camera;
     Film film;
@@ -111,9 +112,9 @@ private:
     int controlButtonTexWidth = 0, controlButtonTexHeight = 0;
     void* renderingTexID = nullptr;
 
-    std::mutex mtxCommand, mtxCPUFramebuffer, mtxCECurves;
+    std::mutex mtxCommand, mtxCPUFramebuffer, mtxCECurves, mtxField;
     std::condition_variable cv;
-    GUICommand command = None;
+    GUICommand command = Cmd_None;
     RendererState renderState = Initial;
     bool shouldUpdateGPUFramebuffer = false;
     bool autoPlayed = false;
@@ -151,6 +152,7 @@ private:
         std::vector<PlotDataEntry> data;
     };
     std::map<uint32_t, PlotData> ceCurves;  // from cache ID to CE curve
+    bool shouldFitXAxis = false;
 
     struct {
         double renderMS = 0;

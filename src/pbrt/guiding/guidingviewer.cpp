@@ -154,7 +154,7 @@ void GuidingViewerGUI::Launch() {
     // Terminate renderer
     {
         std::lock_guard lock(mtxCommand);
-        command = Terminate;
+        command = Cmd_Terminate;
         cv.notify_one();
     }
     renderThread.join();
@@ -388,19 +388,19 @@ void GuidingViewerGUI::Inspector() {
             ImGui::PushID(i);
             auto cmd = static_cast<GUICommand>(i);
 
-            if (cmd == Forward) {
+            if (cmd == Cmd_Forward) {
                 ImGui::SetNextItemWidth(ImGui::GetTextLineHeight() * 6);
                 ImGui::InputInt("", &forwardWaves, 1, 10);
                 ImGui::SameLine();
             }
 
             auto nameTip = commandNames[cmd];
-            ImVec4 color = (wasAutoPlayed && cmd == AutoPlay) || (!wasAutoPlayed && cmd == Pause) ? accent_col : bg_col;
+            ImVec4 color = (wasAutoPlayed && cmd == Cmd_AutoPlay) || (!wasAutoPlayed && cmd == Cmd_Pause) ? accent_col : bg_col;
             bool activate = ImGui::ImageButton(nameTip.first, controlButtonTexID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
-            activate |= ((wasAutoPlayed && cmd == Pause) || (!wasAutoPlayed && cmd == AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
-            activate |= cmd == Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
-            activate |= cmd == Restart && ImGui::IsKeyPressed(ImGuiKey_F5, false);  // F5 key for Restart
-            activate |= cmd == Save && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);  // Ctrl + S for Save
+            activate |= ((wasAutoPlayed && cmd == Cmd_Pause) || (!wasAutoPlayed && cmd == Cmd_AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
+            activate |= cmd == Cmd_Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
+            activate |= cmd == Cmd_Restart && ImGui::IsKeyPressed(ImGuiKey_F5, false);  // F5 key for Restart
+            activate |= cmd == Cmd_Save && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);  // Ctrl + S for Save
             if (activate) {
                 std::cout << "Command: " << nameTip.first << std::endl;
                 std::lock_guard lock(mtxCommand);
@@ -410,7 +410,7 @@ void GuidingViewerGUI::Inspector() {
             ImGui::SetItemTooltip("%s", nameTip.second);
             ImGui::SameLine();
 
-            if (cmd == Forward) {
+            if (cmd == Cmd_Forward) {
                 ImGui::NewLine();
             }
             ImGui::PopID();
@@ -532,6 +532,10 @@ void GuidingViewerGUI::CacheCurvesNode() {
         if (ImPlot::BeginPlot("CE vs. Iter", ImVec2(-1, 200))) {
             std::lock_guard lock(mtxCECurves);
             ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
+            if (shouldFitXAxis) {
+                ImPlot::SetupAxisLimits(ImAxis_X1, 0, waveStart, ImGuiCond_Always);
+                shouldFitXAxis = false;
+            }
             for (const auto &[id, curve] : ceCurves) if (curve.active) {
                 auto &data = curve.data;
                 ImPlot::PlotLine(std::to_string(id).c_str(), &data[0].x, &data[0].y, data.size(), 0, 0, sizeof(PlotDataEntry));
@@ -553,52 +557,51 @@ void GuidingViewerGUI::UpdateRayCastingResult() {
     ImGuiIO &io = ImGui::GetIO();
     if (ImGui::IsMousePosValid()) {
         rcData.pixel = {(int) io.MousePos.x, (int) io.MousePos.y - tabHeight};
-        if (enableRayCasting) {
-            IndependentSampler _sampler(spp, 0);
-            Sampler sampler(&_sampler);
-            Filter filter = camera.GetFilm().GetFilter();
-            CameraSample cameraSample = GetCameraSample(sampler, rcData.pixel, filter);
-            SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
-            auto cameraRay = camera.GenerateRayDifferential(cameraSample, lambda);
-            if (cameraRay) {
-                RayDifferential ray = cameraRay->ray;
-                while (true) {
-                    auto sit = scene.Intersect(ray);
-                    if (!sit) break;
-                    auto bsdf = sit->intr.GetBSDF(ray, lambda, camera, scratchBuffer, sampler);
-                    if (!bsdf) {
-                        sit->intr.SkipIntersection(&ray, sit->tHit);
-                        continue;
+        IndependentSampler _sampler(spp, 0);
+        Sampler sampler(&_sampler);
+        Filter filter = camera.GetFilm().GetFilter();
+        CameraSample cameraSample = GetCameraSample(sampler, rcData.pixel, filter);
+        SampledWavelengths lambda = camera.GetFilm().SampleWavelengths(sampler.Get1D());
+        auto cameraRay = camera.GenerateRayDifferential(cameraSample, lambda);
+        if (cameraRay) {
+            RayDifferential ray = cameraRay->ray;
+            while (true) {
+                auto sit = scene.Intersect(ray);
+                if (!sit) break;
+                auto bsdf = sit->intr.GetBSDF(ray, lambda, camera, scratchBuffer, sampler);
+                if (!bsdf) {
+                    sit->intr.SkipIntersection(&ray, sit->tHit);
+                    continue;
+                }
+                auto flags = bsdf.Flags();
+                if (IsSpecular(flags)) {
+                    BxDFReflTransFlags sFlags = IsTransmissive(flags) ? BxDFReflTransFlags::Transmission : BxDFReflTransFlags::Reflection;
+                    auto bs = bsdf.Sample_f(-ray.d, 0, {0, 0}, TransportMode::Radiance, sFlags);
+                    if (!bs) break;
+                    // ray = sit->intr.SpawnRay(ray, bsdf, bs->wi, bs->flags, bs->eta);
+                    ray = sit->intr.SpawnRay(bs->wi);  // Continue tracing
+                } else {
+                    // Found a diffuse surface, Good!
+                    // Intersection found
+                    rcData.valid = true;
+                    rcData.hit = ray(sit->tHit);
+                    rcData.normal = sit->intr.n;
+                    rcData.uv = sit->intr.uv;
+                    // Query the guiding cache
+                    GuidedBSDF gbsdf(&sampler, field, &ssd, true, EGuideMIS);
+                    float rnd = -1.0f;
+                    std::lock_guard lock(mtxField);
+                    if (gbsdf.init(&bsdf, ray, sit, rnd)) {
+                        // Guiding region available
+                        rcData.cacheId = gbsdf.getId();
+                        rcData.fluence = gbsdf.getFluence();
+                        rcData.ce = gbsdf.getCE();
                     }
-                    auto flags = bsdf.Flags();
-                    if (IsSpecular(flags)) {
-                        BxDFReflTransFlags sFlags = IsTransmissive(flags) ? BxDFReflTransFlags::Transmission : BxDFReflTransFlags::Reflection;
-                        auto bs = bsdf.Sample_f(-ray.d, 0, {0, 0}, TransportMode::Radiance, sFlags);
-                        if (!bs) break;
-                        // ray = sit->intr.SpawnRay(ray, bsdf, bs->wi, bs->flags, bs->eta);
-                        ray = sit->intr.SpawnRay(bs->wi);  // Continue tracing
-                    } else {
-                        // Found a diffuse surface, Good!
-                        // Intersection found
-                        rcData.valid = true;
-                        rcData.hit = ray(sit->tHit);
-                        rcData.normal = sit->intr.n;
-                        rcData.uv = sit->intr.uv;
-                        // Query the guiding cache
-                        GuidedBSDF gbsdf(&sampler, field, &ssd, true, EGuideMIS);
-                        float rnd = 0.0f;
-                        if (gbsdf.init(&bsdf, ray, sit, rnd)) {
-                            // Guiding region available
-                            rcData.cacheId = gbsdf.getId();
-                            rcData.fluence = gbsdf.getFluence();
-                            rcData.ce = gbsdf.getCE();
-                        }
-                        scratchBuffer.Reset();
-                        break;
-                    }
+                    break;
                 }
             }
         }
+        scratchBuffer.Reset();
     }
 }
 
@@ -615,7 +618,7 @@ void GuidingViewerGUI::AppendToCECurves() {
     for (auto &[id, curve] : ceCurves) if (curve.active) {
         curve.data.emplace_back(waveStart, field->GetCESurface(id));
     }
-    ImPlot::SetNextAxisToFit(ImAxis_X1);
+    shouldFitXAxis = true;
 }
 
 void GuidingViewerGUI::ClearFilm() {
@@ -625,6 +628,7 @@ void GuidingViewerGUI::ClearFilm() {
 }
 
 void GuidingViewerGUI::PostprocessWave() {
+    std::lock_guard lock(mtxField);
     Timer timer;
     if (waveStart > 0)
         postprocessWave(waveStart);
@@ -637,6 +641,18 @@ void GuidingViewerGUI::RenderWave() {
     waveTimeStats.renderMS = timer.ElapsedSeconds() * 1e3;
 }
 
+void GuidingViewerGUI::Restart() {
+    waveStart = 0;
+    renderState = Initial;
+    ClearFilm();
+    {
+        std::lock_guard lock(mtxField);
+        field->Reset();
+    }
+    UpdateCPUFramebufferFromFilm();
+    ResetCECurves();
+}
+
 void GuidingViewerGUI::RenderThread() {
     // This function runs in a separate thread than the GUI.
     // It listens for pending render commands from the GUI thread and calls the renderWave function until the rendering is completed.
@@ -647,43 +663,38 @@ void GuidingViewerGUI::RenderThread() {
         if (!autoPlayed || waveStart == spp) {
             // Listen for commands from the GUI
             std::unique_lock lock(mtxCommand);
-            cv.wait(lock, [this] { return command != None; });
+            cv.wait(lock, [this] { return command != Cmd_None; });
         }
 
         GUICommand oldCommand = command;
-        command = None;
+        command = Cmd_None;
         // Process commands from the GUI
         switch (oldCommand) {
-            case AutoPlay:
+            case Cmd_AutoPlay:
                 std::cout << "Resuming rendering" << std::endl;
                 autoPlayed = true;
                 break;
-            case Pause:
+            case Cmd_Pause:
                 std::cout << "Pausing rendering" << std::endl;
                 autoPlayed = false;
                 break;
-            case Forward:
+            case Cmd_Forward:
                 std::cout << "Rendering next waves" << std::endl;
                 autoPlayed = false;
                 break;
-            case Save:
+            case Cmd_Save:
                 std::cout << "Saving rendering" << std::endl;
                 saveImage(waveStart);
                 continue;
-            case Restart:
+            case Cmd_Restart:
                 std::cout << "Restarting rendering" << std::endl;
-                waveStart = 0;
-                renderState = Initial;
-                ClearFilm();
-                field->Reset();
-                UpdateCPUFramebufferFromFilm();
-                ResetCECurves();
+                Restart();
                 continue;
-            case Terminate:
+            case Cmd_Terminate:
                 std::cout << "Terminating rendering" << std::endl;
                 renderState = Completed;
                 return;
-            case None:
+            case Cmd_None:
                 break;
             default:
                 Error("Unexpected command \"%s\" in RenderThread", commandNames[oldCommand].first);
@@ -701,7 +712,7 @@ void GuidingViewerGUI::RenderThread() {
                 UpdateCPUFramebufferFromFilm();
                 renderedSomething = true;
             }
-        } else if (oldCommand == Forward) {
+        } else if (oldCommand == Cmd_Forward) {
             renderState = Rendering;
             int wavesLeft = forwardWaves;
             while (waveStart < spp && wavesLeft-- > 0) {
