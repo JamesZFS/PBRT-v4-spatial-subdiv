@@ -5,6 +5,7 @@
 #ifndef GUIDINGVIEWER_H
 #define GUIDINGVIEWER_H
 
+#include <openpgl/config.h>
 #include <pbrt/pbrt.h>
 #include <pbrt/scene.h>
 #include <pbrt/cameras.h>
@@ -22,7 +23,7 @@ void RenderGuidingViewer(BasicScene &scene);
 class GuidingViewerGUI {
 public:
     GuidingViewerGUI(
-        Camera camera, Primitive scene, openpgl::cpp::Field* field, int spp,
+        Camera camera, Primitive scene, openpgl::cpp::Field* field, const PGLKDTreeArguments &args, int spp,
         const std::function<void(int waveStart)> &renderWave,
         const std::function<void(int waveEnd)> &postprocessWave,
         const std::function<void(int waveEnd)> &saveImage);
@@ -75,8 +76,10 @@ private:
     void Canvas();
     void Inspector();
     void StatusBar();
+    void ControlPanel();
     void ColormapNode();
     void CacheCurvesNode();
+    void SpatialSubdivisionSettings();
     void UpdateRayCastingResult();
     void ResetCECurves();
     void AppendToCECurves();
@@ -91,6 +94,7 @@ private:
     Vector2i resolution;
     Primitive scene;
     openpgl::cpp::Field* field;
+    PGLKDTreeArguments subdivCfg;  // config for spatial subdivision
     const int spp;
     int waveStart;
     std::function<void(int waveStart)> renderWave;
@@ -112,7 +116,7 @@ private:
     int controlButtonTexWidth = 0, controlButtonTexHeight = 0;
     void* renderingTexID = nullptr;
 
-    std::mutex mtxCommand, mtxCPUFramebuffer, mtxCECurves, mtxField;
+    std::mutex mtxCommand, mtxCPUFramebuffer, mtxCECurves, mtxField, mtxSubdivCfg;
     std::condition_variable cv;
     GUICommand command = Cmd_None;
     RendererState renderState = Initial;

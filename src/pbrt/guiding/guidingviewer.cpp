@@ -71,13 +71,22 @@ static inline ImVec4 CacheID2Color(uint32_t id) {
     return {(float) (Hash(id, 0) % 255) / 255.0f, (float) (Hash(id, 1) % 255) / 255.0f, (float) (Hash(id, 2) % 255) / 255.0f, 1.0f};
 }
 
-GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive scene, openpgl::cpp::Field* field, int spp,
+GuidingViewerGUI::GuidingViewerGUI(Camera camera, Primitive scene, openpgl::cpp::Field* field, const PGLKDTreeArguments &args, int spp,
                                    const std::function<void(int waveStart)> &renderWave,
                                    const std::function<void(int waveEnd)> &postprocessWave,
                                    const std::function<void(int waveEnd)> &saveImage)
     : camera(camera), film(camera.GetFilm()), isMultiChannel(film.Is<GuidedGBufferFilm>()),
-      scene(scene), field(field), spp(spp), waveStart(0),
+      scene(scene), field(field), subdivCfg(args), spp(spp), waveStart(0),
       renderWave(renderWave), postprocessWave(postprocessWave), saveImage(saveImage) {
+
+    std::cout << "Subdivision Config: \n"
+        << "  KNN Lookup: " << subdivCfg.knnLookup << "\n"
+        << "  IS KNN Lookup: " << subdivCfg.isKnnLookup << "\n"
+        << "  MaxSamples: " << subdivCfg.maxSamples << "\n"
+        << "  MinSamples: " << subdivCfg.minSamples << "\n"
+        << "  MaxDepth: " << subdivCfg.maxDepth << "\n"
+        << "  CE Threshold: " << subdivCfg.ceThreshold << std::endl;
+
     Bounds2i pixelBounds = film.PixelBounds();
     resolution = pixelBounds.Diagonal();
     if (isMultiChannel) {
@@ -361,7 +370,6 @@ void GuidingViewerGUI::Canvas() {
 }
 
 void GuidingViewerGUI::Inspector() {
-    ImGuiIO &io = ImGui::GetIO();
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse;
     ImGui::SetNextWindowSize(ImVec2(inspectorWidth, windowSize.y));
     ImGui::SetNextWindowPos(ImVec2(resolution.x, 0));
@@ -369,54 +377,7 @@ void GuidingViewerGUI::Inspector() {
     ImGui::Begin("Inspector", nullptr, flags);
 
     ImGui::SeparatorText("Playback Controls");
-    {  // Control buttons
-        ImVec2 size = ImVec2(ImGui::GetTextLineHeight(), ImGui::GetTextLineHeight());
-        ImVec4 bg_col = ImVec4(0.15f, 0.25f, 0.30f, 1.00f);
-        ImVec4 accent_col = ImVec4(0.15f, 0.60f, 0.15f, 1.00f);
-        ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);           // No tint
-        auto cmd2uv0 = [](GUICommand i) {
-            assert(i >= AutoPlay && i <= Restart);
-            return ImVec2((float) i / 5, 0.0f);
-        };
-        auto cmd2uv1 = [](GUICommand i) {
-            assert(i >= AutoPlay && i <= Restart);
-            return ImVec2((float) (i + 1) / 5, 1.0f);
-        };
-
-        bool wasAutoPlayed = autoPlayed;
-        for (int i = 0; i < 5; ++i) {
-            ImGui::PushID(i);
-            auto cmd = static_cast<GUICommand>(i);
-
-            if (cmd == Cmd_Forward) {
-                ImGui::SetNextItemWidth(ImGui::GetTextLineHeight() * 6);
-                ImGui::InputInt("", &forwardWaves, 1, 10);
-                ImGui::SameLine();
-            }
-
-            auto nameTip = commandNames[cmd];
-            ImVec4 color = (wasAutoPlayed && cmd == Cmd_AutoPlay) || (!wasAutoPlayed && cmd == Cmd_Pause) ? accent_col : bg_col;
-            bool activate = ImGui::ImageButton(nameTip.first, controlButtonTexID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
-            activate |= ((wasAutoPlayed && cmd == Cmd_Pause) || (!wasAutoPlayed && cmd == Cmd_AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
-            activate |= cmd == Cmd_Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
-            activate |= cmd == Cmd_Restart && ImGui::IsKeyPressed(ImGuiKey_F5, false);  // F5 key for Restart
-            activate |= cmd == Cmd_Save && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);  // Ctrl + S for Save
-            if (activate) {
-                std::cout << "Command: " << nameTip.first << std::endl;
-                std::lock_guard lock(mtxCommand);
-                command = cmd;
-                cv.notify_one();  // Notify the render thread
-            }
-            ImGui::SetItemTooltip("%s", nameTip.second);
-            ImGui::SameLine();
-
-            if (cmd == Cmd_Forward) {
-                ImGui::NewLine();
-            }
-            ImGui::PopID();
-        }
-        ImGui::NewLine();
-    }
+    ControlPanel();
 
     ImGui::ProgressBar((float) waveStart / (float) spp, {ImGui::GetColumnWidth(), 0}, waveStart == spp ? "Done" : StringPrintf("%d/%d SPP", waveStart, spp).c_str());
 
@@ -443,9 +404,7 @@ void GuidingViewerGUI::Inspector() {
 
     ColormapNode();
     CacheCurvesNode();
-
-    ImGui::SeparatorText("Spatial Subdivision");
-    {}
+    SpatialSubdivisionSettings();
 
     ImGui::End();
     enableRayCasting = rayCastingNodeOpened || cacheCurvesNodeOpened;
@@ -470,6 +429,56 @@ void GuidingViewerGUI::StatusBar() {
         stateNames[renderState], waveTimeStats.renderMS, waveTimeStats.postprocessMS, mouseInfo.c_str());
 
     ImGui::End();
+}
+
+void GuidingViewerGUI::ControlPanel() {  // Control buttons
+    ImGuiIO &io = ImGui::GetIO();
+    ImVec2 size = ImVec2(ImGui::GetTextLineHeight(), ImGui::GetTextLineHeight());
+    ImVec4 bg_col = ImVec4(0.15f, 0.25f, 0.30f, 1.00f);
+    ImVec4 accent_col = ImVec4(0.15f, 0.60f, 0.15f, 1.00f);
+    ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);           // No tint
+    auto cmd2uv0 = [](GUICommand i) {
+        assert(i >= AutoPlay && i <= Restart);
+        return ImVec2((float) i / 5, 0.0f);
+    };
+    auto cmd2uv1 = [](GUICommand i) {
+        assert(i >= AutoPlay && i <= Restart);
+        return ImVec2((float) (i + 1) / 5, 1.0f);
+    };
+
+    bool wasAutoPlayed = autoPlayed;
+    for (int i = 0; i < 5; ++i) {
+        ImGui::PushID(i);
+        auto cmd = static_cast<GUICommand>(i);
+
+        if (cmd == Cmd_Forward) {
+            ImGui::SetNextItemWidth(ImGui::GetTextLineHeight() * 6);
+            ImGui::InputInt("", &forwardWaves, 1, 10);
+            ImGui::SameLine();
+        }
+
+        auto nameTip = commandNames[cmd];
+        ImVec4 color = (wasAutoPlayed && cmd == Cmd_AutoPlay) || (!wasAutoPlayed && cmd == Cmd_Pause) ? accent_col : bg_col;
+        bool activate = ImGui::ImageButton(nameTip.first, controlButtonTexID, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
+        activate |= ((wasAutoPlayed && cmd == Cmd_Pause) || (!wasAutoPlayed && cmd == Cmd_AutoPlay)) && ImGui::IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
+        activate |= cmd == Cmd_Forward && ImGui::IsKeyPressed(ImGuiKey_Enter, false);  // Enter key for Forward
+        activate |= cmd == Cmd_Restart && ImGui::IsKeyPressed(ImGuiKey_F5, false);  // F5 key for Restart
+        activate |= cmd == Cmd_Save && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false);  // Ctrl + S for Save
+        if (activate) {
+            std::cout << "Command: " << nameTip.first << std::endl;
+            std::lock_guard lock(mtxCommand);
+            command = cmd;
+            cv.notify_one();  // Notify the render thread
+        }
+        ImGui::SetItemTooltip("%s", nameTip.second);
+        ImGui::SameLine();
+
+        if (cmd == Cmd_Forward) {
+            ImGui::NewLine();
+        }
+        ImGui::PopID();
+    }
+    ImGui::NewLine();
 }
 
 void GuidingViewerGUI::ColormapNode() {
@@ -547,6 +556,29 @@ void GuidingViewerGUI::CacheCurvesNode() {
             ResetCECurves();
         ImGui::TreePop();
     }
+}
+
+void GuidingViewerGUI::SpatialSubdivisionSettings() {
+    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    ImGui::BeginDisabled(renderState == Rendering);
+    if (ImGui::TreeNode("Spatial Subdivision")) {
+        std::lock_guard lock(mtxSubdivCfg);
+        int maxDepth = (int) subdivCfg.maxDepth;
+        int maxSamples = (int) subdivCfg.maxSamples;
+        int minSamples = (int) subdivCfg.minSamples;
+        ImGui::InputInt("Max Depth", &maxDepth);
+        ImGui::InputInt("Max Samples", &maxSamples, 1000, 5000);
+        ImGui::InputInt("Min Samples", &minSamples, 1000, 5000);
+        subdivCfg.maxDepth = std::max(1, maxDepth);
+        subdivCfg.maxSamples = std::max(0, maxSamples);
+        subdivCfg.minSamples = std::max(0, minSamples);
+        ImGui::InputFloat("CE Threshold", &subdivCfg.ceThreshold, 0.1f, 1.0f);
+        ImGui::Checkbox("KNN Lookup", &subdivCfg.knnLookup);
+        ImGui::Checkbox("IS KNN Lookup", &subdivCfg.isKnnLookup);
+        ImGui::TreePop();
+    }
+    ImGui::EndDisabled();
+    // Field will update from subdivCfg in the render thread
 }
 
 void GuidingViewerGUI::UpdateRayCastingResult() {
@@ -629,6 +661,10 @@ void GuidingViewerGUI::ClearFilm() {
 
 void GuidingViewerGUI::PostprocessWave() {
     std::lock_guard lock(mtxField);
+    {
+        std::lock_guard lock_(mtxSubdivCfg);
+        field->UpdateSubdivConfig(subdivCfg);
+    }
     Timer timer;
     if (waveStart > 0)
         postprocessWave(waveStart);

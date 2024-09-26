@@ -322,6 +322,7 @@ class GuidedPathIntegrator : public RayIntegrator {
     ThreadLocal<openpgl::cpp::SurfaceSamplingDistribution*>* guiding_threadSurfaceSamplingDistribution;
 
     openpgl::cpp::FieldConfig guiding_fieldConfig;
+    PGLKDTreeArguments guiding_fieldSubdivConfig;
     openpgl::cpp::SampleStorage* guiding_sampleStorage {nullptr};
     openpgl::cpp::Field* guiding_field {nullptr};
     openpgl::cpp::Device* guiding_device {nullptr};

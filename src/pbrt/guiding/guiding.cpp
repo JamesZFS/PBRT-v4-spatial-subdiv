@@ -84,6 +84,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
         guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM, true,
             guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth, guideSettings.treecethreshold);
+        guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -204,7 +205,7 @@ void GuidedPathIntegrator::Render() {
     }
 
     // Launch the GUI and render image in waves
-    GuidingViewerGUI gui(camera, aggregate, guiding_field, spp,
+    GuidingViewerGUI gui(camera, aggregate, guiding_field, guiding_fieldSubdivConfig, spp,
         [&](int waveStart) {
             std::cout << "Rendering wave " << waveStart << std::endl;
             Timer pureRenderingTimer;
