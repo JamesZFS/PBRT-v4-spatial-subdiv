@@ -61,6 +61,7 @@ struct PBRTOptions : BasicPBRTOptions {
 
 // Options Global Variable Declaration
 extern PBRTOptions *Options;
+extern std::string SceneName;
 
 #if defined(PBRT_BUILD_GPU_RENDERER)
 #if defined(__CUDACC__)

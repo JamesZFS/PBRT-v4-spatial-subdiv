@@ -12,6 +12,7 @@
 namespace pbrt {
 
 PBRTOptions *Options;
+std::string SceneName;
 
 #if defined(PBRT_BUILD_GPU_RENDERER)
 __constant__ BasicPBRTOptions OptionsGPU;
