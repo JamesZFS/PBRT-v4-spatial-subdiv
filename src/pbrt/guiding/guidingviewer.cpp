@@ -122,7 +122,8 @@ void GuidingViewerGUI::Launch() {
     // Initiate the render thread
     std::thread renderThread(&GuidingViewerGUI::RenderThread, this);
 
-    auto window = InitializeImGui("Guiding Viewer", windowSize.x, windowSize.y);
+    std::string title = StringPrintf("Guiding Viewer (%s)", SceneName.c_str());
+    auto window = InitializeImGui(title.c_str(), windowSize.x, windowSize.y);
     if (window == nullptr) {
         Error("Failed to create window");
         return;
@@ -134,7 +135,7 @@ void GuidingViewerGUI::Launch() {
     glGenTextures(1, reinterpret_cast<GLuint*>(&renderingTexID));
     UpdateGPUFramebufferFromCPU();
     InitializeTonemappedImageContext();
-    glEnable(GL_FRAMEBUFFER_SRGB);
+    // glEnable(GL_FRAMEBUFFER_SRGB);
 
     // ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -438,11 +439,11 @@ void GuidingViewerGUI::ControlPanel() {  // Control buttons
     ImVec4 accent_col = ImVec4(0.15f, 0.60f, 0.15f, 1.00f);
     ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);           // No tint
     auto cmd2uv0 = [](GUICommand i) {
-        assert(i >= AutoPlay && i <= Restart);
+        assert(i >= Cmd_AutoPlay && i <= Cmd_Restart);
         return ImVec2((float) i / 5, 0.0f);
     };
     auto cmd2uv1 = [](GUICommand i) {
-        assert(i >= AutoPlay && i <= Restart);
+        assert(i >= Cmd_AutoPlay && i <= Cmd_Restart);
         return ImVec2((float) (i + 1) / 5, 1.0f);
     };
 

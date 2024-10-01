@@ -23,6 +23,7 @@ void main()
 	vec3 color = texture(image_tex, uv).rgb;
 	// Linear transformation
 	color = scale * (color + offset);
+	color = pow(color, vec3(1.0 / 2.2));  // gamma correction
 
 	if (tonemapped == 0) {  // no tonemapping
 		if (single_channel == 1)

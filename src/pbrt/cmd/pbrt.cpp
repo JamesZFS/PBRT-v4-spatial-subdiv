@@ -24,6 +24,7 @@
 
 #include <string>
 #include <vector>
+#include <filesystem/path.h>
 
 using namespace pbrt;
 
@@ -282,6 +283,11 @@ int main(int argc, char *argv[]) {
         FormattingParserTarget formattingTarget(toPly, options.upgrade);
         ParseFiles(&formattingTarget, filenames);
     } else {
+        if (!filenames.empty()) {
+            filesystem::path p(filenames[0]);
+            SceneName = p.filename();
+        }
+
         // Parse provided scene description files
         BasicScene scene;
         BasicSceneBuilder builder(&scene);

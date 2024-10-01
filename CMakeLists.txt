@@ -661,6 +661,11 @@ SET (PBRT_WAVEFRONT_SOURCE_HEADERS
 if (PBRT_BUILD_GUIDING_VIEWER)
 SET (PBRT_GUIDING_VIEWER_SOURCE
         src/pbrt/guiding/guidingviewer.cpp
+        src/pbrt/guiding/Application.cpp
+        src/pbrt/guiding/RenderThread.cpp
+        src/pbrt/guiding/ControlPanel.cpp
+        src/pbrt/guiding/Viewport.cpp
+        src/pbrt/guiding/ColormapPanel.cpp
         src/pbrt/guiding/helper.cpp
 )
 else ()
@@ -706,6 +711,7 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/transform.cpp
   src/pbrt/util/vecmath.cpp
   src/pbrt/util/shader.cpp
+  src/pbrt/util/framebuffer.cpp
 )
 
 SET (PBRT_UTIL_SOURCE_HEADERS

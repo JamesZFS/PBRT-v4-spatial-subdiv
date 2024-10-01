@@ -45,7 +45,7 @@ static GLFWwindow *InitializeGLFW(const char *title, int width, int height) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+    // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     // Create window with graphics context
     GLFWwindow *window = glfwCreateWindow(width, height, title, nullptr, nullptr);
@@ -192,7 +192,17 @@ static std::string _cmap_paths[pbrt::GuidingViewerGUI::CMap_Count] = {
     PBRT_ROOT_DIR "images/cmaps/plasma.png",
     PBRT_ROOT_DIR "images/cmaps/viridis.png"
 };
+
 GLuint cmap_tex_ids[pbrt::GuidingViewerGUI::CMap_Count] = {0};
+
+void InitializeTonemaps() {
+    for (int i = 0; i < pbrt::GuidingViewerGUI::CMap_Count; i++) {
+        int width, height;
+        if (!LoadTextureFromFile(_cmap_paths[i].c_str(), cmap_tex_ids[i], width, height, true))
+            pbrt::Error("Failed to load colormap %s from disk", _cmap_paths[i].c_str());
+        std::cout << "Loaded a " << width << "x" << height << " colormap from " << _cmap_paths[i] << std::endl;
+    }
+}
 
 void InitializeTonemappedImageContext() {
     //Create Quad covering the entire screen
@@ -282,6 +292,91 @@ void DrawTonemappedImage(GLuint image_tex_id, GLuint cmap_tex_id,
     // Render!
     glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(6), GL_UNSIGNED_INT, nullptr);
     glBindVertexArray(0);
+}
+
+GLuint CreateExampleFramebuffer(int width, int height) {
+    GLuint fbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // Attach the texture to the framebuffer
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        throw "Framebuffer is not complete";
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Create Quad covering the entire screen
+    struct Vertex {
+        float x, y;
+        float u, v;
+    };
+
+    int quad_indices[6] = {0, 1, 2, 0, 2, 3};
+    Vertex quad_vertices[4] = {
+        Vertex{-1.0f, -1.0f, 0.0f, 0.0f},
+        Vertex{1.0f, -1.0f, 1.0f, 0.0f},
+        Vertex{1.0f, 1.0f, 1.0f, 1.0f},
+        Vertex{-1.0f, 1.0f, 0.0f, 1.0f}
+    };
+
+    auto shader = ShaderBuilder()
+            .addStage(GL_VERTEX_SHADER, PBRT_ROOT_DIR "src/pbrt/shaders/dummy.vert")
+            .addStage(GL_FRAGMENT_SHADER, PBRT_ROOT_DIR "src/pbrt/shaders/dummy.frag").build();
+
+    // Create vertex (vbo) and index (ibo) buffer objects and fill them with the data for the quad, this will be the only geometry we need.
+    GLuint vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, 4 * sizeof(Vertex), quad_vertices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    GLuint ibo;
+    glGenBuffers(1, &ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(int), quad_indices, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    //Setup vertex array object so we dont have to mess with binding the buffers every time
+    GLuint vao;
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+
+    // Enable pos and uv attributes
+    GLuint ind_pos = shader.getAttributeLocation("pos");
+    GLuint ind_uv = shader.getAttributeLocation("uv");
+    glEnableVertexAttribArray(ind_pos);
+    glEnableVertexAttribArray(ind_uv);
+    glVertexAttribPointer(ind_pos, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *) offsetof(Vertex, x));
+    glVertexAttribPointer(ind_uv, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *) offsetof(Vertex, u));
+
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    // Draw a quad to the framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glViewport(0, 0, width, height);
+    glClear(GL_COLOR_BUFFER_BIT);
+    shader.bind();
+    glBindVertexArray(vao);
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    glBindVertexArray(0);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    return tex;
 }
 
 // ==== Tonemapped Image Shader End ====

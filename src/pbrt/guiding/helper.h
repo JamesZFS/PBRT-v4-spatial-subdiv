@@ -33,11 +33,15 @@ void UpdateTextureFromRGBData(GLuint image_texture, const pbrt::RGB *image_data,
 void UpdateTextureFromFloatData(GLuint image_texture, const float *image_data, int image_width, int image_height,
                                 bool interpolate);
 
+void InitializeTonemaps();
+
 void InitializeTonemappedImageContext();
 
 // Create an ImGui::Image-like region at the screen_pos that displays image_tex_id tonemapped with cmap_tex_id, with the given size and UV coordinates
 void DrawTonemappedImage(GLuint image_tex_id, GLuint cmap_tex_id,
                          ImVec2 screen_pos, ImVec2 image_size, ImVec2 window_size,
                          float scale, float offset, bool single_channel, bool tonemapped);
+
+GLuint CreateExampleFramebuffer(int width, int height);
 
 #endif //HELPER_H
