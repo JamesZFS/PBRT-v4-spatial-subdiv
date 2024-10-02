@@ -54,15 +54,17 @@ void ColormapPanel::Draw() {
         ImGui::Combo("Tonemap", reinterpret_cast<int *>(&selectedCMap), cmap_names, CMap_Count);
         ImGui::SameLine();
         ImGui::Checkbox("##check_tonemap", &sd.tonemapped);
-        if (sd.tonemapped)
-            ImGui::Image((void *) (uintptr_t) cmap_tex_ids[selectedCMap],
-                         ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
-        float xmin = ImGui::GetItemRectMin().x, xmax = ImGui::GetItemRectMax().x;
-        if (ImGui::IsItemHovered() && ImGui::BeginTooltip()) {
-            float t = (io.MousePos.x - xmin) / (xmax - xmin);
-            ImGui::Text("Pos: %.2f", t);
-            ImGui::Text("Value: %.4f", t / sd.scale - sd.offset);
-            ImGui::EndTooltip();
+        hoveringValue = std::numeric_limits<float>::infinity();
+        if (sd.tonemapped) {
+            ImGui::Image((void *) (uintptr_t) cmap_tex_ids[selectedCMap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
+            float xmin = ImGui::GetItemRectMin().x, xmax = ImGui::GetItemRectMax().x;
+            if (ImGui::IsItemHovered() && ImGui::BeginTooltip()) {
+                float t = (io.MousePos.x - xmin) / (xmax - xmin);
+                hoveringValue = t / sd.scale - sd.offset;
+                ImGui::Text("Pos: %.2f", t);
+                ImGui::Text("Value: %.4f", hoveringValue);
+                ImGui::EndTooltip();
+            }
         }
     }
     ImGui::EndDisabled();

@@ -13,13 +13,18 @@
 
 class Viewport : public View {
 public:
+    struct Uniforms {
+        float scale, offset, clipValue;
+        GLuint cmapTex;
+    };
+
     Viewport(pbrt::Film film);
 
     ~Viewport();
 
     void UpdateCPUBufferFromFilm();
 
-    void PossiblyUpdateFramebuffer(SelectedChannel channel, float scale, float offset, GLuint cmapTex);
+    void UpdateFramebuffer(SelectedChannel channel, const Uniforms &uniforms);
 
     void Draw() override;
 
@@ -46,7 +51,7 @@ private:
     Framebuffer m_framebuffer;
 
     bool m_isHovered = false;
-    pbrt::Point2i m_mousePixel;
+    pbrt::Point2i m_mousePixel;  // coordinates in the image space
 };
 
 
