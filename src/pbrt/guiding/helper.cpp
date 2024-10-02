@@ -148,7 +148,7 @@ bool LoadTextureFromFile(const char *filename, GLuint &out_texture, int &out_wid
 
     // Upload pixels into texture
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
     stbi_image_free(image_data);
 
     out_texture = image_texture;
@@ -225,10 +225,10 @@ void InitializeTonemappedImageContext() {
 
     int quad_indices[6] = {0, 1, 2, 0, 2, 3};
     Vertex quad_vertices[4] = {
-        Vertex{-1.0f, -1.0f, 0.0f, 0.0f, 0.0f},
-        Vertex{1.0f, -1.0f, 0.0f, 1.0f, 0.0f},
-        Vertex{1.0f, 1.0f, 0.0f, 1.0f, 1.0f},
-        Vertex{-1.0f, 1.0f, 0.0f, 0.0f, 1.0f}
+        Vertex{-1.0f, -1.0f, 0.0f, 0.0f, 1.0f},
+        Vertex{1.0f, -1.0f, 0.0f, 1.0f, 1.0f},
+        Vertex{1.0f, 1.0f, 0.0f, 1.0f, 0.0f},
+        Vertex{-1.0f, 1.0f, 0.0f, 0.0f, 0.0f}
     };
 
     _image_tonemapped_shader = ShaderBuilder()
@@ -299,6 +299,7 @@ void DrawTonemappedImage(GLuint image_tex_id, GLuint cmap_tex_id,
     _image_tonemapped_shader.setUniform1i("cmap_tex", 1);
     _image_tonemapped_shader.setUniform1f("scale", scale);
     _image_tonemapped_shader.setUniform1f("offset", offset);
+    _image_tonemapped_shader.setUniform1f("clip_val", std::numeric_limits<float>::infinity());
     _image_tonemapped_shader.setUniform1i("single_channel", single_channel);
     _image_tonemapped_shader.setUniform1i("tonemapped", tonemapped);
     // Render!

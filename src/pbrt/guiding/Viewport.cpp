@@ -46,7 +46,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
     m_cpuBufferUpdated = true;
 }
 
-void Viewport::PossiblyUpdateFramebuffer(SelectedChannel channel, float scale, float offset, GLuint cmapTex) {
+void Viewport::UpdateFramebuffer(SelectedChannel channel, const Uniforms &uniforms) {
     // Render to the tonemapped framebuffer if the CPU buffer has been updated
     if (m_cpuBufferUpdated.exchange(false)) {
         // Update the rendering texture
@@ -81,12 +81,13 @@ void Viewport::PossiblyUpdateFramebuffer(SelectedChannel channel, float scale, f
     glBindTexture(GL_TEXTURE_2D, m_renderingTex);
     shader.setUniform1i("image_tex", 0);
     glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, cmapTex);
+    glBindTexture(GL_TEXTURE_2D, uniforms.cmapTex);
     shader.setUniform1i("cmap_tex", 1);
-    shader.setUniform1f("scale", scale);
-    shader.setUniform1f("offset", offset);
+    shader.setUniform1f("scale", uniforms.scale);
+    shader.setUniform1f("offset", uniforms.offset);
+    shader.setUniform1f("clip_val", uniforms.clipValue);
     shader.setUniform1i("single_channel", channel > Channel_CacheID);
-    shader.setUniform1i("tonemapped", cmapTex > 0);
+    shader.setUniform1i("tonemapped", uniforms.cmapTex > 0);
 
     // Render!
     m_framebuffer.draw();
@@ -101,7 +102,7 @@ void Viewport::Draw() {
     float scale = std::min(avail.x / size.x, avail.y / size.y);
     size = {size.x * scale, size.y * scale};
     ImVec2 leftTop = ImGui::GetCursorScreenPos();
-    ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size, {0, 1}, {1, 0});
+    ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size);
     // ImGui::Image((ImTextureID) (uintptr_t) cmap_tex_ids[1], size);
 
     if ((m_isHovered = ImGui::IsItemHovered())) {

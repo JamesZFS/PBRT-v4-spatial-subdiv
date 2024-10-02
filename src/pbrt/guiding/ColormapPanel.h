@@ -26,6 +26,8 @@ struct ColormapPanel : public View {
         bool tonemapped = false;
         bool firstNormalized = false;
     } shaderData[Channel_Count];
+
+    float hoveringValue = std::numeric_limits<float>::infinity();
 };
 
 

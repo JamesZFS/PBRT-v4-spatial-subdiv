@@ -87,12 +87,7 @@ int Application::Run() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         SetupDockSpace();
-
-        {   // Update the framebuffer when the film is updated
-            SelectedChannel c = m_colormapPanel->selectedChannel;
-            auto &sd = m_colormapPanel->shaderData[c];
-            m_viewport->PossiblyUpdateFramebuffer(c, sd.scale, sd.offset, sd.tonemapped ? cmap_tex_ids[m_colormapPanel->selectedCMap] : 0);
-        }
+        UpdateFramebuffer();
 
         if (m_enableRayCastingAtMouse) {
             UpdateRayCastingAtMouse();
@@ -272,6 +267,13 @@ void Application::RayCasting(RayCastingData &rc) const {
         }
         scratchBuffer.Reset();
     }
+}
+
+void Application::UpdateFramebuffer() {
+    // Update the framebuffer when the film is updated
+    SelectedChannel c = m_colormapPanel->selectedChannel;
+    auto &sd = m_colormapPanel->shaderData[c];
+    m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, m_colormapPanel->hoveringValue, sd.tonemapped ? cmap_tex_ids[m_colormapPanel->selectedCMap] : 0});
 }
 
 void Application::UpdateRayCastingAtMouse() {

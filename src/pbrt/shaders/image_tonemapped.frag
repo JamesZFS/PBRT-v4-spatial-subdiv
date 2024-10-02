@@ -8,6 +8,7 @@ uniform sampler2D cmap_tex;  // 1D tonemapping
 
 uniform float scale;
 uniform float offset;
+uniform float clip_val;
 uniform int single_channel;
 uniform int tonemapped;
 
@@ -19,24 +20,27 @@ float luminance(vec3 color) {
 
 void main()
 {
-	vec2 uv = vec2(tex_coord.x, 1 - tex_coord.y);
-	vec3 color = texture(image_tex, uv).rgb;
+	vec3 color = texture(image_tex, tex_coord).rgb;
+	float val = single_channel == 1 ? color.r : luminance(color);
 	// Linear transformation
 	color = scale * (color + offset);
-	color = pow(color, vec3(1.0 / 2.2));  // gamma correction
 
 	if (tonemapped == 0) {  // no tonemapping
 		if (single_channel == 1)
 			out_color = vec4(color.r, color.r, color.r, 1);
 		else
 			out_color = vec4(color, 1);
+		out_color = pow(out_color, vec4(1.0 / 2.2));  // gamma correction
 	}
 	else {  // tonemapping
-		float val;
+		float u;  // Valid range: [0, 1]
 		if (single_channel == 1)
-			val = color.r;
+			u = color.r;
 		else
-			val = luminance(color);
-		out_color = texture(cmap_tex, vec2(val, 0));
+			u = luminance(color);
+		out_color = texture(cmap_tex, vec2(u, 0));
+		if (val > clip_val) {
+			out_color = vec4(vec3(luminance(out_color.rgb) * 0.2), 1);  // desaturate
+		}
 	}
 }

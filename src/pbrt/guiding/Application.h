@@ -47,6 +47,7 @@ private:
 
     void CheckIsMainThread();
     void RayCasting(RayCastingData &rc) const;
+    void UpdateFramebuffer();
     void UpdateRayCastingAtMouse();
 
     // Callbacks from render thread
