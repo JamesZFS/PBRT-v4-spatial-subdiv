@@ -12,6 +12,7 @@
 // - Introduction, links and more at the top of imgui.cpp
 
 #include "helper.h"
+#include "implot.h"
 
 #include <pbrt/cameras.h>
 #include <pbrt/samplers.h>

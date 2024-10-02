@@ -9,6 +9,7 @@
 #include "RenderThread.h"
 #include "Viewport.h"
 #include "ColormapPanel.h"
+#include "CacheMonitor.h"
 #include <pbrt/cpu/integrators.h>
 
 namespace openpgl {
@@ -45,10 +46,12 @@ private:
     void SetupDockSpace();
     void SetupRenderThread();
 
+    int GetCurrentWave() const;
     void CheckIsMainThread();
-    void RayCasting(RayCastingData &rc) const;
+    RayCastingData RayCast(Point2i pixel) const;
     void UpdateFramebuffer();
     void UpdateRayCastingAtMouse();
+    void ProbesInteraction();
 
     // Callbacks from render thread
     void CheckIsRenderThread();
@@ -56,6 +59,7 @@ private:
     void RenderWave(int waveStart);
     void ClearFilm();
     void UpdateCPUBufferFromFilm();
+    void AppendToProbeData();
 
     // GUI components
     void RayCastingPanel();
@@ -89,6 +93,7 @@ private:
     std::unique_ptr<ControlPanel> m_controlPanel;
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
+    std::unique_ptr<CacheMonitor> m_cacheMonitor;
 
     mutable struct {
         std::mutex field, subdivCfg;

@@ -34,6 +34,10 @@ public:
 
     inline pbrt::Point2i GetMousePixel() const { return m_mousePixel; }
 
+    inline ImVec2 GetLeftTop() const { return m_leftTop; }
+
+    inline float GetScale() const { return m_scale; }
+
 private:
     pbrt::Film m_film;
     bool m_isMultiChannel;
@@ -50,6 +54,8 @@ private:
     GLuint m_renderingTex = 0;  // stores the selected cpu buffer
     Framebuffer m_framebuffer;
 
+    ImVec2 m_leftTop;
+    float m_scale = 1.0f;
     bool m_isHovered = false;
     pbrt::Point2i m_mousePixel;  // coordinates in the image space
 };

@@ -6,7 +6,6 @@
 #define HELPER_H
 
 #include "imgui.h"
-#include "implot.h"
 
 #include <pbrt/util/shader.h>  // Will include glad
 #include <pbrt/util/color.h>  // Will include glad

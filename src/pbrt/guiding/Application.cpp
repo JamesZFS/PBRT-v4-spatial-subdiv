@@ -15,6 +15,8 @@
 
 #include <iostream>
 #include <imgui_internal.h>
+#include <implot.h>
+#include <implot_internal.h>
 
 static std::vector<const char *> channelNames = {
     "Radiance (1)",
@@ -58,7 +60,7 @@ int Application::Run() {
     }
     // Figure out proper window size
     auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-    m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 80, mode->height));
+    m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 100, mode->height));
     glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
 
     ImGuiIO &io = ImGui::GetIO();
@@ -69,6 +71,7 @@ int Application::Run() {
     m_controlPanel = std::make_unique<ControlPanel>(*m_renderThread);
     m_viewport = std::make_unique<Viewport>(m_film);
     m_colormapPanel = std::make_unique<ColormapPanel>(m_film);
+    m_cacheMonitor = std::make_unique<CacheMonitor>();
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -88,23 +91,14 @@ int Application::Run() {
 
         SetupDockSpace();
         UpdateFramebuffer();
-
-        if (m_enableRayCastingAtMouse) {
-            UpdateRayCastingAtMouse();
-            if (m_rcMouse.cacheId != -1 && ImGui::BeginTooltip()) {
-                ImGui::Text("Cache ID: %u", m_rcMouse.cacheId);
-                ImGui::Text("Fluence: %f", m_rcMouse.fluence);
-                ImGui::Text("CE: %f", m_rcMouse.ce);
-                ImGui::EndTooltip();
-            }
-        }
+        UpdateRayCastingAtMouse();
 
         // Left Pane
         {
-            ImGui::Begin("Left Pane");
+            ImGui::Begin("Controls");
             m_controlPanel->Draw();
-            int waveStart = m_renderThread->GetWaveStart();
-            ImGui::ProgressBar((float) waveStart / (float) m_spp, {ImGui::GetColumnWidth(), 0}, waveStart == m_spp ? "Done" : StringPrintf("%d/%d SPP", waveStart, m_spp).c_str());
+            int wave = GetCurrentWave();
+            ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
             m_colormapPanel->Draw();
             RayCastingPanel();
             ImGui::End();
@@ -112,9 +106,10 @@ int Application::Run() {
 
         // Middle Pane
         {
-            ImGui::Begin("Middle Pane");
+            ImGui::Begin("Viewport");
             ChannelSelector();
             m_viewport->Draw();
+            ProbesInteraction();
             ImGui::Separator();
             StatusBar();
             ImGui::End();
@@ -122,10 +117,16 @@ int Application::Run() {
 
         // Right Pane
         {
-            ImGui::Begin("Right Pane");
+            ImGui::Begin("Settings");
             IntegratorPanel();
             GuidePanel();
             SpatialSubdivisionPanel();
+            ImGui::End();
+        }
+
+        {
+            ImGui::Begin("Cache Monitor");
+            m_cacheMonitor->Draw();
             ImGui::End();
         }
 
@@ -137,7 +138,7 @@ int Application::Run() {
     m_renderThread->SendCommand(RenderThread::Terminate);
     m_renderThread->Join();
 
-    if (int waveEnd = m_renderThread->GetWaveStart(); waveEnd > 0)
+    if (int waveEnd = GetCurrentWave(); waveEnd > 0)
         UpdateField(waveEnd);
 
     DestroyImGui(m_window);
@@ -155,7 +156,7 @@ void Application::SetupDockSpace() {
     ImGui::Begin("MyDockSpace", nullptr, windowFlags);
 
     ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
-    dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
+    // dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
     ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
     ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
     // ImGui::DockSpaceOverViewport(dockSpaceID, ImGui::GetMainViewport(), dockFlags);
@@ -165,17 +166,18 @@ void Application::SetupDockSpace() {
         ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
 
-        ImGuiID leftDock, midDock, rightDock;
-        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightDock);
-        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Left, 0.5f, &midDock, &rightDock);
+        ImGuiID leftDock, midDock, rightTopDock, rightBottomDock;
+        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightTopDock);
+        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Left, 0.5f, &midDock, &rightTopDock);
+        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, -1));
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(m_resolution.x + 2 * padding, -1));
 
-        ImGui::DockBuilderDockWindow("Left Pane", leftDock);
-        ImGui::DockBuilderDockWindow("Middle Pane", midDock);
-        ImGui::DockBuilderDockWindow("Right Pane", rightDock);
-        ImGui::DockBuilderDockWindow("Dear ImGui Demo", rightDock);
+        ImGui::DockBuilderDockWindow("Controls", leftDock);
+        ImGui::DockBuilderDockWindow("Viewport", midDock);
+        ImGui::DockBuilderDockWindow("Settings", rightTopDock);
+        ImGui::DockBuilderDockWindow("Cache Monitor", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupDock = true;
@@ -191,7 +193,7 @@ void Application::SetupRenderThread() {
         m_spp,
         [&](int waveStart) {
             UpdateField(waveStart);
-            // AppendToCECurves();
+            AppendToProbeData();
             RenderWave(waveStart);
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
@@ -202,9 +204,13 @@ void Application::SetupRenderThread() {
             std::lock_guard lock(m_mtx.field);
             m_field.Reset();
         }
-        // ResetCECurves();
+        m_cacheMonitor->Reset();
         return true;
     });
+}
+
+int Application::GetCurrentWave() const {
+    return m_renderThread->GetWaveStart();
 }
 
 void Application::CheckIsMainThread() {
@@ -217,9 +223,8 @@ void Application::CheckIsRenderThread() {
         ErrorExit("This function should be called from the render thread");
 }
 
-void Application::RayCasting(RayCastingData &rc) const {
-    rc.valid = false;
-    rc.cacheId = -1;
+Application::RayCastingData Application::RayCast(Point2i pixel) const {
+    RayCastingData rc{pixel};
     static openpgl::cpp::SurfaceSamplingDistribution ssd(&m_field);
     static ScratchBuffer scratchBuffer;
     if (rc.pixel.x >= 0 && rc.pixel.x < m_resolution.x && rc.pixel.y >= 0 && rc.pixel.y < m_resolution.y) {
@@ -267,6 +272,7 @@ void Application::RayCasting(RayCastingData &rc) const {
         }
         scratchBuffer.Reset();
     }
+    return rc;
 }
 
 void Application::UpdateFramebuffer() {
@@ -277,12 +283,53 @@ void Application::UpdateFramebuffer() {
 }
 
 void Application::UpdateRayCastingAtMouse() {
-    if (m_viewport->IsHovered()) {
-        m_rcMouse.pixel = m_viewport->GetMousePixel();
-        RayCasting(m_rcMouse);
-    } else {
-        m_rcMouse.valid = false;
-        m_rcMouse.cacheId = -1;
+    if (m_enableRayCastingAtMouse) {
+        if (m_viewport->IsHovered()) {
+            m_rcMouse = RayCast(m_viewport->GetMousePixel());
+        } else {
+            m_rcMouse.valid = false;
+            m_rcMouse.cacheId = -1;
+        }
+        if (m_rcMouse.cacheId != -1) {
+            // Tooltip next to the mouse
+            if (ImGui::BeginTooltip()) {
+                ImGui::Text("Cache ID: %u", m_rcMouse.cacheId);
+                ImGui::Text("Fluence: %f", m_rcMouse.fluence);
+                ImGui::Text("CE: %f", m_rcMouse.ce);
+                ImGui::EndTooltip();
+            }
+        }
+    }
+}
+
+void Application::ProbesInteraction() {
+    // Draw all probes
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    ImVec2 leftTop = m_viewport->GetLeftTop();
+    float scale = m_viewport->GetScale();
+    m_cacheMonitor->ForEachProbe([&](CacheMonitor::Probe &probe) {
+        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), probe.pixel) < m_cacheMonitor->GetProbeRadius();
+        // Right click to remove a probe
+        if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+            probe.active = false;
+        ImVec2 center(leftTop.x + probe.pixel.x * scale, leftTop.y + probe.pixel.y * scale);
+        ImU32 col = ImPlot::GetColormapColorU32(probe.idx, -1);
+        ImU32 border_col = isHovered ? IM_COL32_WHITE : IM_COL32_BLACK;
+        if (!probe.active) {
+            col = ImGui::GetColorU32(col, 0.2f);
+            border_col = ImGui::GetColorU32(border_col, 0.5f);
+        }
+        draw_list->AddCircleFilled(center, 5, col);
+        draw_list->AddCircle(center, 5, border_col, 0, 1.2);
+    });
+
+    // Left click to add/activate a probe
+    if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        auto rc = RayCast(m_viewport->GetMousePixel());
+        if (m_renderThread->GetState() != RenderThread::Rendering)
+            m_cacheMonitor->AddProbe(rc.pixel, {(float) GetCurrentWave(), rc.cacheId != -1 ? rc.ce : std::numeric_limits<float>::quiet_NaN()});
+        else
+            m_cacheMonitor->AddProbe(rc.pixel);  // Data will be added when the wave ends
     }
 }
 
@@ -317,6 +364,18 @@ void Application::ClearFilm() {
 void Application::UpdateCPUBufferFromFilm() {
     CheckIsRenderThread();
     m_viewport->UpdateCPUBufferFromFilm();
+}
+
+void Application::AppendToProbeData() {
+    CheckIsRenderThread();
+    float x = (float) GetCurrentWave();
+    m_cacheMonitor->ForEachProbe([&](CacheMonitor::Probe &probe) {
+        if (probe.active) {
+            auto rc = RayCast(probe.pixel);
+            probe.data.push_back({x, rc.cacheId != -1 ? rc.ce : std::numeric_limits<float>::quiet_NaN()});
+        }
+    });
+    m_cacheMonitor->RequestFitAxes();
 }
 
 void Application::RayCastingPanel() {
