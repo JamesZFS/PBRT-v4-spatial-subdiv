@@ -9,6 +9,7 @@
 #include "RenderThread.h"
 #include "Viewport.h"
 #include "ColormapPanel.h"
+#include <pbrt/cpu/integrators.h>
 
 namespace openpgl {
 namespace cpp {
@@ -20,7 +21,9 @@ namespace pbrt {
 
 class Application {
 public:
-    Application(Camera camera, Primitive scene, openpgl::cpp::Field* field, const PGLKDTreeArguments &args, int spp,
+    Application(Camera camera, Primitive scene, openpgl::cpp::Field* field, openpgl::cpp::SampleStorage &sampleStorage,
+        const PGLKDTreeArguments &args, int spp,
+        GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
         const std::function<void(int waveStart)> &renderWave,
         const std::function<void(int waveEnd)> &updateCache,
         const std::function<void(int waveEnd)> &saveImage);
@@ -28,20 +31,38 @@ public:
     int Run();
 
 private:
+    struct RayCastingData {
+        Point2i pixel;  // in: pixel coordinate at the mouse position
+        bool valid = false;   // if the hit is valid
+        Point3f hit;  // hit point in world space
+        Normal3f normal;
+        Point2f uv;
+        uint32_t cacheId = -1;
+        float fluence;
+        float ce;
+    };
+
     void SetupDockSpace();
     void SetupRenderThread();
 
     void CheckIsMainThread();
+    void RayCasting(RayCastingData &rc) const;
+    void UpdateRayCastingAtMouse();
 
     // Callbacks from render thread
     void CheckIsRenderThread();
-    void UpdateCache(int waveEnd);
+    void UpdateField(int waveEnd);
     void RenderWave(int waveStart);
     void ClearFilm();
     void UpdateCPUBufferFromFilm();
 
-    // Small components
+    // GUI components
+    void RayCastingPanel();
     void ChannelSelector();
+    void StatusBar();
+    void IntegratorPanel();
+    void GuidePanel();
+    void SpatialSubdivisionPanel();
 
     Camera m_camera;
     Film m_film;
@@ -49,8 +70,11 @@ private:
     Vector2i m_resolution;  // resolution of the rendering
     Primitive m_scene;
     openpgl::cpp::Field& m_field;
+    openpgl::cpp::SampleStorage& m_sampleStorage;
     PGLKDTreeArguments m_subdivCfg;  // config for spatial subdivision
     const int m_spp;
+    GuidedPathIntegrator::IntegratorSettings &m_integratorSettings;  // from the integrator
+    GuidedPathIntegrator::GuidingSettings &m_guideSettings;  // from the integrator
     std::function<void(int waveStart)> m_renderWave;
     std::function<void(int waveEnd)> m_updateCache;
     std::function<void(int waveEnd)> m_saveImage;
@@ -65,12 +89,21 @@ private:
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
 
-    std::mutex m_mtxField, m_mtxSubdivCfg;
+    mutable struct {
+        std::mutex field, subdivCfg;
+    } m_mtx;
 
     struct {
         double renderMS = 0;
         double postprocessMS = 0;
-    } m_waveTimeStats;
+        size_t trainingSamples = 0;
+    } m_waveStats;
+
+    // Ray Casting
+    bool m_enableRayCastingAtMouse = false;
+    RayCastingData m_rcMouse;  // ray casting result at current mouse position
+
+    int m_maxMaxDepth = 15;
 };
 
 }

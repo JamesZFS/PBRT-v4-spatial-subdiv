@@ -272,9 +272,16 @@ class GuidedPathIntegrator : public RayIntegrator {
         std::string contributionEstimateFileName {""};
     };
 
+    struct IntegratorSettings {
+        int maxDepth;
+        int minRRDepth;
+        bool useNEE {true};
+        bool regularize;
+    };
+
   public:
     // GuidedPathIntegrator Public Methods
-    GuidedPathIntegrator(const int maxDepth, const int minRRDepth, const bool useNEE, const GuidingSettings settings, const RGBColorSpace *colorSpace, Camera camera, Sampler sampler, Primitive aggregate,
+    GuidedPathIntegrator(const int maxDepth, const int minRRDepth, const bool useNEE, const GuidingSettings guideSettings, const RGBColorSpace *colorSpace, Camera camera, Sampler sampler, Primitive aggregate,
                    std::vector<Light> lights,
                    const std::string &lightSampleStrategy = "bvh",
                    bool regularize = false);
@@ -306,11 +313,8 @@ class GuidedPathIntegrator : public RayIntegrator {
     const PixelSensor *sensor {nullptr};
 
     // GuidedPathIntegrator Private Members
-    int maxDepth;
-    int minRRDepth;
-    bool useNEE {true};
+    IntegratorSettings settings;
     LightSampler lightSampler;
-    bool regularize;
     const RGBColorSpace *colorSpace {nullptr};
 
     // Path Guiding

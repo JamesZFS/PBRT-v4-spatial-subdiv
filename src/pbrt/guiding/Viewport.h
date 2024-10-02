@@ -9,6 +9,7 @@
 #include <pbrt/util/framebuffer.h>
 #include <pbrt/util/shader.h>
 #include <pbrt/util/color.h>
+#include <pbrt/film.h>
 
 class Viewport : public View {
 public:
@@ -23,6 +24,10 @@ public:
     void Draw() override;
 
     void RequestUpdate() { m_cpuBufferUpdated = true; }
+
+    inline bool IsHovered() const { return m_isHovered; }
+
+    inline pbrt::Point2i GetMousePixel() const { return m_mousePixel; }
 
 private:
     pbrt::Film m_film;
@@ -39,6 +44,9 @@ private:
 
     GLuint m_renderingTex = 0;  // stores the selected cpu buffer
     Framebuffer m_framebuffer;
+
+    bool m_isHovered = false;
+    pbrt::Point2i m_mousePixel;
 };
 
 

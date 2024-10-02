@@ -7,6 +7,7 @@
 
 
 #include "View.h"
+#include <pbrt/film.h>
 
 
 struct ColormapPanel : public View {

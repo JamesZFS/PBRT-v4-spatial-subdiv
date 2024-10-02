@@ -5,15 +5,33 @@
 #ifndef HELPER_H
 #define HELPER_H
 
-#include "guidingviewer.h"
 #include "imgui.h"
 #include "implot.h"
 
 #include <pbrt/util/shader.h>  // Will include glad
+#include <pbrt/util/color.h>  // Will include glad
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
 
+enum SelectedChannel {
+    Channel_Radiance = 0,
+    Channel_CacheID,
+    Channel_Fluence,
+    Channel_CE,
+    Channel_Count,
+};
 
-extern GLuint cmap_tex_ids[pbrt::GuidingViewerGUI::CMap_Count];
+enum Colormap {
+    CMap_Cividis = 0,
+    CMap_Inferno,
+    CMap_Magma,
+    CMap_Plasma,
+    CMap_Viridis,
+    CMap_Count,
+};
+
+extern GLuint cmap_tex_ids[CMap_Count];
+
+std::string FormatInteger(int64_t v);
 
 GLFWwindow *InitializeImGui(const char *title, int width, int height);
 

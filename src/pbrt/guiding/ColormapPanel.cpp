@@ -6,7 +6,7 @@
 
 using namespace pbrt;
 
-static const char* cmap_names[pbrt::GuidingViewerGUI::CMap_Count] = {
+static const char* cmap_names[CMap_Count] = {
     "Cividis",
     "Inferno",
     "Magma",
@@ -64,7 +64,6 @@ void ColormapPanel::Draw() {
             ImGui::Text("Value: %.4f", t / sd.scale - sd.offset);
             ImGui::EndTooltip();
         }
-        ImGui::TreePop();
     }
     ImGui::EndDisabled();
 }

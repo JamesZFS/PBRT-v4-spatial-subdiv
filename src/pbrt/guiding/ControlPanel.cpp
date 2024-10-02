@@ -3,6 +3,7 @@
 //
 
 #include "ControlPanel.h"
+#include <pbrt/util/error.h>
 
 using namespace pbrt;
 
@@ -50,10 +51,6 @@ void ControlPanel::Draw() {
         }
         ImGui::SetItemTooltip("%s", nameTip.second);
         ImGui::SameLine();
-
-        if (cmd == Command::Forward) {
-            ImGui::NewLine();
-        }
         ImGui::PopID();
     }
     ImGui::NewLine();
