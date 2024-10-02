@@ -16,6 +16,18 @@
 #define STBI_NO_PIC
 #define STBI_ASSERT CHECK
 #include <stb/stb_image.h>
+#include <pbrt/util/print.h>
+#include <pbrt/util/error.h>
+
+
+using pbrt::StringPrintf;
+
+std::string FormatInteger(int64_t v) {
+    if (v < 1000) return StringPrintf("%d", v);
+    if (v < 1000000) return StringPrintf("%d,%03d", int(v / 1000), int(v % 1000));
+    if (v < 1000000000) return StringPrintf("%d,%03d,%03d", int(v / 1000000), int(v / 1000) % 1000, int(v % 1000));
+    return StringPrintf("%d,%03d,%03d,%03d", int(v / 1000000000), int(v / 1000000) % 1000, int(v / 1000) % 1000, int(v % 1000));
+}
 
 inline static void glfw_error_callback(int error, const char *description) {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
@@ -185,7 +197,7 @@ void UpdateTextureFromFloatData(GLuint image_texture, const float *image_data, i
 static GLuint _vao_full_screen;
 static Shader _image_tonemapped_shader;
 
-static std::string _cmap_paths[pbrt::GuidingViewerGUI::CMap_Count] = {
+static std::string _cmap_paths[CMap_Count] = {
     PBRT_ROOT_DIR "images/cmaps/cividis.png",
     PBRT_ROOT_DIR "images/cmaps/inferno.png",
     PBRT_ROOT_DIR "images/cmaps/magma.png",
@@ -193,10 +205,10 @@ static std::string _cmap_paths[pbrt::GuidingViewerGUI::CMap_Count] = {
     PBRT_ROOT_DIR "images/cmaps/viridis.png"
 };
 
-GLuint cmap_tex_ids[pbrt::GuidingViewerGUI::CMap_Count] = {0};
+GLuint cmap_tex_ids[CMap_Count] = {0};
 
 void InitializeTonemaps() {
-    for (int i = 0; i < pbrt::GuidingViewerGUI::CMap_Count; i++) {
+    for (int i = 0; i < CMap_Count; i++) {
         int width, height;
         if (!LoadTextureFromFile(_cmap_paths[i].c_str(), cmap_tex_ids[i], width, height, true))
             pbrt::Error("Failed to load colormap %s from disk", _cmap_paths[i].c_str());
@@ -258,7 +270,7 @@ void InitializeTonemappedImageContext() {
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
     // Load cmaps
-    for (int i = 0; i < pbrt::GuidingViewerGUI::CMap_Count; i++) {
+    for (int i = 0; i < CMap_Count; i++) {
         int width, height;
         if (!LoadTextureFromFile(_cmap_paths[i].c_str(), cmap_tex_ids[i], width, height, true))
             pbrt::Error("Failed to load colormap %s from disk", _cmap_paths[i].c_str());

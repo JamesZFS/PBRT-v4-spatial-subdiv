@@ -7,23 +7,6 @@
 
 #include "helper.h"
 
-enum SelectedChannel {
-    Channel_Radiance = 0,
-    Channel_CacheID,
-    Channel_Fluence,
-    Channel_CE,
-    Channel_Count,
-};
-
-enum Colormap {
-    CMap_Cividis = 0,
-    CMap_Inferno,
-    CMap_Magma,
-    CMap_Plasma,
-    CMap_Viridis,
-    CMap_Count,
-};
-
 class View {
 public:
     virtual ~View() = default;

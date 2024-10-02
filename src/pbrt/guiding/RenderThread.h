@@ -6,6 +6,8 @@
 #define RENDERTHREAD_H
 
 #include <functional>
+#include <mutex>
+#include <condition_variable>
 #include <thread>
 
 class RenderThread {

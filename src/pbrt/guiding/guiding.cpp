@@ -66,13 +66,10 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
                                Primitive aggregate, std::vector<Light> lights,
                                const std::string &lightSampleStrategy, bool regularize)
     : RayIntegrator(camera, sampler, aggregate, lights),
-      maxDepth(maxDepth),
-      minRRDepth(minRRDepth),
-      useNEE(useNEE),
+      settings{maxDepth, minRRDepth, useNEE, regularize},
       guideSettings(guideSettings),
       colorSpace(colorSpace),
-      lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())),
-      regularize(regularize) {
+      lightSampler(LightSampler::Create(lightSampleStrategy, lights, Allocator())) {
             std::cout<< "GuidedPathIntegrator:" <<std::endl;
             std::cout<< "\t maxDepth = " << maxDepth << std::endl;
             std::cout<< "\t minRRDepth = " << minRRDepth << std::endl;
@@ -104,7 +101,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
 
         guiding_threadPathSegmentStorage = new ThreadLocal<openpgl::cpp::PathSegmentStorage*>(
         [this]() { openpgl::cpp::PathSegmentStorage* pss = new openpgl::cpp::PathSegmentStorage(true);
-                   size_t maxPathSegments = this->maxDepth >= 1 ? this->maxDepth*2 : 30;
+                   size_t maxPathSegments = std::max(settings.maxDepth*2, 30);
                    pss->Reserve(maxPathSegments);
                    pss->SetMaxDistance(guidingInfiniteLightDistance);
                    return pss;});
@@ -132,7 +129,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         }
 
         if(guideSettings.guideRR) {
-            this->minRRDepth = 1;
+            settings.minRRDepth = 1;
         }
 
       }
@@ -209,11 +206,10 @@ void GuidedPathIntegrator::Render() {
 
     // Launch the GUI and render image in waves
 #ifdef USE_OLD_GUIDING_VIEWER
-    GuidingViewerGUI gui(
+    GuidingViewerGUI gui(camera, aggregate, guiding_field, guiding_fieldSubdivConfig, spp,
 #else
-    Application app(
+    Application app(camera, aggregate, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
 #endif
-        camera, aggregate, guiding_field, guiding_fieldSubdivConfig, spp,
         [&](int waveStart) {
             std::cout << "Rendering wave " << waveStart << std::endl;
             Timer pureRenderingTimer;
@@ -346,7 +342,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                     // Compute MIS weight for infinite light
                     Float lightPDF = lightSampler.PMF(prevIntrCtx, light) *
                                      light.PDF_Li(prevIntrCtx, ray.d, true);
-                    Float w_b = useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
+                    Float w_b = settings.useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
 
                     L += beta * w_b * Le;
                     guiding_addInfiniteLightEmission(pathSegmentStorage, guidingInfiniteLightDistance, ray, Le, w_b, lambda, colorSpace);
@@ -367,7 +363,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 Light areaLight(si->intr.areaLight);
                 Float lightPDF = lightSampler.PMF(prevIntrCtx, areaLight) *
                                  areaLight.PDF_Li(prevIntrCtx, ray.d, true);
-                Float w_l = useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
+                Float w_l = settings.useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
                 L += beta * w_l * Le;
                                 w = w_l;
                 add_direct_contribution = true;
@@ -421,11 +417,11 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         }
 
         // End path if maximum depth reached
-        if (depth++ == maxDepth)
+        if (depth++ == settings.maxDepth)
             break;
 
         // Possibly regularize the BSDF
-        if (regularize && anyNonSpecularBounces) {
+        if (settings.regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
             bsdf.Regularize();
         }
@@ -437,7 +433,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         bool cacheInitialized = gbsdf.init(&bsdf, ray, si, v);
         adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);
 
-        if (guideRR && depth > minRRDepth) {
+        if (guideRR && depth > settings.minRRDepth) {
             survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
         }
 
@@ -452,7 +448,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         }
 
         // Sample direct illumination from the light sources
-        if (useNEE && IsNonSpecular(bsdf.Flags())) {
+        if (settings.useNEE && IsNonSpecular(bsdf.Flags())) {
             ++totalPaths;
             SampledSpectrum Ld = SampleLd(isect, &gbsdf, survivalProb, lambda, sampler);
             if (!Ld)
@@ -492,11 +488,11 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         // termination probability
         // Todo: need to find a better solution for specular and near specular surfaces
 
-        if (!guideRR && depth > minRRDepth) {
+        if (!guideRR && depth > settings.minRRDepth) {
             const SampledSpectrum rrThroughputWeight = beta * rr_correction * etaScale;
             survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(OPGLVector3f(rrThroughputWeight));
         }
-        if (survivalProb < 1 && depth > minRRDepth) {
+        if (survivalProb < 1 && depth > settings.minRRDepth) {
             Float q = std::max<Float>(0, 1 - survivalProb);
             if (sampler.Get1D() < q)
                 break;
@@ -578,7 +574,7 @@ SampledSpectrum GuidedPathIntegrator::SampleLd(const SurfaceInteraction &intr, c
 
 std::string GuidedPathIntegrator::ToString() const {
     return StringPrintf("[ GuidedPathIntegrator maxDepth: %d lightSampler: %s regularize: %s ]",
-                        maxDepth, lightSampler, regularize);
+                        settings.maxDepth, lightSampler, settings.regularize);
 }
 
 std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
