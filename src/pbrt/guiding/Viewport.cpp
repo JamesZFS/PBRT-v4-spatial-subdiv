@@ -99,14 +99,14 @@ void Viewport::Draw() {
     ImVec2 size{(float) m_resolution.x, (float) m_resolution.y};
     ImVec2 avail = ImGui::GetContentRegionAvail();
     // Scale the image to fit the available space
-    float scale = std::min(avail.x / size.x, avail.y / size.y);
-    size = {size.x * scale, size.y * scale};
-    ImVec2 leftTop = ImGui::GetCursorScreenPos();
+    m_scale = std::min(avail.x / size.x, avail.y / size.y);
+    size = {size.x * m_scale, size.y * m_scale};
+    m_leftTop = ImGui::GetCursorScreenPos();
     ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size);
     // ImGui::Image((ImTextureID) (uintptr_t) cmap_tex_ids[1], size);
 
     if ((m_isHovered = ImGui::IsItemHovered())) {
-        m_mousePixel = Point2i((int) ((ImGui::GetMousePos().x - leftTop.x) / scale),
-                               (int) ((ImGui::GetMousePos().y - leftTop.y) / scale));
+        m_mousePixel = Point2i((int) ((ImGui::GetMousePos().x - m_leftTop.x) / m_scale),
+                               (int) ((ImGui::GetMousePos().y - m_leftTop.y) / m_scale));
     }
 }

@@ -666,6 +666,7 @@ SET (PBRT_GUIDING_VIEWER_SOURCE
         src/pbrt/guiding/ControlPanel.cpp
         src/pbrt/guiding/Viewport.cpp
         src/pbrt/guiding/ColormapPanel.cpp
+        src/pbrt/guiding/CacheMonitor.cpp
         src/pbrt/guiding/helper.cpp
 )
 else ()
