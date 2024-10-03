@@ -9,13 +9,22 @@
 using namespace pbrt;
 
 void CacheMonitor::Draw() {
-    ImGui::BulletText("Left click canvas to insert a guiding cache probe");
-    ImGui::BulletText("Right click a probe to remove it");
+    ImGui::TextDisabled("(?)");
+    if (ImGui::BeginItemTooltip())
+    {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::BulletText("Left click canvas to insert a guiding cache probe");
+        ImGui::BulletText("Right click a probe to remove it");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+    ImGui::SameLine();
+    ImGui::Checkbox("Display Probe ID", &m_displayProbeID);
 
     ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
     ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0, 0.3));
     ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Cross);
-    ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 2);
+    ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, m_markerSize);
     if (m_shouldFitAxes.exchange(false))
         ImPlot::SetNextAxesToFit();
     if (ImPlot::BeginPlot("CE vs. Iter", ImVec2(-1, ImGui::GetContentRegionAvail().y - 40))) {
@@ -30,39 +39,36 @@ void CacheMonitor::Draw() {
     }
     ImPlot::PopStyleVar(3);
 
-    if (ImGui::Button("Reset Data"))
-        Reset();
-    ImGui::SameLine();
-    if (ImGui::Button("Reset All"))
+    if (ImGui::Button("Clear"))
         Clear();
     ImGui::SameLine();
-    if (ImGui::Button("Fit"))
-        m_shouldFitAxes = true;
+    if (ImGui::Button("Reset"))
+        Reset();
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x / 2);
+    ImGui::SliderFloat("Marker Size", &m_markerSize, 0, 5);
 }
 
-bool CacheMonitor::AddProbe(pbrt::Point2i pixel) {
+bool CacheMonitor::AddProbe(pbrt::Point2i &pixel) {
     std::lock_guard lock(m_mutex);
     for (auto &probe: m_probes)
         if (Distance(pixel, probe.pixel) < m_probeRadius) {  // Already exists
             probe.active = true;
+            pixel = probe.pixel;
             return false;
         }
     m_probes.push_back(Probe{true, pixel, (int) m_probes.size()});
     return true;
 }
 
-bool CacheMonitor::AddProbe(pbrt::Point2i pixel, PlotEntry entry) {
+void CacheMonitor::UpdateProbe(pbrt::Point2i pixel, std::function<void(Probe &)> f) {
     std::lock_guard lock(m_mutex);
     for (auto &probe: m_probes)
         if (Distance(pixel, probe.pixel) < m_probeRadius) {  // Already exists
-            probe.active = true;
-            if (probe.data.empty() || probe.data.back().x < entry.x)
-                probe.data.push_back(entry);
-            return false;
+            f(probe);
+            break;
         }
-    m_probes.push_back(Probe{true, pixel, (int) m_probes.size(), {entry}});
     m_shouldFitAxes = true;
-    return true;
 }
 
 void CacheMonitor::ForEachProbe(std::function<void(Probe &)> f) {
@@ -71,7 +77,7 @@ void CacheMonitor::ForEachProbe(std::function<void(Probe &)> f) {
         f(probe);
 }
 
-void CacheMonitor::Reset() {
+void CacheMonitor::Clear() {  // Clear the data but keep the probes
     std::lock_guard lock(m_mutex);
     for (auto &probe: m_probes)
         probe.data.clear();
@@ -80,7 +86,7 @@ void CacheMonitor::Reset() {
     m_shouldFitAxes = true;
 }
 
-void CacheMonitor::Clear() {
+void CacheMonitor::Reset() {
     std::lock_guard lock(m_mutex);
     m_probes.clear();
     ImPlot::DestroyContext();
