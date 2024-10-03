@@ -131,7 +131,6 @@ int Application::Run() {
         }
 
         // ImGui::ShowDemoWindow();
-
         RenderImGuiFrame(m_window);
     }
 
@@ -204,7 +203,7 @@ void Application::SetupRenderThread() {
             std::lock_guard lock(m_mtx.field);
             m_field.Reset();
         }
-        m_cacheMonitor->Reset();
+        m_cacheMonitor->Clear();
         return true;
     });
 }
@@ -308,6 +307,7 @@ void Application::ProbesInteraction() {
     ImVec2 leftTop = m_viewport->GetLeftTop();
     float scale = m_viewport->GetScale();
     m_cacheMonitor->ForEachProbe([&](CacheMonitor::Probe &probe) {
+        std::string label = StringPrintf("#%d", probe.idx);
         bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), probe.pixel) < m_cacheMonitor->GetProbeRadius();
         // Right click to remove a probe
         if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
@@ -321,15 +321,26 @@ void Application::ProbesInteraction() {
         }
         draw_list->AddCircleFilled(center, 5, col);
         draw_list->AddCircle(center, 5, border_col, 0, 1.2);
+        if (isHovered || m_cacheMonitor->DisplayProbeID()) {
+            ImVec2 pos(center.x - 8, center.y - 18);
+            draw_list->AddText(pos, border_col, label.c_str());
+        }
     });
 
     // Left click to add/activate a probe
     if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-        auto rc = RayCast(m_viewport->GetMousePixel());
-        if (m_renderThread->GetState() != RenderThread::Rendering)
-            m_cacheMonitor->AddProbe(rc.pixel, {(float) GetCurrentWave(), rc.cacheId != -1 ? rc.ce : std::numeric_limits<float>::quiet_NaN()});
-        else
-            m_cacheMonitor->AddProbe(rc.pixel);  // Data will be added when the wave ends
+        Point2i pixel = m_viewport->GetMousePixel();
+        m_cacheMonitor->AddProbe(pixel);
+        if (m_renderThread->GetState() != RenderThread::Rendering) {  // Add a probe with the current CE
+            m_cacheMonitor->UpdateProbe(pixel, [&](auto &probe) {
+                float x = GetCurrentWave();
+                if (probe.data.empty() || probe.data.back().x < x) {
+                    auto rc = RayCast(pixel);
+                    probe.data.push_back({x, rc.cacheId != -1 ? rc.ce : std::numeric_limits<float>::quiet_NaN()});
+                }
+            });
+        }
+        // Else: Data will be added when the wave ends
     }
 }
 
