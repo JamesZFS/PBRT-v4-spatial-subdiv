@@ -54,6 +54,7 @@ private:
     float m_probeRadius = 10;
     float m_markerSize = 2;
     bool m_displayProbeID = false;
+    bool m_autoFitAxes = true;
     std::atomic_bool m_shouldFitAxes = true;
 };
 

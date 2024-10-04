@@ -20,12 +20,14 @@ void CacheMonitor::Draw() {
     }
     ImGui::SameLine();
     ImGui::Checkbox("Display Probe ID", &m_displayProbeID);
+    ImGui::SameLine();
+    ImGui::Checkbox("Auto Fit", &m_autoFitAxes);
 
     ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
     ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0, 0.3));
     ImPlot::PushStyleVar(ImPlotStyleVar_Marker, ImPlotMarker_Cross);
     ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, m_markerSize);
-    if (m_shouldFitAxes.exchange(false))
+    if (m_shouldFitAxes.exchange(false) && m_autoFitAxes)
         ImPlot::SetNextAxesToFit();
     if (ImPlot::BeginPlot("CE vs. Iter", ImVec2(-1, ImGui::GetContentRegionAvail().y - 40))) {
         std::lock_guard lock(m_mutex);
