@@ -23,6 +23,9 @@ static std::vector<const char *> channelNames = {
     "Cache ID (2)",
     "Fluence (3)",
     "CE (4)",
+    "Samples (5)",
+    "Zero Samples (6)",
+    "Depth (7)",
 };
 
 namespace pbrt {
@@ -263,10 +266,8 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
                     std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
                     if (gbsdf.init(&bsdf, ray, sit, rnd)) {
                         // Guiding region available
-                        rc.cacheId = gbsdf.getId();
-                        auto stats = m_field.GetRegionStatistics(rc.cacheId);
-                        rc.fluence = stats.fluence;
-                        rc.ce = stats.crossEntropy;
+                        uint32_t id = gbsdf.getId();
+                        rc.cache = m_field.GetRegionStatistics(id);
                     }
                     break;
                 }
@@ -284,20 +285,26 @@ void Application::UpdateFramebuffer() {
     m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, m_colormapPanel->hoveringValue, sd.tonemapped ? cmap_tex_ids[m_colormapPanel->selectedCMap] : 0});
 }
 
+void Application::CacheInfo(const PGLRegionStatistics &cache) {
+    ImGui::Text("Cache ID: %u", cache.id);
+    ImGui::Text("Fluence: %f", cache.fluence);
+    ImGui::Text("CE: %f", cache.crossEntropy);
+    ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(cache.numSamples).c_str(), FormatInteger(cache.numZeroValueSamples).c_str());
+    ImGui::Text("Depth: %d", (int) cache.depth);
+}
+
 void Application::UpdateRayCastingAtMouse() {
     if (m_enableRayCastingAtMouse) {
         if (m_viewport->IsHovered()) {
             m_rcMouse = RayCast(m_viewport->GetMousePixel());
         } else {
             m_rcMouse.valid = false;
-            m_rcMouse.cacheId = -1;
+            m_rcMouse.cache.id = -1;
         }
-        if (m_rcMouse.cacheId != -1) {
+        if (m_rcMouse.cache.id != -1) {
             // Tooltip next to the mouse
             if (ImGui::BeginTooltip()) {
-                ImGui::Text("Cache ID: %u", m_rcMouse.cacheId);
-                ImGui::Text("Fluence: %f", m_rcMouse.fluence);
-                ImGui::Text("CE: %f", m_rcMouse.ce);
+                CacheInfo(m_rcMouse.cache);
                 ImGui::EndTooltip();
             }
         }
@@ -339,7 +346,7 @@ void Application::ProbesInteraction() {
                 float x = GetCurrentWave();
                 if (probe.data.empty() || probe.data.back().x < x) {
                     auto rc = RayCast(pixel);
-                    probe.data.push_back({x, rc.cacheId != -1 ? rc.ce : std::numeric_limits<float>::quiet_NaN()});
+                    probe.data.push_back({x, rc.cache.id != -1 ? rc.cache.crossEntropy : std::numeric_limits<float>::quiet_NaN()});
                 }
             });
         }
@@ -386,7 +393,7 @@ void Application::AppendToProbeData() {
     m_cacheMonitor->ForEachProbe([&](CacheMonitor::Probe &probe) {
         if (probe.active) {
             auto rc = RayCast(probe.pixel);
-            probe.data.push_back({x, rc.cacheId != -1 ? rc.ce : std::numeric_limits<float>::quiet_NaN()});
+            probe.data.push_back({x, rc.cache.id != -1 ? rc.cache.crossEntropy : std::numeric_limits<float>::quiet_NaN()});
         }
     });
     m_cacheMonitor->RequestFitAxes();
@@ -403,12 +410,10 @@ void Application::RayCastingPanel() {
             ImGui::Text("Hit: (%.2f, %.2f, %.2f)", m_rcMouse.hit.x, m_rcMouse.hit.y, m_rcMouse.hit.z);
             ImGui::Text("Normal: (%.2f, %.2f, %.2f)", m_rcMouse.normal.x, m_rcMouse.normal.y, m_rcMouse.normal.z);
             ImGui::Text("UV: (%.2f, %.2f)", m_rcMouse.uv.x, m_rcMouse.uv.y);
-            if (m_rcMouse.cacheId == -1)
+            if (m_rcMouse.cache.id == -1)
                 ImGui::Text("Cache ID: <invalid>");
             else {
-                ImGui::Text("Cache ID: %u", m_rcMouse.cacheId);
-                ImGui::Text("Fluence: %f", m_rcMouse.fluence);
-                ImGui::Text("CE: %f", m_rcMouse.ce);
+                CacheInfo(m_rcMouse.cache);
             }
         } else {
             ImGui::Text("No intersection");
@@ -420,14 +425,10 @@ void Application::ChannelSelector() {
     // Add a channel selection bar for GuidedGBufferFilm
     if (m_isMultiChannel) {
         SelectedChannel newChannel = m_colormapPanel->selectedChannel;
-        if (ImGui::IsKeyPressed(ImGuiKey_1, false))
-            newChannel = Channel_Radiance;
-        if (ImGui::IsKeyPressed(ImGuiKey_2, false))
-            newChannel = Channel_CacheID;
-        if (ImGui::IsKeyPressed(ImGuiKey_3, false))
-            newChannel = Channel_Fluence;
-        if (ImGui::IsKeyPressed(ImGuiKey_4, false))
-            newChannel = Channel_CE;
+        for (int i = 0; i < Channel_Count; ++i) {
+            if (ImGui::IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false))
+                newChannel = (SelectedChannel) i;
+        }
 
         if (ImGui::BeginTabBar("ChannelSelector")) {
             for (int i = 0; i < Channel_Count; ++i) {

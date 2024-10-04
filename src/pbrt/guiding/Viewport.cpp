@@ -14,6 +14,9 @@ Viewport::Viewport(pbrt::Film film)
     m_cpuBuffer.cacheID.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.fluence.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.ce.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
 
     glGenTextures(1, &m_renderingTex);
 }
@@ -35,6 +38,9 @@ void Viewport::UpdateCPUBufferFromFilm() {
             }
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
             m_cpuBuffer.ce[index] = pixel.guidingData.crossEntropy;
+            m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
+            m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
+            m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;
         });
     } else {
         ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {
@@ -64,6 +70,18 @@ void Viewport::UpdateFramebuffer(SelectedChannel channel, const Uniforms &unifor
             case Channel_CE:
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.ce.data(), m_resolution.x, m_resolution.y, false);
+                break;
+            case Channel_Samples:
+                CHECK(m_isMultiChannel);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.samples.data(), m_resolution.x, m_resolution.y, false);
+                break;
+            case Channel_ZeroSamples:
+                CHECK(m_isMultiChannel);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.zeroSamples.data(), m_resolution.x, m_resolution.y, false);
+                break;
+            case Channel_Depth:
+                CHECK(m_isMultiChannel);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.depth.data(), m_resolution.x, m_resolution.y, false);
                 break;
             default:
                 Error("Unknown channel %d", channel);

@@ -88,6 +88,15 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) cons
                     case Channel_CE:
                         val = pixel.guidingData.crossEntropy;
                         break;
+                    case Channel_Samples:
+                        val = (float) pixel.guidingData.numSamples;
+                        break;
+                    case Channel_ZeroSamples:
+                        val = (float) pixel.guidingData.numZeroValueSamples;
+                        break;
+                    case Channel_Depth:
+                        val = (float) pixel.guidingData.depth;
+                        break;
                     case Channel_Count:
                         break;
                     default:

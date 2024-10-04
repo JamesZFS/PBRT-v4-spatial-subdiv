@@ -48,6 +48,9 @@ private:
         std::vector<pbrt::RGB> cacheID;
         std::vector<float> fluence;
         std::vector<float> ce;
+        std::vector<float> samples;
+        std::vector<float> zeroSamples;
+        std::vector<float> depth;
     } m_cpuBuffer;  // CPU film buffer, written by the render thread, read by the GUI thread.
     std::atomic_bool m_cpuBufferUpdated = false;
 

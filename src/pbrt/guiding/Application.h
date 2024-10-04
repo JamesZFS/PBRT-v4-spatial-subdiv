@@ -38,9 +38,7 @@ private:
         Point3f hit;  // hit point in world space
         Normal3f normal;
         Point2f uv;
-        uint32_t cacheId = -1;
-        float fluence;
-        float ce;
+        PGLRegionStatistics cache;
     };
 
     void SetupDockSpace();
@@ -50,6 +48,9 @@ private:
     void CheckIsMainThread();
     RayCastingData RayCast(Point2i pixel) const;
     void UpdateFramebuffer();
+
+    void CacheInfo(const PGLRegionStatistics &cache);
+
     void UpdateRayCastingAtMouse();
     void ProbesInteraction();
 
