@@ -185,13 +185,13 @@ void GuidingViewerGUI::UpdateCPUFramebufferFromFilm() {
             size_t index = (p.y - film.PixelBounds().pMin.y) * resolution.x + (p.x - film.PixelBounds().pMin.x);
             auto &pixel = gFilm->GetPixel(p);
             cpuFramebuffer.radiance[index] = gFilm->GetPixelRGB(p);
-            if (pixel.guidingId != -1) {
-                IndependentSampler sampler(3, pixel.guidingId * pixel.guidingId);
+            if (pixel.guidingData.id != -1) {
+                IndependentSampler sampler(3, pixel.guidingData.id * pixel.guidingData.id);
                 sampler.StartPixelSample(Point2i(0, 0), 0, 0);
                 cpuFramebuffer.cacheID[index] = RGB(sampler.Get1D(), sampler.Get1D(), sampler.Get1D());
             }
-            cpuFramebuffer.fluence[index] = pixel.fluence;
-            cpuFramebuffer.ce[index] = pixel.ce;
+            cpuFramebuffer.fluence[index] = pixel.guidingData.fluence;
+            cpuFramebuffer.ce[index] = pixel.guidingData.crossEntropy;
         });
     } else {
         ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
@@ -217,10 +217,10 @@ std::pair<float, float> GuidingViewerGUI::GetMinMaxFromFilm(SelectedChannel c) {
                         val = gFilm->GetPixelRGB(Point2i(x, y)).Average();
                         break;
                     case Channel_Fluence:
-                        val = pixel.fluence;
+                        val = pixel.guidingData.fluence;
                         break;
                     case Channel_CE:
-                        val = pixel.ce;
+                        val = pixel.guidingData.crossEntropy;
                         break;
                     case Channel_Count:
                         break;
@@ -628,8 +628,9 @@ void GuidingViewerGUI::UpdateRayCastingResult() {
                     if (gbsdf.init(&bsdf, ray, sit, rnd)) {
                         // Guiding region available
                         rcData.cacheId = gbsdf.getId();
-                        rcData.fluence = gbsdf.getFluence();
-                        rcData.ce = gbsdf.getCE();
+                        auto stats = field->GetRegionStatistics(rcData.cacheId);
+                        rcData.fluence = stats.fluence;
+                        rcData.ce = stats.crossEntropy;
                     }
                     break;
                 }
@@ -650,7 +651,7 @@ void GuidingViewerGUI::ResetCECurves() {
 void GuidingViewerGUI::AppendToCECurves() {
     std::lock_guard lock(mtxCECurves);
     for (auto &[id, curve] : ceCurves) if (curve.active) {
-        curve.data.emplace_back(waveStart, field->GetCESurface(id));
+        curve.data.emplace_back(waveStart, field->GetRegionStatistics(id).crossEntropy);
     }
     shouldFitXAxis = true;
 }

@@ -264,8 +264,9 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
                     if (gbsdf.init(&bsdf, ray, sit, rnd)) {
                         // Guiding region available
                         rc.cacheId = gbsdf.getId();
-                        rc.fluence = gbsdf.getFluence();
-                        rc.ce = gbsdf.getCE();
+                        auto stats = m_field.GetRegionStatistics(rc.cacheId);
+                        rc.fluence = stats.fluence;
+                        rc.ce = stats.crossEntropy;
                     }
                     break;
                 }

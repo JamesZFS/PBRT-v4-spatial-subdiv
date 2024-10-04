@@ -442,9 +442,8 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         bool shouldCreateVisbleSurf = visibleSurf && !anyNonSpecularBounces && wasRRorTT && IsNonSpecular(bsdf.Flags());
 
         if (cacheInitialized && shouldCreateVisbleSurf) {
-            visibleSurf->guidingData.id = gbsdf.getId();
-            visibleSurf->guidingData.fluence = gbsdf.getFluence();
-            visibleSurf->guidingData.ce = gbsdf.getCE();
+            uint32_t id = gbsdf.getId();
+            visibleSurf->guidingData = guiding_field->GetRegionStatistics(id);
         }
 
         // Sample direct illumination from the light sources

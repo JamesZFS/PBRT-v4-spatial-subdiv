@@ -877,9 +877,7 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
                 weight * outputFromRender(visibleSurface->ns, visibleSurface->time);
         }
 
-        p.guidingId = visibleSurface->guidingData.id;
-        p.fluence = visibleSurface->guidingData.fluence;
-        p.ce = visibleSurface->guidingData.ce;
+        p.guidingData = visibleSurface->guidingData;
     }
 
     for (int c = 0; c < 3; ++c)
@@ -953,6 +951,9 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                  "GuideId.R",
                  "GuideId.G",
                  "GuideId.B",
+                 "Samples",
+                 "ZeroSamples",
+                 "Depth",
                  "Fluence",
                  "CE",
                 });
@@ -960,21 +961,19 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
     //ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
     //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
-    ImageChannelDesc guideIdRgbDesc =
-        image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B"});
-    ImageChannelDesc entropyDesc = image.GetChannelDesc({"Fluence", "CE"});
+    ImageChannelDesc guideDesc =
+        image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
+            "Samples", "ZeroSamples", "Depth", "Fluence", "CE"});
 
     std::atomic<int> nClamped{0};
     ParallelFor2D(pixelBounds, [&](Point2i p) {
         Pixel &pixel = pixels[p];
         RGB rgb(pixel.rgbSum[0], pixel.rgbSum[1], pixel.rgbSum[2]);
-        
+
         RGB guideIdRgb(0.0, 0.0, 0.0);
-        if(pixel.guidingId != -1)
+        if(pixel.guidingData.id != -1)
         {
-            IndependentSampler sampler(3, pixel.guidingId*pixel.guidingId);
-            sampler.StartPixelSample(Point2i(0,0), 0, 0);
-            guideIdRgb = RGB(sampler.Get1D(), sampler.Get1D(), sampler.Get1D());
+            guideIdRgb = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
         }
 
         // Normalize pixel with weight sum
@@ -1001,10 +1000,10 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
 
         Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
         image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
-        image.SetChannels(pOffset, guideIdRgbDesc,
-                          {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2]});
-
-        image.SetChannels(pOffset, entropyDesc, {pixel.fluence, pixel.ce});
+        image.SetChannels(pOffset, guideDesc,
+                          {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
+                              (float) pixel.guidingData.numSamples, (float) pixel.guidingData.numZeroValueSamples, (float) pixel.guidingData.depth,
+                              pixel.guidingData.fluence, pixel.guidingData.crossEntropy});
 
         //Normal3f n =
         //    LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);

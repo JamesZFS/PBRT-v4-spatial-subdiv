@@ -83,10 +83,10 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) cons
                         val = gFilm->GetPixelRGB(Point2i(x, y)).Average();
                         break;
                     case Channel_Fluence:
-                        val = pixel.fluence;
+                        val = pixel.guidingData.fluence;
                         break;
                     case Channel_CE:
-                        val = pixel.ce;
+                        val = pixel.guidingData.crossEntropy;
                         break;
                     case Channel_Count:
                         break;

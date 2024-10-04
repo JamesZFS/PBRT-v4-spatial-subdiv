@@ -30,12 +30,11 @@ void Viewport::UpdateCPUBufferFromFilm() {
             size_t index = (p.y - m_film.PixelBounds().pMin.y) * m_resolution.x + (p.x - m_film.PixelBounds().pMin.x);
             auto &pixel = gFilm->GetPixel(p);
             m_cpuBuffer.radiance[index] = gFilm->GetPixelRGB(p);
-            if (pixel.guidingId != -1) {
-                m_cpuBuffer.cacheID[index] = RGB(HashFloat(pixel.guidingId, 0), HashFloat(pixel.guidingId, 1),
-                                                 HashFloat(pixel.guidingId, 2));
+            if (pixel.guidingData.id != -1) {
+                m_cpuBuffer.cacheID[index] = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
             }
-            m_cpuBuffer.fluence[index] = pixel.fluence;
-            m_cpuBuffer.ce[index] = pixel.ce;
+            m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
+            m_cpuBuffer.ce[index] = pixel.guidingData.crossEntropy;
         });
     } else {
         ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {

@@ -29,6 +29,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <openpgl/regionstatistics.h>
 
 namespace pbrt {
 
@@ -134,12 +135,6 @@ inline Triplet PixelSensor::ProjectReflectance(Spectrum refl, Spectrum illum, Sp
     return result / g_integral;
 }
 
-struct GuidingData{
-    uint32_t id = -1;
-    float fluence = 0;
-    float ce = 0;
-};
-
 // VisibleSurface Definition
 class VisibleSurface {
   public:
@@ -165,7 +160,7 @@ class VisibleSurface {
     bool set = false;
 
     // Guiding
-    GuidingData guidingData;
+    PGLRegionStatistics guidingData;
 
 };
 
@@ -474,9 +469,7 @@ class GuidedGBufferFilm : public FilmBase {
         double weightSum = 0.;
         double gBufferWeightSum = 0.;
         AtomicDouble rgbSplat[3];
-        uint32_t guidingId = -1;
-        float fluence;
-        float ce;
+        PGLRegionStatistics guidingData;
         //Point3f pSum;
         //Float dzdxSum = 0, dzdySum = 0;
         Normal3f nSum, nsSum;
