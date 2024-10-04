@@ -171,7 +171,9 @@ void Application::SetupDockSpace() {
         ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, -1));
         float padding = ImGui::GetStyle().WindowPadding.x;
-        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(m_resolution.x + 2 * padding, -1));
+        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), -1));
+        // ImGui::DockBuilderSetNodeSize(rightTopDock, ImVec2(300, -1));
+        // ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(300, -1));
 
         ImGui::DockBuilderDockWindow("Controls", leftDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
@@ -473,7 +475,7 @@ void Application::StatusBar() {
 
 void Application::IntegratorPanel() {
     ImGui::PushID("Integrator Panel");
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);
     if (ImGui::CollapsingHeader("Integrator Settings")) {
         ImGui::InputInt("Max Depth", &m_integratorSettings.maxDepth);
@@ -489,7 +491,7 @@ void Application::IntegratorPanel() {
 void Application::GuidePanel() {
     static const std::vector guidingTypes = {"MIS", "RIS"};
     ImGui::PushID("Guide Panel");
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);
     if (ImGui::CollapsingHeader("Guide Settings")) {
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
