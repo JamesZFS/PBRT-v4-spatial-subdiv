@@ -41,8 +41,17 @@ private:
         PGLRegionStatistics cache;
     };
 
+    enum LayoutType {
+        Layout_Default,
+        Layout_CacheMonitor,
+        Layout_Compact,
+        Layout_Count,
+    };
+
+    void SetupLayout();
     void SetupLayoutDefault();
     void SetupLayoutCacheMonitor();
+    void SetupLayoutCompact();
     void SetupRenderThread();
 
     int GetCurrentWave() const;
@@ -64,6 +73,7 @@ private:
     void AppendToProbeData();
 
     // GUI components
+    void MainMenu();
     void RayCastingPanel();
     void ChannelSelector();
     void StatusBar();
@@ -88,7 +98,8 @@ private:
 
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
-    bool m_hasSetupDock = false;
+    bool m_hasSetupLayout = false;
+    LayoutType m_layout = Layout_Default;
 
     // Components and views
     std::unique_ptr<RenderThread> m_renderThread;
