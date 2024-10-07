@@ -41,7 +41,8 @@ private:
         PGLRegionStatistics cache;
     };
 
-    void SetupDockSpace();
+    void SetupLayoutDefault();
+    void SetupLayoutCacheMonitor();
     void SetupRenderThread();
 
     int GetCurrentWave() const;

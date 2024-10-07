@@ -61,11 +61,6 @@ int Application::Run() {
         std::cerr << "Failed to initialize ImGui" << std::endl;
         return 1;
     }
-    // Figure out proper window size
-    auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-    m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 100, mode->height));
-    glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
-
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
@@ -75,6 +70,9 @@ int Application::Run() {
     m_viewport = std::make_unique<Viewport>(m_film);
     m_colormapPanel = std::make_unique<ColormapPanel>(m_film);
     m_cacheMonitor = std::make_unique<CacheMonitor>();
+    auto &ceCurve = m_cacheMonitor->AddPlot("Cross Entropy vs. Iter", CacheMonitor::PlotType_CE, true);
+    auto &depthCurve = m_cacheMonitor->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
+    auto &samplesCurve = m_cacheMonitor->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -83,6 +81,8 @@ int Application::Run() {
     while (!glfwWindowShouldClose(m_window)) {
         if (InitializeFrame(m_window)) continue;
 
+        // SetupLayoutDefault();
+        SetupLayoutCacheMonitor();
         {
             int display_w, display_h;
             glfwGetWindowSize(m_window, &display_w, &display_h);
@@ -92,44 +92,48 @@ int Application::Run() {
         glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
         glClear(GL_COLOR_BUFFER_BIT);
 
-        SetupDockSpace();
         UpdateFramebuffer();
         UpdateRayCastingAtMouse();
 
         // Left Pane
-        {
-            ImGui::Begin("Controls");
+        if (ImGui::Begin("Controls")) {
             m_controlPanel->Draw();
             int wave = GetCurrentWave();
             ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
             m_colormapPanel->Draw();
             RayCastingPanel();
-            ImGui::End();
         }
+        ImGui::End();
 
         // Middle Pane
-        {
-            ImGui::Begin("Viewport");
+        if (ImGui::Begin("Viewport")) {
             ChannelSelector();
             m_viewport->Draw();
             ProbesInteraction();
             ImGui::Separator();
             StatusBar();
-            ImGui::End();
         }
+        ImGui::End();
 
         // Right Pane
-        {
-            ImGui::Begin("Settings");
+        if (ImGui::Begin("Settings")) {
             IntegratorPanel();
             GuidePanel();
             SpatialSubdivisionPanel();
-            ImGui::End();
         }
+        ImGui::End();
 
-        {
-            ImGui::Begin("Cache Monitor");
-            m_cacheMonitor->Draw();
+        {   // Cache Monitor
+            if (ImGui::Begin("CE Curve"))
+                ceCurve.Draw();
+            ImGui::End();
+
+            if (ImGui::Begin("Depth Curve"))
+                depthCurve.Draw();
+            ImGui::End();
+
+            if (ImGui::Begin("Samples Curve"))
+                samplesCurve.Draw();
             ImGui::End();
         }
 
@@ -147,7 +151,14 @@ int Application::Run() {
     return 0;
 }
 
-void Application::SetupDockSpace() {
+void Application::SetupLayoutDefault() {
+    if (!m_hasSetupDock) {
+        // Figure out proper window size
+        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 100, mode->height));
+        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
+    }
+
     // ImGui::DockSpaceOverViewport();
     ImGuiViewport *iviewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(iviewport->WorkPos);
@@ -171,17 +182,73 @@ void Application::SetupDockSpace() {
         ImGuiID leftDock, midDock, rightTopDock, rightBottomDock;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightTopDock);
         ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Left, 0.5f, &midDock, &rightTopDock);
-        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
+        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.3f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, -1));
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), -1));
-        // ImGui::DockBuilderSetNodeSize(rightTopDock, ImVec2(300, -1));
-        // ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(300, -1));
+        // ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, 600));
 
         ImGui::DockBuilderDockWindow("Controls", leftDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
-        ImGui::DockBuilderDockWindow("Cache Monitor", rightBottomDock);
+        ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
+        ImGui::DockBuilderFinish(dockSpaceID);
+
+        m_hasSetupDock = true;
+    }
+
+    ImGui::End();
+}
+
+void Application::SetupLayoutCacheMonitor() {
+    if (!m_hasSetupDock) {
+        // Figure out proper window size
+        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        m_windowSize = ImVec2(std::min(m_resolution.x + 700, mode->width), std::min(m_resolution.y + 200, mode->height));
+        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
+    }
+
+    ImGuiViewport *iviewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(iviewport->WorkPos);
+    ImGui::SetNextWindowSize(iviewport->WorkSize);
+    ImGui::SetNextWindowViewport(iviewport->ID);
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGui::Begin("MyDockSpace", nullptr, windowFlags);
+
+    ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+    // dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
+    ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
+
+    if (!m_hasSetupDock) {
+        ImGui::DockBuilderRemoveNode(dockSpaceID);
+        ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
+
+        ImGuiID left, leftTopDock, leftBottomDock;
+        ImGuiID midDock;
+        ImGuiID right, rightTopDock, rightMidDock, rightBottomDock;
+        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &left, &right);
+        ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
+        ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &midDock, &right);
+        ImGui::DockBuilderSplitNode(right, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
+        ImGui::DockBuilderSplitNode(rightBottomDock, ImGuiDir_Up, 0.5f, &rightMidDock, &rightBottomDock);
+        ImGui::DockBuilderSetNodeSize(left, ImVec2(239, -1));
+        float padding = ImGui::GetStyle().WindowPadding.x;
+        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), -1));
+        ImGui::DockBuilderSetNodeSize(rightTopDock, ImVec2(-1, m_windowSize.y * 0.25));
+        ImGui::DockBuilderSetNodeSize(rightMidDock, ImVec2(-1, m_windowSize.y * 0.25));
+        ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, m_windowSize.y * 0.5));
+
+        ImGui::DockBuilderDockWindow("Controls", leftTopDock);
+        ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Viewport", midDock);
+        ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
+        ImGui::DockBuilderDockWindow("Samples Curve", rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupDock = true;
@@ -343,10 +410,10 @@ void Application::ProbesInteraction() {
         m_cacheMonitor->AddProbe(pixel);
         if (m_renderThread->GetState() != RenderThread::Rendering) {  // Add a probe with the current CE
             m_cacheMonitor->UpdateProbe(pixel, [&](auto &probe) {
-                float x = GetCurrentWave();
-                if (probe.data.empty() || probe.data.back().x < x) {
+                float iter = GetCurrentWave();
+                if (probe.data.empty() || probe.data.back().iter < iter) {
                     auto rc = RayCast(pixel);
-                    probe.data.push_back({x, rc.cache.id != -1 ? rc.cache.crossEntropy : std::numeric_limits<float>::quiet_NaN()});
+                    probe.data.push_back({iter, rc.cache.id != -1 ? rc.cache.crossEntropy : std::numeric_limits<float>::quiet_NaN()});
                 }
             });
         }
@@ -384,16 +451,24 @@ void Application::ClearFilm() {
 
 void Application::UpdateCPUBufferFromFilm() {
     CheckIsRenderThread();
+    Timer timer;
     m_viewport->UpdateCPUBufferFromFilm();
+    std::cout << "Update CPU buffer: " << timer.ElapsedSeconds() * 1e3 << " ms" << std::endl;
 }
 
 void Application::AppendToProbeData() {
     CheckIsRenderThread();
     float x = (float) GetCurrentWave();
+    const float nan = std::numeric_limits<float>::quiet_NaN();
     m_cacheMonitor->ForEachProbe([&](CacheMonitor::Probe &probe) {
         if (probe.active) {
             auto rc = RayCast(probe.pixel);
-            probe.data.push_back({x, rc.cache.id != -1 ? rc.cache.crossEntropy : std::numeric_limits<float>::quiet_NaN()});
+            bool cacheValid = rc.cache.id != -1;
+            probe.data.push_back({x,
+                cacheValid ? rc.cache.crossEntropy : nan,
+                cacheValid ? (float) rc.cache.depth : nan,
+                cacheValid ? (float) rc.cache.numSamples : nan
+            });
         }
     });
     m_cacheMonitor->RequestFitAxes();
@@ -468,11 +543,19 @@ void Application::StatusBar() {
 #endif
     else
         mouseInfo = "<invalid>";
-    ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Mouse: %s",
-                stateNames[m_renderThread->GetState()],
-                m_waveStats.renderMS, m_waveStats.postprocessMS,
-                FormatInteger(m_waveStats.trainingSamples).c_str(),
-                mouseInfo.c_str());
+    if (ImGui::GetColumnWidth() > 700)
+        ImGui::Text("Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Mouse: %s",
+            m_waveStats.renderMS, m_waveStats.postprocessMS,
+            FormatInteger(m_waveStats.trainingSamples).c_str(),
+            mouseInfo.c_str());
+    else {
+        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms",
+            stateNames[m_renderThread->GetState()],
+            m_waveStats.renderMS, m_waveStats.postprocessMS);
+        ImGui::Text("Training Samples: %s | Mouse: %s",
+            FormatInteger(m_waveStats.trainingSamples).c_str(),
+            mouseInfo.c_str());
+    }
 }
 
 void Application::IntegratorPanel() {

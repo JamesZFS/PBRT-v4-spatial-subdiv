@@ -211,7 +211,7 @@ void GuidedPathIntegrator::Render() {
     Application app(camera, aggregate, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
 #endif
         [&](int waveStart) {
-            std::cout << "Rendering wave " << waveStart << std::endl;
+            // std::cout << "Rendering wave " << waveStart << std::endl;
             Timer pureRenderingTimer;
             // Render current wave's image tiles in parallel
             ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
@@ -238,7 +238,7 @@ void GuidedPathIntegrator::Render() {
             pureRenderingTime += pureRenderingTimer.ElapsedSeconds();
         },
         [&](int waveEnd) {
-            std::cout << "Updating cache " << waveEnd << std::endl;
+            // std::cout << "Updating cache " << waveEnd << std::endl;
             PostProcessWave();  // Update guiding cache
         },
         [&](int waveEnd) {
