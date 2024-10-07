@@ -77,9 +77,9 @@ int Application::Run() {
 
     m_cacheHistogram = std::make_unique<CacheHistogram>();
     auto &fluenceHist = m_cacheHistogram->AddPlot("Fluence", CacheHistogram::PlotType_Fluence, true);
-    auto &ceHist = m_cacheHistogram->AddPlot("Cross Entropy", CacheHistogram::PlotType_CE, true);
-    auto &depthHist = m_cacheHistogram->AddPlot("Depth", CacheHistogram::PlotType_Depth, true);
-    auto &samplesHist = m_cacheHistogram->AddPlot("Samples", CacheHistogram::PlotType_Samples, true);
+    auto &ceHist = m_cacheHistogram->AddPlot("Cross Entropy", CacheHistogram::PlotType_CE, false);
+    auto &depthHist = m_cacheHistogram->AddPlot("Depth", CacheHistogram::PlotType_Depth, false);
+    auto &samplesHist = m_cacheHistogram->AddPlot("Samples", CacheHistogram::PlotType_Samples, false);
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -148,6 +148,7 @@ int Application::Run() {
         CacheHistogramPanel(fluenceHist, ceHist, depthHist, samplesHist);
 
         // ImGui::ShowDemoWindow();
+        // ImPlot::ShowDemoWindow();
         RenderImGuiFrame(m_window);
     }
 
@@ -172,6 +173,9 @@ void Application::SetupLayout() {
             break;
         case Layout_Compact:
             SetupLayoutCompact();
+            break;
+        case Layout_Histograms:
+            SetupLayoutHistograms();
             break;
         default:
             ErrorExit("Unsupported layout type");
@@ -218,7 +222,10 @@ void Application::SetupLayoutDefault() {
         // ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, 600));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        ImGui::DockBuilderDockWindow("Cache Histograms", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
@@ -275,7 +282,10 @@ void Application::SetupLayoutCacheMonitor() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
-        ImGui::DockBuilderDockWindow("Cache Histograms", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
@@ -328,7 +338,72 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Cache Histograms", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("CE Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
+        ImGui::DockBuilderFinish(dockSpaceID);
+
+        m_hasSetupLayout = true;
+    }
+
+    ImGui::End();
+}
+
+void Application::SetupLayoutHistograms() {
+    if (!m_hasSetupLayout) {
+        // Figure out proper window size
+        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        m_windowSize = ImVec2(std::min(m_resolution.x + 900, mode->width), std::min(m_resolution.y + 220, mode->height));
+        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
+    }
+
+    ImGuiViewport *iviewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(iviewport->WorkPos);
+    ImGui::SetNextWindowSize(iviewport->WorkSize);
+    ImGui::SetNextWindowViewport(iviewport->ID);
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGui::Begin("MyDockSpace", nullptr, windowFlags);
+
+    ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+    // dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
+    ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
+
+    if (!m_hasSetupLayout) {
+        ImGui::DockBuilderRemoveNode(dockSpaceID);
+        ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
+
+        ImGuiID left, leftTopDock, leftBottomDock;
+        ImGuiID midDock;
+        ImGuiID right, right00, right01, right10, right11;
+        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &left, &right);
+        ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
+        ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &midDock, &right);
+        ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &right00, &right01);
+        ImGui::DockBuilderSplitNode(right00, ImGuiDir_Up, 0.5f, &right00, &right10);
+        ImGui::DockBuilderSplitNode(right01, ImGuiDir_Up, 0.5f, &right01, &right11);
+        ImGui::DockBuilderSetNodeSize(left, ImVec2(239, -1));
+        float padding = ImGui::GetStyle().WindowPadding.x;
+        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 500), -1));
+        // float w = 300;
+        // ImGui::DockBuilderSetNodeSize(right00, ImVec2(w, w));
+        // ImGui::DockBuilderSetNodeSize(right01, ImVec2(w, w));
+        // ImGui::DockBuilderSetNodeSize(right10, ImVec2(w, w));
+        // ImGui::DockBuilderSetNodeSize(right11, ImVec2(w, w));
+
+        ImGui::DockBuilderDockWindow("Controls", leftTopDock);
+        ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Viewport", midDock);
+        ImGui::DockBuilderDockWindow("Fluence Histogram", right00);
+        ImGui::DockBuilderDockWindow("CE Histogram", right01);
+        ImGui::DockBuilderDockWindow("Depth Histogram", right10);
+        ImGui::DockBuilderDockWindow("Samples Histogram", right11);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -581,7 +656,7 @@ void Application::UpdateCacheHistogram() {
 }
 
 void Application::MainMenu() {
-    static std::string layoutNames[Layout_Count] = {"Default", "Cache Monitor", "Compact"};
+    static std::string layoutNames[Layout_Count] = {"Default", "Cache Monitor", "Compact", "Histograms"};
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Layout")) {
             for (int i = 0; i < Layout_Count; ++i) {
@@ -735,33 +810,27 @@ void Application::SpatialSubdivisionPanel() {
 
 void Application::CacheHistogramPanel(CacheHistogram::Hist &fluenceHist, CacheHistogram::Hist &ceHist, CacheHistogram::Hist &depthHist, CacheHistogram::Hist &samplesHist) {
     bool enableHistogram = false;
-    if (ImGui::Begin("Cache Histograms")) {
-        if (ImGui::BeginTabBar("##CacheHistograms")) {
-            if (ImGui::BeginTabItem("Fluence")) {
-                enableHistogram = true;
-                fluenceHist.Draw();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("CE")) {
-                enableHistogram = true;
-                ceHist.Draw();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Depth")) {
-                enableHistogram = true;
-                depthHist.Draw();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Samples")) {
-                enableHistogram = true;
-                samplesHist.Draw();
-                ImGui::EndTabItem();
-            }
-            ImGui::EndTabBar();
-        }
+    if (ImGui::Begin("Fluence Histogram")) {
+        enableHistogram = true;
+        fluenceHist.Draw();
     }
     ImGui::End();
-    m_enableHistogram = enableHistogram;  // Atomic update
+    if (ImGui::Begin("CE Histogram")) {
+        enableHistogram = true;
+        ceHist.Draw();
+    }
+    ImGui::End();
+    if (ImGui::Begin("Depth Histogram")) {
+        enableHistogram = true;
+        depthHist.Draw();
+    }
+    ImGui::End();
+    if (ImGui::Begin("Samples Histogram")) {
+        enableHistogram = true;
+        samplesHist.Draw();
+    }
+    ImGui::End();
+    m_enableHistogram = enableHistogram; // Atomic update
 }
 
 }

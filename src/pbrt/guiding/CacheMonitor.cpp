@@ -56,11 +56,10 @@ void CacheMonitor::Plot::Draw() {
 
         std::lock_guard lock(m_monitor.m_mutex);
         ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
-        for (const auto &probe: m_monitor.m_probes)
-            if (probe.active && !probe.data.empty()) {
-                const float *x = &probe.data[0].iter;
-                ImPlot::PlotLine(StringPrintf("#%d", probe.idx).c_str(), x, x + m_yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
-            }
+        for (const auto &probe: m_monitor.m_probes) {
+            const float *x = &probe.data[0].iter;
+            ImPlot::PlotLine(StringPrintf("#%d", probe.idx).c_str(), x, x + m_yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
+        }
         ImPlot::EndPlot();
     }
 
