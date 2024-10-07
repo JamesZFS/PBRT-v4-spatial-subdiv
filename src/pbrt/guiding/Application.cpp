@@ -81,8 +81,7 @@ int Application::Run() {
     while (!glfwWindowShouldClose(m_window)) {
         if (InitializeFrame(m_window)) continue;
 
-        // SetupLayoutDefault();
-        SetupLayoutCacheMonitor();
+        SetupLayout();
         {
             int display_w, display_h;
             glfwGetWindowSize(m_window, &display_w, &display_h);
@@ -94,6 +93,7 @@ int Application::Run() {
 
         UpdateFramebuffer();
         UpdateRayCastingAtMouse();
+        MainMenu();
 
         // Left Pane
         if (ImGui::Begin("Controls")) {
@@ -151,11 +151,29 @@ int Application::Run() {
     return 0;
 }
 
+void Application::SetupLayout() {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.f, 0.f));
+    switch (m_layout) {
+        case Layout_Default:
+            SetupLayoutDefault();
+            break;
+        case Layout_CacheMonitor:
+            SetupLayoutCacheMonitor();
+            break;
+        case Layout_Compact:
+            SetupLayoutCompact();
+            break;
+        default:
+            ErrorExit("Unsupported layout type");
+    }
+    ImGui::PopStyleVar();
+}
+
 void Application::SetupLayoutDefault() {
-    if (!m_hasSetupDock) {
+    if (!m_hasSetupLayout) {
         // Figure out proper window size
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 100, mode->height));
+        m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 120, mode->height));
         glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
     }
 
@@ -174,7 +192,7 @@ void Application::SetupLayoutDefault() {
     ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
     // ImGui::DockSpaceOverViewport(dockSpaceID, ImGui::GetMainViewport(), dockFlags);
 
-    if (!m_hasSetupDock) {
+    if (!m_hasSetupLayout) {
         ImGui::DockBuilderRemoveNode(dockSpaceID);
         ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
@@ -196,17 +214,17 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
-        m_hasSetupDock = true;
+        m_hasSetupLayout = true;
     }
 
     ImGui::End();
 }
 
 void Application::SetupLayoutCacheMonitor() {
-    if (!m_hasSetupDock) {
+    if (!m_hasSetupLayout) {
         // Figure out proper window size
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(std::min(m_resolution.x + 700, mode->width), std::min(m_resolution.y + 200, mode->height));
+        m_windowSize = ImVec2(std::min(m_resolution.x + 700, mode->width), std::min(m_resolution.y + 220, mode->height));
         glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
     }
 
@@ -223,7 +241,7 @@ void Application::SetupLayoutCacheMonitor() {
     ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
     ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
 
-    if (!m_hasSetupDock) {
+    if (!m_hasSetupLayout) {
         ImGui::DockBuilderRemoveNode(dockSpaceID);
         ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
@@ -251,7 +269,55 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Samples Curve", rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
-        m_hasSetupDock = true;
+        m_hasSetupLayout = true;
+    }
+
+    ImGui::End();
+}
+
+void Application::SetupLayoutCompact() {
+    if (!m_hasSetupLayout) {
+        // Figure out proper window size
+        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        m_windowSize = ImVec2(std::min(m_resolution.x + 400, mode->width), std::min(m_resolution.y + 120, mode->height));
+        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
+    }
+
+    // ImGui::DockSpaceOverViewport();
+    ImGuiViewport *iviewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(iviewport->WorkPos);
+    ImGui::SetNextWindowSize(iviewport->WorkSize);
+    ImGui::SetNextWindowViewport(iviewport->ID);
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGui::Begin("MyDockSpace", nullptr, windowFlags);
+
+    ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+    // dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
+    ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
+    // ImGui::DockSpaceOverViewport(dockSpaceID, ImGui::GetMainViewport(), dockFlags);
+
+    if (!m_hasSetupLayout) {
+        ImGui::DockBuilderRemoveNode(dockSpaceID);
+        ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
+
+        ImGuiID leftDock, rightDock, rightTopDock, rightBottomDock;
+        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.7f, &leftDock, &rightDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
+        float padding = ImGui::GetStyle().WindowPadding.x;
+        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 400), -1));
+
+        ImGui::DockBuilderDockWindow("Viewport", leftDock);
+        ImGui::DockBuilderDockWindow("Controls", rightTopDock);
+        ImGui::DockBuilderDockWindow("Settings", rightBottomDock);
+        ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
+        ImGui::DockBuilderFinish(dockSpaceID);
+
+        m_hasSetupLayout = true;
     }
 
     ImGui::End();
@@ -472,6 +538,22 @@ void Application::AppendToProbeData() {
         }
     });
     m_cacheMonitor->RequestFitAxes();
+}
+
+void Application::MainMenu() {
+    static std::string layoutNames[Layout_Count] = {"Default", "Cache Monitor", "Compact"};
+    if (ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("Layout")) {
+            for (int i = 0; i < Layout_Count; ++i) {
+                if (ImGui::MenuItem(layoutNames[i].c_str(), nullptr, m_layout == i)) {
+                    m_layout = (LayoutType) i;
+                    m_hasSetupLayout = false;
+                }
+            }
+            ImGui::EndMenu();
+        }
+        ImGui::EndMainMenuBar();
+    }
 }
 
 void Application::RayCastingPanel() {
