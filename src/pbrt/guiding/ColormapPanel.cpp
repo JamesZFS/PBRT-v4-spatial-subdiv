@@ -24,32 +24,38 @@ void ColormapPanel::Draw() {
     ImGui::BeginDisabled(disableColorMap);
     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     auto &io = ImGui::GetIO();
-    if (ImGui::CollapsingHeader("Color Map")) {
-        auto &sd = shaderData[selectedChannel];
-        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_E)) {
+    auto &sd = shaderData[selectedChannel];
+    auto reset = [&]() {
+        sd.scale = 1.0f;
+        sd.offset = 0.0f;
+    };
+    auto normalize = [&]() {
+        sd.firstNormalized = true;
+        auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
+        sd.scale = 1.0f / std::max(1e-6f, maxVal - minVal);
+        sd.offset = -minVal;
+    };
+    if (!disableColorMap) {  // Key maps
+        if (ImGui::IsKeyPressed(ImGuiKey_E)) {
             if (!io.KeyShift) {
                 sd.scale *= 1.1f;
             } else {
                 sd.scale /= 1.1f;
             }
         }
-        if (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_M)) {
+        if (ImGui::IsKeyPressed(ImGuiKey_M, false)) {
             sd.tonemapped ^= true;
         }
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) reset();
+        if (ImGui::IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
+    }
+    if (ImGui::CollapsingHeader("Color Map")) {
+
         ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f);
         ImGui::InputFloat("Offset", &sd.offset, 0.1f, 1.0f);
-        if (ImGui::Button("Reset") || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_R, false))) {
-            sd.scale = 1.0f;
-            sd.offset = 0.0f;
-        }
+        if (ImGui::Button("Reset")) reset();
         ImGui::SameLine();
-        if (ImGui::Button("Normalize") || !sd.firstNormalized
-            || (!disableColorMap && ImGui::IsKeyPressed(ImGuiKey_N, false))) {
-            sd.firstNormalized = true;
-            auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
-            sd.scale = 1.0f / std::max(1e-6f, maxVal - minVal);
-            sd.offset = -minVal;
-        }
+        if (ImGui::Button("Normalize")) normalize();
         ImGui::SetNextItemWidth(90);
         ImGui::Combo("Tonemap", reinterpret_cast<int *>(&selectedCMap), cmap_names, CMap_Count);
         ImGui::SameLine();

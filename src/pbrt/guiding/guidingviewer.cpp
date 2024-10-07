@@ -628,7 +628,7 @@ void GuidingViewerGUI::UpdateRayCastingResult() {
                     if (gbsdf.init(&bsdf, ray, sit, rnd)) {
                         // Guiding region available
                         rcData.cacheId = gbsdf.getId();
-                        auto stats = field->GetRegionStatistics(rcData.cacheId);
+                        auto stats = field->GetRegionStatisticsSurface(rcData.cacheId);
                         rcData.fluence = stats.fluence;
                         rcData.ce = stats.crossEntropy;
                     }
@@ -651,7 +651,7 @@ void GuidingViewerGUI::ResetCECurves() {
 void GuidingViewerGUI::AppendToCECurves() {
     std::lock_guard lock(mtxCECurves);
     for (auto &[id, curve] : ceCurves) if (curve.active) {
-        curve.data.emplace_back(waveStart, field->GetRegionStatistics(id).crossEntropy);
+        curve.data.emplace_back(waveStart, field->GetRegionStatisticsSurface(id).crossEntropy);
     }
     shouldFitXAxis = true;
 }

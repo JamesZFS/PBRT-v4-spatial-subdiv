@@ -69,10 +69,17 @@ int Application::Run() {
     m_controlPanel = std::make_unique<ControlPanel>(*m_renderThread);
     m_viewport = std::make_unique<Viewport>(m_film);
     m_colormapPanel = std::make_unique<ColormapPanel>(m_film);
+
     m_cacheMonitor = std::make_unique<CacheMonitor>();
     auto &ceCurve = m_cacheMonitor->AddPlot("Cross Entropy vs. Iter", CacheMonitor::PlotType_CE, true);
     auto &depthCurve = m_cacheMonitor->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
     auto &samplesCurve = m_cacheMonitor->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
+
+    m_cacheHistogram = std::make_unique<CacheHistogram>();
+    auto &fluenceHist = m_cacheHistogram->AddPlot("Fluence", CacheHistogram::PlotType_Fluence, true);
+    auto &ceHist = m_cacheHistogram->AddPlot("Cross Entropy", CacheHistogram::PlotType_CE, true);
+    auto &depthHist = m_cacheHistogram->AddPlot("Depth", CacheHistogram::PlotType_Depth, true);
+    auto &samplesHist = m_cacheHistogram->AddPlot("Samples", CacheHistogram::PlotType_Samples, true);
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -95,17 +102,18 @@ int Application::Run() {
         UpdateRayCastingAtMouse();
         MainMenu();
 
-        // Left Pane
-        if (ImGui::Begin("Controls")) {
+        // Controls, Colormap, and RayCasting
+        {
+            ImGui::Begin("Controls");
             m_controlPanel->Draw();
             int wave = GetCurrentWave();
             ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
             m_colormapPanel->Draw();
             RayCastingPanel();
+            ImGui::End();
         }
-        ImGui::End();
 
-        // Middle Pane
+        // Viewport, Channels, and Status Bar
         if (ImGui::Begin("Viewport")) {
             ChannelSelector();
             m_viewport->Draw();
@@ -115,7 +123,7 @@ int Application::Run() {
         }
         ImGui::End();
 
-        // Right Pane
+        // Settings
         if (ImGui::Begin("Settings")) {
             IntegratorPanel();
             GuidePanel();
@@ -136,6 +144,8 @@ int Application::Run() {
                 samplesCurve.Draw();
             ImGui::End();
         }
+
+        CacheHistogramPanel(fluenceHist, ceHist, depthHist, samplesHist);
 
         // ImGui::ShowDemoWindow();
         RenderImGuiFrame(m_window);
@@ -197,8 +207,9 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
 
-        ImGuiID leftDock, midDock, rightTopDock, rightBottomDock;
+        ImGuiID leftDock, leftTopDock, leftBottomDock, midDock, rightTopDock, rightBottomDock;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightTopDock);
+        ImGui::DockBuilderSplitNode(leftDock, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Left, 0.5f, &midDock, &rightTopDock);
         ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.3f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, -1));
@@ -206,7 +217,8 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), -1));
         // ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, 600));
 
-        ImGui::DockBuilderDockWindow("Controls", leftDock);
+        ImGui::DockBuilderDockWindow("Controls", leftTopDock);
+        ImGui::DockBuilderDockWindow("Cache Histograms", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
@@ -263,6 +275,7 @@ void Application::SetupLayoutCacheMonitor() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Cache Histograms", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
@@ -311,10 +324,11 @@ void Application::SetupLayoutCompact() {
 
         ImGui::DockBuilderDockWindow("Viewport", leftDock);
         ImGui::DockBuilderDockWindow("Controls", rightTopDock);
-        ImGui::DockBuilderDockWindow("Settings", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Cache Histograms", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -331,6 +345,7 @@ void Application::SetupRenderThread() {
         [&](int waveStart) {
             UpdateField(waveStart);
             AppendToProbeData();
+            UpdateCacheHistogram();
             RenderWave(waveStart);
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
@@ -342,6 +357,7 @@ void Application::SetupRenderThread() {
             m_field.Reset();
         }
         m_cacheMonitor->Clear();
+        m_cacheHistogram->Clear();
         return true;
     });
 }
@@ -400,7 +416,7 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
                     if (gbsdf.init(&bsdf, ray, sit, rnd)) {
                         // Guiding region available
                         uint32_t id = gbsdf.getId();
-                        rc.cache = m_field.GetRegionStatistics(id);
+                        rc.cache = m_field.GetRegionStatisticsSurface(id);
                     }
                     break;
                 }
@@ -496,8 +512,9 @@ void Application::UpdateField(int waveEnd) {
     std::lock_guard lock(m_mtx.field);
     Timer timer;
     if (waveEnd > 0)
-        m_updateCache(waveEnd);
+        m_updateCache(waveEnd);  // calls GuidedPathIntegrator::PostProcessWave()
     m_waveStats.postprocessMS = timer.ElapsedSeconds() * 1e3;
+    m_waveStats.numRegions = m_field.GetRegionCountSurface();
 }
 
 void Application::RenderWave(int waveStart) {
@@ -538,6 +555,29 @@ void Application::AppendToProbeData() {
         }
     });
     m_cacheMonitor->RequestFitAxes();
+}
+
+void Application::UpdateCacheHistogram() {
+    CheckIsRenderThread();
+    if (m_enableHistogram) {
+        Timer timer;
+        m_cacheHistogram->Update([&](CacheHistogram::Data &data) {
+            size_t numRegions = m_field.GetRegionCountSurface();
+            data.fluence.resize(numRegions);
+            data.ce.resize(numRegions);
+            data.depth.resize(numRegions);
+            data.samples.resize(numRegions);
+            for (size_t i = 0; i < numRegions; ++i) {
+                auto cache = m_field.GetRegionStatisticsSurface(i);
+                data.fluence[i] = cache.fluence;
+                data.ce[i] = cache.crossEntropy;
+                data.depth[i] = cache.depth;
+                data.samples[i] = cache.numSamples;
+            }
+        });
+        m_cacheHistogram->RequestFitAxes();
+        std::cout << "Update Cache Histogram: " << timer.ElapsedSeconds() * 1e3 << " ms" << std::endl;
+    }
 }
 
 void Application::MainMenu() {
@@ -625,17 +665,18 @@ void Application::StatusBar() {
 #endif
     else
         mouseInfo = "<invalid>";
-    if (ImGui::GetColumnWidth() > 700)
-        ImGui::Text("Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Mouse: %s",
+    if (ImGui::GetColumnWidth() > 850)
+        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Regions: %s | Mouse: %s",
+            stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS,
-            FormatInteger(m_waveStats.trainingSamples).c_str(),
+            FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
             mouseInfo.c_str());
     else {
         ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms",
             stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS);
-        ImGui::Text("Training Samples: %s | Mouse: %s",
-            FormatInteger(m_waveStats.trainingSamples).c_str(),
+        ImGui::Text("Training Samples: %s | Regions: %s | Mouse: %s",
+            FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
             mouseInfo.c_str());
     }
 }
@@ -690,6 +731,37 @@ void Application::SpatialSubdivisionPanel() {
     ImGui::EndDisabled();
     ImGui::PopID();
     // Field will update from subdivCfg in the render thread
+}
+
+void Application::CacheHistogramPanel(CacheHistogram::Hist &fluenceHist, CacheHistogram::Hist &ceHist, CacheHistogram::Hist &depthHist, CacheHistogram::Hist &samplesHist) {
+    bool enableHistogram = false;
+    if (ImGui::Begin("Cache Histograms")) {
+        if (ImGui::BeginTabBar("##CacheHistograms")) {
+            if (ImGui::BeginTabItem("Fluence")) {
+                enableHistogram = true;
+                fluenceHist.Draw();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("CE")) {
+                enableHistogram = true;
+                ceHist.Draw();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Depth")) {
+                enableHistogram = true;
+                depthHist.Draw();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Samples")) {
+                enableHistogram = true;
+                samplesHist.Draw();
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+    }
+    ImGui::End();
+    m_enableHistogram = enableHistogram;  // Atomic update
 }
 
 }
