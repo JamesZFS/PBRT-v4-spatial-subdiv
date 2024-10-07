@@ -305,7 +305,7 @@ void Application::SetupLayoutCompact() {
 
         ImGuiID leftDock, rightDock, rightTopDock, rightBottomDock;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.7f, &leftDock, &rightDock);
-        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.4f, &rightTopDock, &rightBottomDock);
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 400), -1));
 

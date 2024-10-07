@@ -99,7 +99,7 @@ private:
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
-    LayoutType m_layout = Layout_Default;
+    LayoutType m_layout = Layout_Compact;
 
     // Components and views
     std::unique_ptr<RenderThread> m_renderThread;

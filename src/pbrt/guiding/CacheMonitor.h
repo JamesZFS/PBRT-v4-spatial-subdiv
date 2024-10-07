@@ -39,6 +39,8 @@ public:
     public:
         void Draw() override;
 
+        uint64_t ID() const { return (uint64_t) this; }
+
     private:
         Plot(bool isMain, const std::string &title, int yOffset, CacheMonitor &monitor)
             : m_isMain(isMain), m_title(title), m_yOffset(yOffset), m_monitor(monitor) {}
@@ -82,6 +84,10 @@ private:
     std::vector<Probe> m_probes;
     std::mutex m_mutex;  // protect probe data
     std::vector<Plot*> m_plots;
+    struct {
+        uint64_t hoveringID = 0;  // ID of the plot being hovered
+        double x = 0, y = 0;
+    } m_mouse;
 
     float m_probeRadius = 10;
     float m_markerSize = 2;
