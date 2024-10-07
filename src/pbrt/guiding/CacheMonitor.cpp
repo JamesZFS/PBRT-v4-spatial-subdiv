@@ -31,7 +31,29 @@ void CacheMonitor::Plot::Draw() {
     ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, m_monitor.m_markerSize);
     if (m_shouldFitAxes.exchange(false) && m_monitor.m_autoFitAxes)
         ImPlot::SetNextAxesToFit();
+
     if (ImPlot::BeginPlot(m_title.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - (m_isMain ? 40.f : 0.f)), ImPlotFlags_NoTitle)) {
+        // Hovering behavior: draw a vertical line for all plots at the same x position
+        ImDrawList *draw_list = ImPlot::GetPlotDrawList();
+        if (ImPlot::IsPlotHovered()) {
+            m_monitor.m_mouse.hoveringID = this->ID();
+            ImPlotPoint mouse = ImPlot::GetPlotMousePos();
+            m_monitor.m_mouse.x = mouse.x, m_monitor.m_mouse.y = mouse.y;
+            ImVec2 screen_pos = ImPlot::PlotToPixels(mouse);
+            ImPlot::PushPlotClipRect();
+            draw_list->AddLine(ImVec2(screen_pos.x, ImPlot::GetPlotPos().y), ImVec2(screen_pos.x, ImPlot::GetPlotPos().y + ImPlot::GetPlotSize().y), ImGui::GetColorU32(IM_COL32_WHITE, 0.8f));
+            ImPlot::PopPlotClipRect();
+        }
+        else if (m_monitor.m_mouse.hoveringID == this->ID()) {  // Was hovering on this plot
+            m_monitor.m_mouse.hoveringID = 0;
+        }
+        else if (m_monitor.m_mouse.hoveringID != 0) {  // Hovering on other plot
+            ImVec2 screen_pos = ImPlot::PlotToPixels(m_monitor.m_mouse.x, m_monitor.m_mouse.y);
+            ImPlot::PushPlotClipRect();
+            draw_list->AddLine(ImVec2(screen_pos.x, ImPlot::GetPlotPos().y), ImVec2(screen_pos.x, ImPlot::GetPlotPos().y + ImPlot::GetPlotSize().y), ImGui::GetColorU32(IM_COL32_WHITE, 0.4f));
+            ImPlot::PopPlotClipRect();
+        }
+
         std::lock_guard lock(m_monitor.m_mutex);
         ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
         for (const auto &probe: m_monitor.m_probes)
@@ -41,6 +63,7 @@ void CacheMonitor::Plot::Draw() {
             }
         ImPlot::EndPlot();
     }
+
     ImPlot::PopStyleVar(3);
 
     if (m_isMain) {
