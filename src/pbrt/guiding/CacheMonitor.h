@@ -12,10 +12,13 @@
 #include <functional>
 
 
-class CacheMonitor : public View {
+class CacheMonitor {
 public:
     struct PlotEntry {
-        float x, y;
+        float iter;
+        float ce;
+        float depth;
+        float samples;
     };
 
     struct Probe {
@@ -25,7 +28,35 @@ public:
         std::vector<PlotEntry> data;
     };
 
-    void Draw() override;
+    enum PlotType {
+        PlotType_CE,
+        PlotType_Depth,
+        PlotType_Samples,
+    };
+
+    /// A window that plots a data field of the probes
+    class Plot: public View {
+    public:
+        void Draw() override;
+
+    private:
+        Plot(bool isMain, const std::string &title, int yOffset, CacheMonitor &monitor)
+            : m_isMain(isMain), m_title(title), m_yOffset(yOffset), m_monitor(monitor) {}
+
+        bool m_isMain;
+        std::string m_title;
+        int m_yOffset;
+        CacheMonitor &m_monitor;
+        std::atomic_bool m_shouldFitAxes = true;
+
+        friend class CacheMonitor;
+    };
+
+    CacheMonitor() = default;
+
+    ~CacheMonitor();
+
+    Plot &AddPlot(const std::string &title, PlotType type, bool isMain);
 
     // Add/activate a probe at the given pixel. Return true if the probe is added, false if it already exists.
     // Corrects the pixel to the nearest existing probe if it is close enough.
@@ -35,7 +66,7 @@ public:
 
     void ForEachProbe(std::function<void(Probe &)> f);
 
-    void RequestFitAxes() { m_shouldFitAxes = true; }
+    void RequestFitAxes();
 
     void Clear();  // Clear the data but keep the probes
 
@@ -50,12 +81,12 @@ public:
 private:
     std::vector<Probe> m_probes;
     std::mutex m_mutex;  // protect probe data
+    std::vector<Plot*> m_plots;
 
     float m_probeRadius = 10;
     float m_markerSize = 2;
     bool m_displayProbeID = false;
     bool m_autoFitAxes = true;
-    std::atomic_bool m_shouldFitAxes = true;
 };
 
 
