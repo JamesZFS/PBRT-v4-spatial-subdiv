@@ -47,6 +47,7 @@ private:
         Layout_Default,
         Layout_CacheMonitor,
         Layout_Compact,
+        Layout_Histograms,
         Layout_Count,
     };
 
@@ -54,6 +55,8 @@ private:
     void SetupLayoutDefault();
     void SetupLayoutCacheMonitor();
     void SetupLayoutCompact();
+    void SetupLayoutHistograms();
+
     void SetupRenderThread();
 
     int GetCurrentWave() const;
@@ -103,7 +106,7 @@ private:
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
-    LayoutType m_layout = Layout_Compact;
+    LayoutType m_layout = Layout_Histograms;
 
     // Components and views
     std::unique_ptr<RenderThread> m_renderThread;
