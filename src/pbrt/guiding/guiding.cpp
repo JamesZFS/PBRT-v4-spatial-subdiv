@@ -443,7 +443,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
 
         if (cacheInitialized && shouldCreateVisbleSurf) {
             uint32_t id = gbsdf.getId();
-            visibleSurf->guidingData = guiding_field->GetRegionStatistics(id);
+            visibleSurf->guidingData = guiding_field->GetRegionStatisticsSurface(id);
         }
 
         // Sample direct illumination from the light sources

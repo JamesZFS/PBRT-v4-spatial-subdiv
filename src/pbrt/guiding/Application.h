@@ -12,6 +12,8 @@
 #include "CacheMonitor.h"
 #include <pbrt/cpu/integrators.h>
 
+#include "CacheHistogram.h"
+
 namespace openpgl {
 namespace cpp {
 struct Field;
@@ -71,6 +73,7 @@ private:
     void ClearFilm();
     void UpdateCPUBufferFromFilm();
     void AppendToProbeData();
+    void UpdateCacheHistogram();
 
     // GUI components
     void MainMenu();
@@ -80,6 +83,7 @@ private:
     void IntegratorPanel();
     void GuidePanel();
     void SpatialSubdivisionPanel();
+    void CacheHistogramPanel(CacheHistogram::Hist &fluenceHist, CacheHistogram::Hist &ceHist, CacheHistogram::Hist &depthHist, CacheHistogram::Hist &samplesHist);
 
     Camera m_camera;
     Film m_film;
@@ -107,6 +111,7 @@ private:
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     std::unique_ptr<CacheMonitor> m_cacheMonitor;
+    std::unique_ptr<CacheHistogram> m_cacheHistogram;
 
     mutable struct {
         std::mutex field, subdivCfg;
@@ -116,6 +121,7 @@ private:
         double renderMS = 0;
         double postprocessMS = 0;
         size_t trainingSamples = 0;
+        size_t numRegions = 0;
     } m_waveStats;
 
     // Ray Casting
@@ -123,6 +129,8 @@ private:
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
 
     int m_maxMaxDepth = 15;
+
+    bool m_enableHistogram = false;
 };
 
 }
