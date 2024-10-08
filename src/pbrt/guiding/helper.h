@@ -19,6 +19,8 @@ enum SelectedChannel {
     Channel_Samples,
     Channel_ZeroSamples,
     Channel_Depth,
+    Channel_Reference,
+    Channel_Error,
     Channel_Count,
 };
 
@@ -31,7 +33,33 @@ enum Colormap {
     CMap_Count,
 };
 
+enum ErrorMetric {
+    Metric_MSE = 0,
+    Metric_MAE,
+    Metric_MRSE,
+    Metric_MRAE,
+    Metric_Count,
+};
+
 extern GLuint cmap_tex_ids[CMap_Count];
+
+bool IsSingleChannel(SelectedChannel channel);
+
+template<ErrorMetric metric>
+float CalcError(float x, float ref);
+
+template<ErrorMetric metric>
+float CalcError(const pbrt::RGB &x, const pbrt::RGB &ref) {
+    pbrt::RGB error(CalcError<metric>(x.r, ref.r), CalcError<metric>(x.g, ref.g), CalcError<metric>(x.b, ref.b));
+    return error.Average();
+}
+
+template<> float CalcError<Metric_MSE>(float x, float ref);
+template<> float CalcError<Metric_MAE>(float x, float ref);
+template<> float CalcError<Metric_MRSE>(float x, float ref);
+template<> float CalcError<Metric_MRAE>(float x, float ref);
+
+std::function<float(const pbrt::RGB&, const pbrt::RGB&)> GetErrorFunc(ErrorMetric metric);
 
 std::string FormatInteger(int64_t v);
 

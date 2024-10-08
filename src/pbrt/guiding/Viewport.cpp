@@ -6,7 +6,7 @@
 
 using namespace pbrt;
 
-Viewport::Viewport(pbrt::Application* parent, pbrt::Film film)
+Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference)
     : View(parent), m_film(film), m_isMultiChannel(film.Is<GuidedGBufferFilm>()),
       m_resolution(film.PixelBounds().Diagonal()),
       m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
@@ -17,6 +17,20 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film)
     m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.reference.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.error.resize(m_resolution.x * m_resolution.y);
+    if (reference) {
+        m_hasReference = true;
+        CHECK_EQ(reference->Resolution(), m_resolution);
+        CHECK_GE(reference->NChannels(), 3);
+        auto desc = reference->GetChannelDesc({"R", "G", "B"});
+        ParallelFor2D(film.PixelBounds(), [&](Point2i p) {
+            size_t index = (p.y - m_film.PixelBounds().pMin.y) * m_resolution.x + (p.x - m_film.PixelBounds().pMin.x);
+            ImageChannelValues v = reference->GetChannels(p, desc);
+            m_cpuBuffer.reference[index] = RGB(v[0], v[1], v[2]);
+        });
+        UpdateErrorImage();
+    }
 
     glGenTextures(1, &m_renderingTex);
 }
@@ -32,7 +46,8 @@ void Viewport::UpdateCPUBufferFromFilm() {
         ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {
             size_t index = (p.y - m_film.PixelBounds().pMin.y) * m_resolution.x + (p.x - m_film.PixelBounds().pMin.x);
             auto &pixel = gFilm->GetPixel(p);
-            m_cpuBuffer.radiance[index] = gFilm->GetPixelRGB(p);
+            RGB radiance = gFilm->GetPixelRGB(p);
+            m_cpuBuffer.radiance[index] = radiance;
             if (pixel.guidingData.id != -1) {
                 m_cpuBuffer.cacheID[index] = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
             }
@@ -41,7 +56,13 @@ void Viewport::UpdateCPUBufferFromFilm() {
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
             m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;
+            if (m_hasReference) {
+                RGB reference = m_cpuBuffer.reference[index];
+                m_cpuBuffer.error[index] = errorFunc(radiance, reference);
+            }
         });
+        if (m_hasReference)
+            UpdateMeanError();
     } else {
         ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {
             size_t index = (p.y - m_film.PixelBounds().pMin.y) * m_resolution.x + (p.x - m_film.PixelBounds().pMin.x);
@@ -49,6 +70,34 @@ void Viewport::UpdateCPUBufferFromFilm() {
         });
     }
     m_cpuBufferUpdated = true;
+}
+
+double Viewport::UpdateMeanError() {
+    CHECK(m_isMultiChannel && m_hasReference);
+    double meanError = 0;
+    for (size_t i = 0; i < m_cpuBuffer.error.size(); ++i)
+        meanError += m_cpuBuffer.error[i];
+    meanError /= (double) m_cpuBuffer.error.size();
+    return m_meanError = meanError;
+}
+
+float Viewport::GetErrorAtPixel(pbrt::Point2i pixel) const {
+    size_t index = (pixel.y - m_film.PixelBounds().pMin.y) * m_resolution.x + (pixel.x - m_film.PixelBounds().pMin.x);
+    return m_cpuBuffer.error[index];
+}
+
+void Viewport::UpdateErrorImage() {
+    if (m_isMultiChannel && m_hasReference) {
+        auto *gFilm = m_film.Cast<GuidedGBufferFilm>();
+        ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {
+            size_t index = (p.y - m_film.PixelBounds().pMin.y) * m_resolution.x + (p.x - m_film.PixelBounds().pMin.x);
+            RGB radiance = gFilm->GetPixelRGB(p);
+            RGB reference = m_cpuBuffer.reference[index];
+            m_cpuBuffer.error[index] = errorFunc(radiance, reference);
+        });
+        UpdateMeanError();
+        m_cpuBufferUpdated = true;
+    }
 }
 
 void Viewport::UpdateFramebuffer(SelectedChannel channel, const Uniforms &uniforms) {
@@ -83,8 +132,16 @@ void Viewport::UpdateFramebuffer(SelectedChannel channel, const Uniforms &unifor
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.depth.data(), m_resolution.x, m_resolution.y, false);
                 break;
+            case Channel_Reference:
+                CHECK(m_isMultiChannel && m_hasReference);
+                UpdateTextureFromRGBData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.reference.data(), m_resolution.x, m_resolution.y, false);
+                break;
+            case Channel_Error:
+                CHECK(m_isMultiChannel && m_hasReference);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.error.data(), m_resolution.x, m_resolution.y, false);
+                break;
             default:
-                Error("Unknown channel %d", channel);
+                Error("Unknown channel %d", (int) channel);
                 break;
         }
     }
@@ -103,7 +160,7 @@ void Viewport::UpdateFramebuffer(SelectedChannel channel, const Uniforms &unifor
     shader.setUniform1f("scale", uniforms.scale);
     shader.setUniform1f("offset", uniforms.offset);
     shader.setUniform1f("clip_val", uniforms.clipValue);
-    shader.setUniform1i("single_channel", channel > Channel_CacheID);
+    shader.setUniform1i("single_channel", IsSingleChannel(channel));
     shader.setUniform1i("tonemapped", uniforms.cmapTex > 0);
 
     // Render!

@@ -15,9 +15,14 @@ static const char* cmap_names[CMap_Count] = {
     "Viridis"
 };
 
-ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film) : View(parent), film(film) {
-    shaderData[Channel_Radiance].firstNormalized = true;
-    shaderData[Channel_CacheID].firstNormalized = true;
+ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference)
+    : View(parent), film(film), reference(reference) {
+    for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Reference, Channel_Error}) {
+        shaderData[c].firstNormalized = true;
+    }
+    for (auto c: {Channel_Fluence, Channel_CE, Channel_Samples, Channel_ZeroSamples, Channel_Depth, Channel_Error}) {
+        shaderData[c].tonemapped = true;
+    }
 }
 
 void ColormapPanel::Draw() {
@@ -82,6 +87,12 @@ void ColormapPanel::Draw() {
 std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) const {
     float minVal = std::numeric_limits<float>::infinity(), maxVal = -std::numeric_limits<float>::infinity();
     if (film.Is<GuidedGBufferFilm>()) {
+        ImageChannelDesc desc;
+        if (c == Channel_Reference || c == Channel_Error) {
+            CHECK(reference);
+            CHECK_GE(reference->NChannels(), 3);
+            desc = reference->GetChannelDesc({"R", "G", "B"});
+        }
         auto *gFilm = film.Cast<GuidedGBufferFilm>();
         for (int y = film.PixelBounds().pMin.y; y < film.PixelBounds().pMax.y; ++y) {
             for (int x = film.PixelBounds().pMin.x; x < film.PixelBounds().pMax.x; ++x) {
@@ -106,10 +117,16 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) cons
                     case Channel_Depth:
                         val = (float) pixel.guidingData.depth;
                         break;
-                    case Channel_Count:
+                    case Channel_Reference:
+                        val = reference->GetChannels(Point2i(x, y), desc).Average();
                         break;
+                    case Channel_Error: {
+                        auto ref = reference->GetChannels(Point2i(x, y), desc);
+                        val = errorFunc(gFilm->GetPixelRGB(Point2i(x, y)), RGB(ref[0], ref[1], ref[2]));
+                        break;
+                    }
                     default:
-                        Error("Unknown channel type %d", c);
+                        Error("Unknown channel type %d", (int) c);
                 }
                 minVal = std::min(minVal, val);
                 maxVal = std::max(maxVal, val);
@@ -124,5 +141,6 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) cons
             }
         }
     }
+    std::cout << "minVal: " << minVal << " maxVal: " << maxVal << std::endl;
     return {minVal, maxVal};
 }

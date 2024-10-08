@@ -24,7 +24,7 @@ namespace pbrt {
 
 class Application {
 public:
-    Application(Camera camera, Primitive scene, openpgl::cpp::Field* field, openpgl::cpp::SampleStorage &sampleStorage,
+    Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference, openpgl::cpp::Field* field, openpgl::cpp::SampleStorage &sampleStorage,
         const PGLKDTreeArguments &args, int spp,
         GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
         const std::function<void(int waveStart)> &renderWave,
@@ -82,6 +82,7 @@ private:
 
     // GUI components
     void MainMenu();
+    void ErrorMetricSelector();
     void RayCastingPanel();
 
     void ChannelSelector();
@@ -93,8 +94,10 @@ private:
 
     Camera m_camera;
     Film m_film;
+    pstd::optional<Image> m_reference;
     const bool m_isMultiChannel;
-    Vector2i m_resolution;  // resolution of the rendering
+    int m_channelCount;
+    Point2i m_resolution;  // resolution of the rendering
     Primitive m_scene;
     openpgl::cpp::Field& m_field;
     openpgl::cpp::SampleStorage& m_sampleStorage;
@@ -114,6 +117,7 @@ private:
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     int m_maxMaxDepth = 15;
     bool m_enableHistogram = false;
+    ErrorMetric m_errorMetric = Metric_MRSE;
 
     // Components and views
     std::unique_ptr<RenderThread> m_renderThread;

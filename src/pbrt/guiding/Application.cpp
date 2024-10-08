@@ -26,28 +26,31 @@ static std::vector<const char *> channelNames = {
     "Samples (5)",
     "Zero Samples (6)",
     "Depth (7)",
+    "Reference (8)",
+    "Error (9)",
+};
+
+static std::vector<const char *> errorMetricNames = {
+    "MSE",
+    "MAE",
+    "MRSE",
+    "MRAE",
 };
 
 namespace pbrt {
 
-Application::Application(Camera camera, Primitive scene, openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage, const PGLKDTreeArguments &args, int spp,
-                         GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
-                         const std::function<void(int waveStart)> &renderWave,
-                         const std::function<void(int waveEnd)> &updateCache,
-                         const std::function<void(int waveEnd)> &saveImage)
-    : m_camera(camera), m_film(camera.GetFilm()), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
+Application::Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference,
+    openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage, const PGLKDTreeArguments &args, int spp,
+    GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
+    const std::function<void(int waveStart)> &renderWave,
+    const std::function<void(int waveEnd)> &updateCache,
+    const std::function<void(int waveEnd)> &saveImage)
+    : m_camera(camera), m_film(camera.GetFilm()), m_reference(std::move(reference)), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
       m_scene(scene), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_spp(spp),
       m_integratorSettings(integratorSettings), m_guideSettings(guideSettings),
       m_renderWave(renderWave), m_updateCache(updateCache), m_saveImage(saveImage),
       m_resolution(m_film.PixelBounds().Diagonal()) {
-    std::cout << "Subdivision Config: \n"
-        << "  KNN Lookup: " << m_subdivCfg.knnLookup << "\n"
-        << "  ISNN Lookup: " << m_subdivCfg.isKnnLookup << "\n"
-        << "  MaxSamples: " << m_subdivCfg.maxSamples << "\n"
-        << "  MinSamples: " << m_subdivCfg.minSamples << "\n"
-        << "  MaxDepth: " << m_subdivCfg.maxDepth << "\n"
-        << "  CE Threshold: " << m_subdivCfg.ceThreshold << std::endl;
-
+    m_channelCount = m_isMultiChannel ? (m_reference ? Channel_Count : Channel_Count - 2) : 1;
     m_maxMaxDepth = std::max(m_maxMaxDepth, integratorSettings.maxDepth);
 }
 
@@ -67,8 +70,8 @@ int Application::Run() {
     SetupRenderThread();
     InitializeTonemaps();
     m_controlPanel = std::make_unique<ControlPanel>(this, *m_renderThread);
-    m_viewport = std::make_unique<Viewport>(this, m_film);
-    m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film);
+    m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
+    m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor = std::make_unique<CacheMonitor>(this);
     auto &ceCurve = m_cacheMonitor->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
@@ -109,6 +112,7 @@ int Application::Run() {
             int wave = GetCurrentWave();
             ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
             m_colormapPanel->Draw();
+            ErrorMetricSelector();
             RayCastingPanel();
             ImGui::End();
         }
@@ -539,6 +543,7 @@ void Application::UpdateRayCastingAtMouse() {
             // Tooltip next to the mouse
             if (ImGui::BeginTooltip()) {
                 CacheInfo(m_rcMouse.cache);
+                ImGui::Text("Error: %f", m_viewport->GetErrorAtPixel(m_rcMouse.pixel));
                 ImGui::EndTooltip();
             }
         }
@@ -681,6 +686,18 @@ void Application::MainMenu() {
     }
 }
 
+void Application::ErrorMetricSelector() {
+    if (m_reference) {
+        ErrorMetric oldMetric = m_errorMetric;
+        ImGui::SetNextItemWidth(90);
+        ImGui::Combo("Error Metric", reinterpret_cast<int *>(&m_errorMetric), errorMetricNames.data(), Metric_Count);
+        if (oldMetric != m_errorMetric) {
+            m_colormapPanel->errorFunc = m_viewport->errorFunc = GetErrorFunc(m_errorMetric);
+            m_viewport->UpdateErrorImage();
+        }
+    }
+}
+
 void Application::RayCastingPanel() {
     if (ImGui::IsKeyPressed(ImGuiKey_C, false))
         m_enableRayCastingAtMouse ^= true;
@@ -707,13 +724,13 @@ void Application::ChannelSelector() {
     // Add a channel selection bar for GuidedGBufferFilm
     if (m_isMultiChannel) {
         SelectedChannel newChannel = m_selectedChannel;
-        for (int i = 0; i < Channel_Count; ++i) {
+        for (int i = 0; i < m_channelCount; ++i) {
             if (ImGui::IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false))
                 newChannel = (SelectedChannel) i;
         }
 
         if (ImGui::BeginTabBar("ChannelSelector")) {
-            for (int i = 0; i < Channel_Count; ++i) {
+            for (int i = 0; i < m_channelCount; ++i) {
                 if (newChannel == i)
                     ImGui::PushStyleColor(ImGuiCol_Tab, ImGui::GetStyleColorVec4(ImGuiCol_TabSelected));
                 if (ImGui::TabItemButton(channelNames[i])) {
@@ -747,18 +764,20 @@ void Application::StatusBar() {
 #endif
     else
         mouseInfo = "<invalid>";
-    if (ImGui::GetColumnWidth() > 850)
-        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Regions: %s | Mouse: %s",
+    if (ImGui::GetColumnWidth() > 950)
+        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Regions: %s | Mean Error: %.5lf | Mouse: %s",
             stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS,
             FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
+            m_viewport->GetMeanError(),
             mouseInfo.c_str());
     else {
         ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms",
             stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS);
-        ImGui::Text("Training Samples: %s | Regions: %s | Mouse: %s",
+        ImGui::Text("Training Samples: %s | Regions: %s | Mean Error: %.5lf | Mouse: %s",
             FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
+            m_viewport->GetMeanError(),
             mouseInfo.c_str());
     }
 }
