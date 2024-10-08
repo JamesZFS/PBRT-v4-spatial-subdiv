@@ -7,7 +7,7 @@
 
 using namespace pbrt;
 
-ControlPanel::ControlPanel(RenderThread &renderThread) : m_renderThread(renderThread) {
+ControlPanel::ControlPanel(pbrt::Application* parent, RenderThread &renderThread) : View(parent), m_renderThread(renderThread) {
     int width, height;
     if (!LoadTextureFromFile(PBRT_ROOT_DIR "images/control_buttons.png", reinterpret_cast<GLuint&>(m_btnTex), width, height, true))
         ErrorExit("Failed to load control_texture.png from disk");

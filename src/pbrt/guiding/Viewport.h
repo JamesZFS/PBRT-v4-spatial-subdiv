@@ -18,7 +18,7 @@ public:
         GLuint cmapTex;
     };
 
-    Viewport(pbrt::Film film);
+    Viewport(pbrt::Application* parent, pbrt::Film film);
 
     ~Viewport();
 

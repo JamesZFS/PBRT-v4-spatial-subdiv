@@ -66,20 +66,20 @@ int Application::Run() {
 
     SetupRenderThread();
     InitializeTonemaps();
-    m_controlPanel = std::make_unique<ControlPanel>(*m_renderThread);
-    m_viewport = std::make_unique<Viewport>(m_film);
-    m_colormapPanel = std::make_unique<ColormapPanel>(m_film);
+    m_controlPanel = std::make_unique<ControlPanel>(this, *m_renderThread);
+    m_viewport = std::make_unique<Viewport>(this, m_film);
+    m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film);
 
-    m_cacheMonitor = std::make_unique<CacheMonitor>();
+    m_cacheMonitor = std::make_unique<CacheMonitor>(this);
     auto &ceCurve = m_cacheMonitor->AddPlot("Cross Entropy vs. Iter", CacheMonitor::PlotType_CE, true);
     auto &depthCurve = m_cacheMonitor->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
     auto &samplesCurve = m_cacheMonitor->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
 
-    m_cacheHistogram = std::make_unique<CacheHistogram>();
-    auto &fluenceHist = m_cacheHistogram->AddPlot("Fluence", CacheHistogram::PlotType_Fluence, true);
-    auto &ceHist = m_cacheHistogram->AddPlot("Cross Entropy", CacheHistogram::PlotType_CE, false);
-    auto &depthHist = m_cacheHistogram->AddPlot("Depth", CacheHistogram::PlotType_Depth, false);
-    auto &samplesHist = m_cacheHistogram->AddPlot("Samples", CacheHistogram::PlotType_Samples, false);
+    m_cacheHistogram.object = std::make_unique<CacheHistogram>(this);
+    m_cacheHistogram.fluence = &m_cacheHistogram.object->AddPlot("Fluence", CacheHistogram::PlotType_Fluence, true);
+    m_cacheHistogram.ce = &m_cacheHistogram.object->AddPlot("Cross Entropy", CacheHistogram::PlotType_CE, false);
+    m_cacheHistogram.depth = &m_cacheHistogram.object->AddPlot("Depth", CacheHistogram::PlotType_Depth, false);
+    m_cacheHistogram.samples = &m_cacheHistogram.object->AddPlot("Samples", CacheHistogram::PlotType_Samples, false);
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -145,7 +145,7 @@ int Application::Run() {
             ImGui::End();
         }
 
-        CacheHistogramPanel(fluenceHist, ceHist, depthHist, samplesHist);
+        CacheHistogramPanel();
 
         // ImGui::ShowDemoWindow();
         // ImPlot::ShowDemoWindow();
@@ -160,6 +160,15 @@ int Application::Run() {
 
     DestroyImGui(m_window);
     return 0;
+}
+
+void Application::SetSelectedChannel(SelectedChannel newChannel) {
+    if (!m_isMultiChannel && newChannel != Channel_Radiance)
+        return;
+    if (newChannel != m_selectedChannel) {
+        m_selectedChannel = newChannel;
+        m_viewport->RequestUpdate();
+    }
 }
 
 void Application::SetupLayout() {
@@ -432,7 +441,7 @@ void Application::SetupRenderThread() {
             m_field.Reset();
         }
         m_cacheMonitor->Clear();
-        m_cacheHistogram->Clear();
+        m_cacheHistogram.object->Clear();
         return true;
     });
 }
@@ -504,9 +513,21 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
 
 void Application::UpdateFramebuffer() {
     // Update the framebuffer when the film is updated
-    SelectedChannel c = m_colormapPanel->selectedChannel;
+    SelectedChannel c = m_selectedChannel;
     auto &sd = m_colormapPanel->shaderData[c];
-    m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, m_colormapPanel->hoveringValue, sd.tonemapped ? cmap_tex_ids[m_colormapPanel->selectedCMap] : 0});
+    float clipValue = std::numeric_limits<float>::infinity();
+    if (m_colormapPanel->isHovered) {
+        clipValue = m_colormapPanel->hoveringValue;
+    } else if (c == Channel_Fluence && m_cacheHistogram.fluence->isHovered) {
+        clipValue = m_cacheHistogram.fluence->hoveringValue;
+    } else if (c == Channel_CE && m_cacheHistogram.ce->isHovered) {
+        clipValue = m_cacheHistogram.ce->hoveringValue;
+    } else if (c == Channel_Depth && m_cacheHistogram.depth->isHovered) {
+        clipValue = m_cacheHistogram.depth->hoveringValue;
+    } else if (c == Channel_Samples && m_cacheHistogram.samples->isHovered) {
+        clipValue = m_cacheHistogram.samples->hoveringValue;
+    }
+    m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, clipValue, sd.tonemapped ? cmap_tex_ids[m_colormapPanel->selectedCMap] : 0});
 }
 
 void Application::CacheInfo(const PGLRegionStatistics &cache) {
@@ -636,7 +657,7 @@ void Application::UpdateCacheHistogram() {
     CheckIsRenderThread();
     if (m_enableHistogram) {
         Timer timer;
-        m_cacheHistogram->Update([&](CacheHistogram::Data &data) {
+        m_cacheHistogram.object->Update([&](CacheHistogram::Data &data) {
             size_t numRegions = m_field.GetRegionCountSurface();
             data.fluence.resize(numRegions);
             data.ce.resize(numRegions);
@@ -650,7 +671,7 @@ void Application::UpdateCacheHistogram() {
                 data.samples[i] = cache.numSamples;
             }
         });
-        m_cacheHistogram->RequestFitAxes();
+        m_cacheHistogram.object->RequestFitAxes();
         std::cout << "Update Cache Histogram: " << timer.ElapsedSeconds() * 1e3 << " ms" << std::endl;
     }
 }
@@ -696,7 +717,7 @@ void Application::RayCastingPanel() {
 void Application::ChannelSelector() {
     // Add a channel selection bar for GuidedGBufferFilm
     if (m_isMultiChannel) {
-        SelectedChannel newChannel = m_colormapPanel->selectedChannel;
+        SelectedChannel newChannel = m_selectedChannel;
         for (int i = 0; i < Channel_Count; ++i) {
             if (ImGui::IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false))
                 newChannel = (SelectedChannel) i;
@@ -715,10 +736,7 @@ void Application::ChannelSelector() {
             ImGui::EndTabBar();
         }
 
-        if (newChannel != m_colormapPanel->selectedChannel) {
-            m_colormapPanel->selectedChannel = newChannel;
-            m_viewport->RequestUpdate();
-        }
+        SetSelectedChannel(newChannel);
     }
 }
 
@@ -808,26 +826,26 @@ void Application::SpatialSubdivisionPanel() {
     // Field will update from subdivCfg in the render thread
 }
 
-void Application::CacheHistogramPanel(CacheHistogram::Hist &fluenceHist, CacheHistogram::Hist &ceHist, CacheHistogram::Hist &depthHist, CacheHistogram::Hist &samplesHist) {
+void Application::CacheHistogramPanel() {
     bool enableHistogram = false;
     if (ImGui::Begin("Fluence Histogram")) {
         enableHistogram = true;
-        fluenceHist.Draw();
+        m_cacheHistogram.fluence->Draw();
     }
     ImGui::End();
     if (ImGui::Begin("CE Histogram")) {
         enableHistogram = true;
-        ceHist.Draw();
+        m_cacheHistogram.ce->Draw();
     }
     ImGui::End();
     if (ImGui::Begin("Depth Histogram")) {
         enableHistogram = true;
-        depthHist.Draw();
+        m_cacheHistogram.depth->Draw();
     }
     ImGui::End();
     if (ImGui::Begin("Samples Histogram")) {
         enableHistogram = true;
-        samplesHist.Draw();
+        m_cacheHistogram.samples->Draw();
     }
     ImGui::End();
     m_enableHistogram = enableHistogram; // Atomic update

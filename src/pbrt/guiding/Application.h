@@ -32,6 +32,8 @@ public:
         const std::function<void(int waveEnd)> &saveImage);
     ~Application();
     int Run();
+    SelectedChannel GetSelectedChannel() const { return m_selectedChannel; }
+    void SetSelectedChannel(SelectedChannel newChannel);
 
 private:
     struct RayCastingData {
@@ -81,12 +83,13 @@ private:
     // GUI components
     void MainMenu();
     void RayCastingPanel();
+
     void ChannelSelector();
     void StatusBar();
     void IntegratorPanel();
     void GuidePanel();
     void SpatialSubdivisionPanel();
-    void CacheHistogramPanel(CacheHistogram::Hist &fluenceHist, CacheHistogram::Hist &ceHist, CacheHistogram::Hist &depthHist, CacheHistogram::Hist &samplesHist);
+    void CacheHistogramPanel();
 
     Camera m_camera;
     Film m_film;
@@ -114,11 +117,16 @@ private:
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     std::unique_ptr<CacheMonitor> m_cacheMonitor;
-    std::unique_ptr<CacheHistogram> m_cacheHistogram;
+    struct {
+        std::unique_ptr<CacheHistogram> object;
+        CacheHistogram::Hist *fluence, *ce, *depth, *samples;
+    } m_cacheHistogram;
 
     mutable struct {
         std::mutex field, subdivCfg;
     } m_mtx;
+
+    SelectedChannel m_selectedChannel = Channel_Radiance;
 
     struct {
         double renderMS = 0;
@@ -127,7 +135,6 @@ private:
         size_t numRegions = 0;
     } m_waveStats;
 
-    // Ray Casting
     bool m_enableRayCastingAtMouse = false;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
 

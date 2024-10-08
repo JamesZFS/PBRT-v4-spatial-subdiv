@@ -6,8 +6,8 @@
 
 using namespace pbrt;
 
-Viewport::Viewport(pbrt::Film film)
-    : m_film(film), m_isMultiChannel(film.Is<GuidedGBufferFilm>()),
+Viewport::Viewport(pbrt::Application* parent, pbrt::Film film)
+    : View(parent), m_film(film), m_isMultiChannel(film.Is<GuidedGBufferFilm>()),
       m_resolution(film.PixelBounds().Diagonal()),
       m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     m_cpuBuffer.radiance.resize(m_resolution.x * m_resolution.y);

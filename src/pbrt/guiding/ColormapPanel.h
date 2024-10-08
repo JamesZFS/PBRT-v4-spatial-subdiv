@@ -11,14 +11,13 @@
 
 
 struct ColormapPanel : public View {
-    ColormapPanel(pbrt::Film film);
+    ColormapPanel(pbrt::Application *parent, pbrt::Film film);
 
     void Draw() override;
 
     std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c) const;
 
     pbrt::Film film;
-    SelectedChannel selectedChannel = Channel_Radiance;
     Colormap selectedCMap = CMap_Viridis;
     struct {
         float scale = 1.0f;
@@ -27,6 +26,7 @@ struct ColormapPanel : public View {
         bool firstNormalized = false;
     } shaderData[Channel_Count];
 
+    bool isHovered = false;
     float hoveringValue = std::numeric_limits<float>::infinity();
 };
 
