@@ -196,8 +196,19 @@ void GuidedPathIntegrator::Render() {
     if (Options->recordPixelStatistics)
         StatsEnablePixelStats(pixelBounds,
                               RemoveExtension(camera.GetFilm().GetFilename()));
+
+    pstd::optional<Image> referenceImage;
     if (!Options->mseReferenceImage.empty()) {
-        Warning("Not supporting MSE reference image with --guidingviewer");
+        auto mse = Image::Read(Options->mseReferenceImage);
+        referenceImage = mse.image;
+
+        Bounds2i msePixelBounds =
+            mse.metadata.pixelBounds
+                ? *mse.metadata.pixelBounds
+                : Bounds2i(Point2i(0, 0), referenceImage->Resolution());
+        if (pixelBounds != msePixelBounds)
+            ErrorExit("Pixel bounds of image %s and MSE reference image %s don't match.",
+                pixelBounds, msePixelBounds);
     }
 
     if (!Options->displayServer.empty()) {
@@ -208,7 +219,7 @@ void GuidedPathIntegrator::Render() {
 #ifdef USE_OLD_GUIDING_VIEWER
     GuidingViewerGUI gui(camera, aggregate, guiding_field, guiding_fieldSubdivConfig, spp,
 #else
-    Application app(camera, aggregate, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
+    Application app(camera, aggregate, std::move(referenceImage), guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
 #endif
         [&](int waveStart) {
             // std::cout << "Rendering wave " << waveStart << std::endl;

@@ -21,7 +21,41 @@
 #include <pbrt/util/error.h>
 
 
-using pbrt::StringPrintf;
+using namespace pbrt;
+
+bool IsSingleChannel(SelectedChannel channel) {
+    return Channel_Fluence <= channel && channel <= Channel_Depth || channel == Channel_Error;
+}
+
+template<>
+float CalcError<Metric_MSE>(float x, float ref) {
+    return (x - ref) * (x - ref);
+}
+
+template<>
+float CalcError<Metric_MAE>(float x, float ref) {
+    return std::abs(x - ref);
+}
+
+template<>
+float CalcError<Metric_MRSE>(float x, float ref) {
+    return (x - ref) * (x - ref) / (ref * ref + 0.01);
+}
+
+template<>
+float CalcError<Metric_MRAE>(float x, float ref) {
+    return std::abs(x - ref) / (ref + 0.01);
+}
+
+std::function<float(const pbrt::RGB&, const pbrt::RGB&)> GetErrorFunc(ErrorMetric metric) {
+    switch (metric) {
+        case Metric_MSE: return [](auto x, auto ref) { return CalcError<Metric_MSE>(x, ref); };
+        case Metric_MAE: return [](auto x, auto ref) { return CalcError<Metric_MAE>(x, ref); };
+        case Metric_MRSE: return [](auto x, auto ref) { return CalcError<Metric_MRSE>(x, ref); };
+        case Metric_MRAE: return [](auto x, auto ref) { return CalcError<Metric_MRAE>(x, ref); };
+        default: ErrorExit("Unknown error metric");
+    }
+}
 
 std::string FormatInteger(int64_t v) {
     if (v < 1000) return StringPrintf("%d", v);

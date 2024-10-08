@@ -71,6 +71,8 @@ void ImageTileIntegrator::PostProcessWave() {}
 
 // ImageTileIntegrator Method Definitions
 void ImageTileIntegrator::Render() {
+    if (Options->guidingViewer)
+        ErrorExit("Guiding viewer is not supported with integrators other than \"guidedpath\".");
     // Handle debugStart, if set
     if (!Options->debugStart.empty()) {
         std::vector<int> c = SplitStringToInts(Options->debugStart, ',');
