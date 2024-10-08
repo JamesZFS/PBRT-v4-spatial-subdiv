@@ -32,7 +32,7 @@ void CacheMonitor::Plot::Draw() {
     if (m_shouldFitAxes.exchange(false) && m_monitor.m_autoFitAxes)
         ImPlot::SetNextAxesToFit();
 
-    if (ImPlot::BeginPlot(m_title.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - (m_isMain ? 40.f : 0.f)), ImPlotFlags_NoTitle)) {
+    if (ImPlot::BeginPlot(m_title.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - (m_isMain ? ImGui::GetFrameHeightWithSpacing() : 0.f)), ImPlotFlags_NoTitle)) {
         // Hovering behavior: draw a vertical line for all plots at the same x position
         ImDrawList *draw_list = ImPlot::GetPlotDrawList();
         if (ImPlot::IsPlotHovered()) {

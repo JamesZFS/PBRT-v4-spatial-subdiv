@@ -40,9 +40,10 @@ void CacheHistogram::Hist::Draw() {
     ImPlot::PushStyleColor(ImPlotCol_Fill, ImGui::GetColorU32(col, 0.8f));
     ImPlot::PushStyleColor(ImPlotCol_Line, col);
 
-    ImPlotFlags plot_flags = ImPlotFlags_NoTitle | ImPlotFlags_NoLegend;
+    ImPlotFlags plot_flags = ImPlotFlags_NoLegend;
+    if (!enableTitle) plot_flags |= ImPlotFlags_NoTitle;
     ImPlotHistogramFlags hist_flags = ImPlotHistogramFlags_None;
-    if (ImPlot::BeginPlot(m_title.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - (m_isMain ? 20.f : 0.f)), plot_flags)) {
+    if (ImPlot::BeginPlot(title.c_str(), ImVec2(-1, -1), plot_flags)) {
         ImPlot::SetupAxes(nullptr, nullptr, ImPlotAxisFlags_NoLabel, ImPlotAxisFlags_NoLabel);
         isHovered |= ImPlot::IsPlotHovered();
         // Draw a vertical line at the mouse position
@@ -63,16 +64,16 @@ void CacheHistogram::Hist::Draw() {
         std::lock_guard lock(m_object.m_mutex);
         switch (m_type) {
             case PlotType_Fluence:
-                ImPlot::PlotHistogram(m_title.c_str(), m_object.m_data.fluence.data(), m_object.m_data.fluence.size(), m_object.m_bins, 1, {}, hist_flags);
+                ImPlot::PlotHistogram(title.c_str(), m_object.m_data.fluence.data(), m_object.m_data.fluence.size(), m_object.m_bins, 1, {}, hist_flags);
                 break;
             case PlotType_CE:
-                ImPlot::PlotHistogram(m_title.c_str(), m_object.m_data.ce.data(), m_object.m_data.ce.size(), m_object.m_bins, 1, {}, hist_flags);
+                ImPlot::PlotHistogram(title.c_str(), m_object.m_data.ce.data(), m_object.m_data.ce.size(), m_object.m_bins, 1, {}, hist_flags);
                 break;
             case PlotType_Depth:
-                ImPlot::PlotHistogram(m_title.c_str(), m_object.m_data.depth.data(), m_object.m_data.depth.size(), m_object.m_bins, 1, {}, hist_flags);
+                ImPlot::PlotHistogram(title.c_str(), m_object.m_data.depth.data(), m_object.m_data.depth.size(), m_object.m_bins, 1, {}, hist_flags);
                 break;
             case PlotType_Samples:
-                ImPlot::PlotHistogram(m_title.c_str(), m_object.m_data.samples.data(), m_object.m_data.samples.size(), m_object.m_bins, 1, {}, hist_flags);
+                ImPlot::PlotHistogram(title.c_str(), m_object.m_data.samples.data(), m_object.m_data.samples.size(), m_object.m_bins, 1, {}, hist_flags);
                 break;
             default:
                 ErrorExit("Unhandled plot type");

@@ -115,6 +115,7 @@ void Viewport::Draw() {
     // ImGui::SeparatorText("Viewport");
     ImVec2 size{(float) m_resolution.x, (float) m_resolution.y};
     ImVec2 avail = ImGui::GetContentRegionAvail();
+    avail.y -= ImGui::GetFrameHeightWithSpacing() * 2;  // reserved for the status bar
     // Scale the image to fit the available space
     m_scale = std::min(avail.x / size.x, avail.y / size.y);
     size = {size.x * m_scale, size.y * m_scale};
