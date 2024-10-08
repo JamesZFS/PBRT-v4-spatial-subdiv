@@ -3,6 +3,7 @@
 //
 
 #include "ColormapPanel.h"
+#include "Application.h"
 
 using namespace pbrt;
 
@@ -14,24 +15,27 @@ static const char* cmap_names[CMap_Count] = {
     "Viridis"
 };
 
-ColormapPanel::ColormapPanel(pbrt::Film film) : film(film) {
+ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film) : View(parent), film(film) {
     shaderData[Channel_Radiance].firstNormalized = true;
     shaderData[Channel_CacheID].firstNormalized = true;
 }
 
 void ColormapPanel::Draw() {
-    bool disableColorMap = selectedChannel == Channel_CacheID;
+    isHovered = false;
+    hoveringValue = std::numeric_limits<float>::infinity();
+    auto c = m_parent->GetSelectedChannel();
+    bool disableColorMap = c == Channel_CacheID;
     ImGui::BeginDisabled(disableColorMap);
     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     auto &io = ImGui::GetIO();
-    auto &sd = shaderData[selectedChannel];
+    auto &sd = shaderData[c];
     auto reset = [&]() {
         sd.scale = 1.0f;
         sd.offset = 0.0f;
     };
     auto normalize = [&]() {
         sd.firstNormalized = true;
-        auto [minVal, maxVal] = GetMinMaxFromFilm(selectedChannel);
+        auto [minVal, maxVal] = GetMinMaxFromFilm(c);
         sd.scale = 1.0f / std::max(1e-6f, maxVal - minVal);
         sd.offset = -minVal;
     };
@@ -50,7 +54,6 @@ void ColormapPanel::Draw() {
         if (ImGui::IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
     }
     if (ImGui::CollapsingHeader("Color Map")) {
-
         ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f);
         ImGui::InputFloat("Offset", &sd.offset, 0.1f, 1.0f);
         if (ImGui::Button("Reset")) reset();
@@ -60,11 +63,11 @@ void ColormapPanel::Draw() {
         ImGui::Combo("Tonemap", reinterpret_cast<int *>(&selectedCMap), cmap_names, CMap_Count);
         ImGui::SameLine();
         ImGui::Checkbox("##check_tonemap", &sd.tonemapped);
-        hoveringValue = std::numeric_limits<float>::infinity();
         if (sd.tonemapped) {
             ImGui::Image((void *) (uintptr_t) cmap_tex_ids[selectedCMap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
             float xmin = ImGui::GetItemRectMin().x, xmax = ImGui::GetItemRectMax().x;
-            if (ImGui::IsItemHovered() && ImGui::BeginTooltip()) {
+            isHovered |= ImGui::IsItemHovered();
+            if (isHovered && ImGui::BeginTooltip()) {
                 float t = (io.MousePos.x - xmin) / (xmax - xmin);
                 hoveringValue = t / sd.scale - sd.offset;
                 ImGui::Text("Pos: %.2f", t);

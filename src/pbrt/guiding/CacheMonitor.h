@@ -42,8 +42,8 @@ public:
         uint64_t ID() const { return (uint64_t) this; }
 
     private:
-        Plot(bool isMain, const std::string &title, int yOffset, CacheMonitor &monitor)
-            : m_isMain(isMain), m_title(title), m_yOffset(yOffset), m_monitor(monitor) {}
+        Plot(pbrt::Application* parent, bool isMain, const std::string &title, int yOffset, CacheMonitor &monitor)
+            : View(parent), m_isMain(isMain), m_title(title), m_yOffset(yOffset), m_monitor(monitor) {}
 
         bool m_isMain;
         std::string m_title;
@@ -54,7 +54,7 @@ public:
         friend class CacheMonitor;
     };
 
-    CacheMonitor() = default;
+    CacheMonitor(pbrt::Application* parent) : m_parent(parent) {}
 
     ~CacheMonitor();
 
@@ -81,6 +81,7 @@ public:
     bool DisplayProbeID() const { return m_displayProbeID; }
 
 private:
+    pbrt::Application* m_parent;
     std::vector<Probe> m_probes;
     std::mutex m_mutex;  // protect probe data
     std::vector<Plot*> m_plots;

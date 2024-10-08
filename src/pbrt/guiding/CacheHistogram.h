@@ -32,20 +32,23 @@ public:
     public:
         void Draw() override;
 
+        bool isHovered = false;
+        float hoveringValue = std::numeric_limits<float>::infinity();
+
     private:
-        Hist(bool isMain, const std::string &title, PlotType type, CacheHistogram &parent)
-            : m_isMain(isMain), m_title(title), m_type(type), m_parent(parent) {}
+        Hist(pbrt::Application* parent, bool isMain, const std::string &title, PlotType type, CacheHistogram &object)
+            : View(parent), m_isMain(isMain), m_title(title), m_type(type), m_object(object) {}
 
         bool m_isMain;
         std::string m_title;
         PlotType m_type;
-        CacheHistogram &m_parent;
+        CacheHistogram &m_object;
         std::atomic_bool m_shouldFitAxes = true;
 
         friend class CacheHistogram;
     };
 
-    CacheHistogram();
+    CacheHistogram(pbrt::Application* parent);
 
     ~CacheHistogram();
 
@@ -58,6 +61,7 @@ public:
     void Clear();
 
 private:
+    pbrt::Application *m_parent;
     std::mutex m_mutex;  // protect hist data
     Data m_data;
     std::vector<Hist*> m_plots;

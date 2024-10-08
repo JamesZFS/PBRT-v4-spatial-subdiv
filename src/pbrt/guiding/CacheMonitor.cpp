@@ -83,7 +83,7 @@ CacheMonitor::~CacheMonitor() {
 }
 
 CacheMonitor::Plot &CacheMonitor::AddPlot(const std::string &title, PlotType type, bool isMain) {
-    auto plot = new Plot(isMain, title, 1 + (int) type, *this);
+    auto plot = new Plot(m_parent, isMain, title, 1 + (int) type, *this);
     m_plots.push_back(plot);
     return *plot;
 }

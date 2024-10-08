@@ -12,7 +12,7 @@ class ControlPanel : public View {
 public:
     using Command = RenderThread::Command;
 
-    ControlPanel(RenderThread &renderThread);
+    ControlPanel(pbrt::Application* parent, RenderThread &renderThread);
 
     void Draw() override;
 
