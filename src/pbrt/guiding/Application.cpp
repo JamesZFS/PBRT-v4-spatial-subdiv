@@ -71,15 +71,15 @@ int Application::Run() {
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film);
 
     m_cacheMonitor = std::make_unique<CacheMonitor>(this);
-    auto &ceCurve = m_cacheMonitor->AddPlot("Cross Entropy vs. Iter", CacheMonitor::PlotType_CE, true);
+    auto &ceCurve = m_cacheMonitor->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
     auto &depthCurve = m_cacheMonitor->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
     auto &samplesCurve = m_cacheMonitor->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
 
     m_cacheHistogram.object = std::make_unique<CacheHistogram>(this);
-    m_cacheHistogram.fluence = &m_cacheHistogram.object->AddPlot("Fluence", CacheHistogram::PlotType_Fluence, true);
-    m_cacheHistogram.ce = &m_cacheHistogram.object->AddPlot("Cross Entropy", CacheHistogram::PlotType_CE, false);
-    m_cacheHistogram.depth = &m_cacheHistogram.object->AddPlot("Depth", CacheHistogram::PlotType_Depth, false);
-    m_cacheHistogram.samples = &m_cacheHistogram.object->AddPlot("Samples", CacheHistogram::PlotType_Samples, false);
+    m_cacheHistogram.fluence = &m_cacheHistogram.object->AddPlot("Fluence Histogram", CacheHistogram::PlotType_Fluence, true);
+    m_cacheHistogram.ce = &m_cacheHistogram.object->AddPlot("CE Histogram", CacheHistogram::PlotType_CE, false);
+    m_cacheHistogram.depth = &m_cacheHistogram.object->AddPlot("Depth Histogram", CacheHistogram::PlotType_Depth, false);
+    m_cacheHistogram.samples = &m_cacheHistogram.object->AddPlot("Samples Histogram", CacheHistogram::PlotType_Samples, false);
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -290,11 +290,11 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, m_windowSize.y * 0.5));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
@@ -363,7 +363,7 @@ void Application::SetupLayoutHistograms() {
     if (!m_hasSetupLayout) {
         // Figure out proper window size
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(std::min(m_resolution.x + 900, mode->width), std::min(m_resolution.y + 220, mode->height));
+        m_windowSize = ImVec2(std::min(m_resolution.x + 900, mode->width), std::min(m_resolution.y + 120, mode->height));
         glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
     }
 
@@ -387,21 +387,13 @@ void Application::SetupLayoutHistograms() {
 
         ImGuiID left, leftTopDock, leftBottomDock;
         ImGuiID midDock;
-        ImGuiID right, right00, right01, right10, right11;
+        ImGuiID right;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &left, &right);
         ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &midDock, &right);
-        ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &right00, &right01);
-        ImGui::DockBuilderSplitNode(right00, ImGuiDir_Up, 0.5f, &right00, &right10);
-        ImGui::DockBuilderSplitNode(right01, ImGuiDir_Up, 0.5f, &right01, &right11);
         ImGui::DockBuilderSetNodeSize(left, ImVec2(239, -1));
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 500), -1));
-        // float w = 300;
-        // ImGui::DockBuilderSetNodeSize(right00, ImVec2(w, w));
-        // ImGui::DockBuilderSetNodeSize(right01, ImVec2(w, w));
-        // ImGui::DockBuilderSetNodeSize(right10, ImVec2(w, w));
-        // ImGui::DockBuilderSetNodeSize(right11, ImVec2(w, w));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
@@ -409,10 +401,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
-        ImGui::DockBuilderDockWindow("Fluence Histogram", right00);
-        ImGui::DockBuilderDockWindow("CE Histogram", right01);
-        ImGui::DockBuilderDockWindow("Depth Histogram", right10);
-        ImGui::DockBuilderDockWindow("Samples Histogram", right11);
+        ImGui::DockBuilderDockWindow("Histograms", right);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -827,28 +816,38 @@ void Application::SpatialSubdivisionPanel() {
 }
 
 void Application::CacheHistogramPanel() {
-    bool enableHistogram = false;
-    if (ImGui::Begin("Fluence Histogram")) {
-        enableHistogram = true;
-        m_cacheHistogram.fluence->Draw();
+    if (m_layout == Layout_Histograms) {
+        // 2x2 Table
+        if ((m_enableHistogram = ImGui::Begin("Histograms"))) {
+            ImGuiTableFlags flags = ImGuiTableFlags_None;
+            ImVec2 avail = ImGui::GetContentRegionAvail();
+            ImVec2 padding = ImGui::GetStyle().CellPadding;
+            avail.x -= padding.x, avail.y -= padding.y * 4;
+            if (ImGui::BeginTable("##Histograms", 2, flags)) {
+                for (auto *hist : {m_cacheHistogram.fluence, m_cacheHistogram.ce, m_cacheHistogram.depth, m_cacheHistogram.samples}) {
+                    ImGui::TableNextColumn();
+                    ImGui::BeginChild(hist->title.c_str(), ImVec2(avail.x * 0.5f, avail.y * 0.5f));
+                    hist->enableTitle = true;
+                    hist->Draw();
+                    ImGui::EndChild();
+                }
+                ImGui::EndTable();
+            }
+        }
+        ImGui::End();
     }
-    ImGui::End();
-    if (ImGui::Begin("CE Histogram")) {
-        enableHistogram = true;
-        m_cacheHistogram.ce->Draw();
+    else {
+        bool enableHistogram = false;
+        for (auto *hist : {m_cacheHistogram.fluence, m_cacheHistogram.ce, m_cacheHistogram.depth, m_cacheHistogram.samples}) {
+            if (ImGui::Begin(hist->title.c_str())) {
+                enableHistogram = true;
+                hist->enableTitle = false;
+                hist->Draw();
+            }
+            ImGui::End();
+        }
+        m_enableHistogram = enableHistogram; // Atomic update
     }
-    ImGui::End();
-    if (ImGui::Begin("Depth Histogram")) {
-        enableHistogram = true;
-        m_cacheHistogram.depth->Draw();
-    }
-    ImGui::End();
-    if (ImGui::Begin("Samples Histogram")) {
-        enableHistogram = true;
-        m_cacheHistogram.samples->Draw();
-    }
-    ImGui::End();
-    m_enableHistogram = enableHistogram; // Atomic update
 }
 
 }

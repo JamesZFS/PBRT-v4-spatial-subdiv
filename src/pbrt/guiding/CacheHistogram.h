@@ -32,15 +32,16 @@ public:
     public:
         void Draw() override;
 
+        std::string title;
+        bool enableTitle = false;
         bool isHovered = false;
         float hoveringValue = std::numeric_limits<float>::infinity();
 
     private:
         Hist(pbrt::Application* parent, bool isMain, const std::string &title, PlotType type, CacheHistogram &object)
-            : View(parent), m_isMain(isMain), m_title(title), m_type(type), m_object(object) {}
+            : View(parent), m_isMain(isMain), title(title), m_type(type), m_object(object) {}
 
         bool m_isMain;
-        std::string m_title;
         PlotType m_type;
         CacheHistogram &m_object;
         std::atomic_bool m_shouldFitAxes = true;

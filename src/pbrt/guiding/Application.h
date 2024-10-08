@@ -109,7 +109,11 @@ private:
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
-    LayoutType m_layout = Layout_Histograms;
+    LayoutType m_layout = Layout_Default;
+    bool m_enableRayCastingAtMouse = false;
+    RayCastingData m_rcMouse;  // ray casting result at current mouse position
+    int m_maxMaxDepth = 15;
+    bool m_enableHistogram = false;
 
     // Components and views
     std::unique_ptr<RenderThread> m_renderThread;
@@ -134,13 +138,6 @@ private:
         size_t trainingSamples = 0;
         size_t numRegions = 0;
     } m_waveStats;
-
-    bool m_enableRayCastingAtMouse = false;
-    RayCastingData m_rcMouse;  // ray casting result at current mouse position
-
-    int m_maxMaxDepth = 15;
-
-    bool m_enableHistogram = false;
 };
 
 }
