@@ -54,3 +54,6 @@
 [submodule "src/ext/implot"]
 	path = src/ext/implot
 	url = https://github.com/epezent/implot
+[submodule "src/ext/ImGuiFileDialog"]
+	path = src/ext/ImGuiFileDialog
+	url = https://github.com/aiekick/ImGuiFileDialog

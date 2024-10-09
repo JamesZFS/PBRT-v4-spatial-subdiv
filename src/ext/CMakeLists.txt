@@ -208,6 +208,18 @@ target_include_directories(implot PUBLIC ${IMPLOT_INCLUDE} ${IMGUI_INCLUDE})
 target_link_libraries(implot imgui)
 
 ###########################################################################
+# ImGuiFileDialog
+
+set (IMGUIFILEDIALOG_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/ImGuiFileDialog)
+set (IMGUIFILEDIALOG_INCLUDE ${IMGUIFILEDIALOG_INCLUDE} PARENT_SCOPE)
+
+set (IMGUIFILEDIALOG_SOURCES ${IMGUIFILEDIALOG_INCLUDE}/ImGuiFileDialog.cpp)
+
+add_library(ImGuiFileDialog STATIC ${IMGUIFILEDIALOG_SOURCES})
+target_include_directories(ImGuiFileDialog PUBLIC ${IMGUIFILEDIALOG_INCLUDE} ${IMGUI_INCLUDE})
+target_link_libraries(ImGuiFileDialog imgui)
+
+###########################################################################
 # TBB
 #if (PBRT_WITH_PATH_GUIDING OR PBRT_WITH_OIDN)
 #include(ExternalProject)

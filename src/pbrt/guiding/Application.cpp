@@ -17,6 +17,7 @@
 #include <imgui_internal.h>
 #include <implot.h>
 #include <implot_internal.h>
+#include <ImGuiFileDialog.h>
 
 static std::vector<const char *> channelNames = {
     "Radiance (1)",
@@ -45,7 +46,8 @@ Application::Application(Camera camera, Primitive scene, pstd::optional<Image> &
     const std::function<void(int waveStart)> &renderWave,
     const std::function<void(int waveEnd)> &updateCache,
     const std::function<void(int waveEnd)> &saveImage)
-    : m_camera(camera), m_film(camera.GetFilm()), m_reference(std::move(reference)), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
+    : View(this),
+      m_camera(camera), m_film(camera.GetFilm()), m_reference(std::move(reference)), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
       m_scene(scene), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_spp(spp),
       m_integratorSettings(integratorSettings), m_guideSettings(guideSettings),
       m_renderWave(renderWave), m_updateCache(updateCache), m_saveImage(saveImage),
@@ -102,41 +104,7 @@ int Application::Run() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         UpdateFramebuffer();
-        UpdateRayCastingAtMouse();
-        MainMenu();
-
-        // Controls, Colormap, and RayCasting
-        {
-            ImGui::Begin("Controls");
-            m_controlPanel->Draw();
-            int wave = GetCurrentWave();
-            ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
-            ErrorMetricSelector();
-            m_colormapPanel->Draw();
-            RayCastingPanel();
-            ImGui::End();
-        }
-
-        // Viewport, Channels, and Status Bar
-        if (ImGui::Begin("Viewport")) {
-            ChannelSelector();
-            m_viewport->Draw();
-            ProbesInteraction();
-            ImGui::Separator();
-            StatusBar();
-        }
-        ImGui::End();
-
-        // Settings
-        if (ImGui::Begin("Settings")) {
-            IntegratorPanel();
-            GuidePanel();
-            SpatialSubdivisionPanel();
-        }
-        ImGui::End();
-
-        CacheMonitorViews();
-        CacheHistogramViews();
+        Draw();
 
         // ImGui::ShowDemoWindow();
         // ImPlot::ShowDemoWindow();
@@ -151,6 +119,44 @@ int Application::Run() {
 
     DestroyImGui(m_window);
     return 0;
+}
+
+void Application::Draw() {
+    UpdateRayCastingAtMouse();
+    MainMenu();
+
+    // Controls, Colormap, and RayCasting
+    {
+        ImGui::Begin("Controls");
+        m_controlPanel->Draw();
+        int wave = GetCurrentWave();
+        ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
+        ErrorMetricSelector();
+        m_colormapPanel->Draw();
+        RayCastingPanel();
+        ImGui::End();
+    }
+
+    // Viewport, Channels, and Status Bar
+    if (ImGui::Begin("Viewport")) {
+        ChannelSelector();
+        m_viewport->Draw();
+        ProbesInteraction();
+        ImGui::Separator();
+        StatusBar();
+    }
+    ImGui::End();
+
+    // Settings
+    if (ImGui::Begin("Settings")) {
+        IntegratorSettings();
+        GuideSettings();
+        SpatialSubdivisionSettings();
+    }
+    ImGui::End();
+
+    CacheMonitorViews();
+    CacheHistogramViews();
 }
 
 void Application::SetSelectedChannel(SelectedChannel newChannel) {
@@ -407,6 +413,7 @@ void Application::SetupRenderThread() {
     m_renderThread = std::make_unique<RenderThread>(
         m_spp,
         [&](int waveStart) {
+            CheckIsRenderThread();
             UpdateField(waveStart);
             AppendToProbeData();
             UpdateCacheHistogram();
@@ -414,14 +421,8 @@ void Application::SetupRenderThread() {
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
     m_renderThread->SetCmdCallback(RenderThread::Restart, [&] {
-        ClearFilm();
-        UpdateCPUBufferFromFilm();
-        {
-            std::lock_guard lock(m_mtx.field);
-            m_field.Reset();
-        }
-        m_cacheMonitor.object->Clear();
-        m_cacheHistogram.object->Clear();
+        CheckIsRenderThread();
+        RestartRendering(true);
         return true;
     });
 }
@@ -508,6 +509,15 @@ void Application::UpdateFramebuffer() {
         clipValue = m_cacheHistogram.samples->hoveringValue;
     }
     m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, clipValue, sd.tonemapped ? cmap_tex_ids[m_colormapPanel->selectedCMap] : 0});
+}
+
+void Application::SaveRendering(std::string path) {
+    ImageMetadata meta;
+    Image image = m_film.GetImage(&meta, 1.f / GetCurrentWave());
+    if (image.Write(path, meta))
+        std::cout << "Save image to " << path << std::endl;
+    else
+        Error("Failed to save image to %s", path);
 }
 
 void Application::CacheInfo(const PGLRegionStatistics &cache) {
@@ -604,14 +614,26 @@ void Application::RenderWave(int waveStart) {
 }
 
 void Application::ClearFilm() {
-    CheckIsRenderThread();
     ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {
         m_film.ResetPixel(p);
     });
 }
 
+void Application::ResetCache() {
+    std::lock_guard lock(m_mtx.field);
+    m_field.Reset();
+}
+
+void Application::RestartRendering(bool resetCache) {
+    ClearFilm();
+    UpdateCPUBufferFromFilm();
+    if (resetCache)
+        ResetCache();
+    m_cacheMonitor.object->Clear();
+    m_cacheHistogram.object->Clear();
+}
+
 void Application::UpdateCPUBufferFromFilm() {
-    CheckIsRenderThread();
     Timer timer;
     m_viewport->UpdateCPUBufferFromFilm();
     std::cout << "Update CPU buffer: " << timer.ElapsedSeconds() * 1e3 << " ms" << std::endl;
@@ -660,6 +682,7 @@ void Application::UpdateCacheHistogram() {
 
 void Application::MainMenu() {
     static std::string layoutNames[Layout_Count] = {"Default", "Cache Monitor", "Compact", "Histograms"};
+    ImGuiIO &io = ImGui::GetIO();
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Layout")) {
             for (int i = 0; i < Layout_Count; ++i) {
@@ -670,7 +693,45 @@ void Application::MainMenu() {
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("Rendering", m_renderThread->GetState() != RenderThread::Rendering)) {
+            if (ImGui::MenuItem("Restart (resetting the cache)")) {
+                m_renderThread->SetInitial();
+                RestartRendering(true);
+            }
+            if (ImGui::MenuItem("Restart (keeping the cache)")) {
+                m_renderThread->SetInitial();
+                RestartRendering(false);
+            }
+            if (ImGui::MenuItem("Save image")) {
+                m_renderThread->SendCommand(RenderThread::Save);
+            }
+            if (ImGui::MenuItem("Save image to...")) {
+                IGFD::FileDialogConfig config;
+                config.filePathName = m_film.GetFilename();
+                config.flags = ImGuiFileDialogFlags_Default;
+                ImGuiFileDialog::Instance()->OpenDialog("SaveImagePath", "Save image to...", ".exr", config);
+                m_enableShortcuts = false;  // Disable shortcuts when the modal dialog is open
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Field", m_renderThread->GetState() != RenderThread::Rendering)) {
+            if (ImGui::MenuItem("Reset")) {
+                ResetCache();
+            }
+            ImGui::EndMenu();
+        }
         ImGui::EndMainMenuBar();
+    }
+    // Dialogs
+    if (ImGuiFileDialog::Instance()->Display("SaveImagePath")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            // action if OK
+            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
+            SaveRendering(path);
+        }
+        // close
+        ImGuiFileDialog::Instance()->Close();
+        m_enableShortcuts = true;
     }
 }
 
@@ -688,7 +749,7 @@ void Application::ErrorMetricSelector() {
 }
 
 void Application::RayCastingPanel() {
-    if (ImGui::IsKeyPressed(ImGuiKey_C, false))
+    if (IsKeyPressed(ImGuiKey_C, false))
         m_enableRayCastingAtMouse ^= true;
     ImGui::SetNextItemOpen(m_enableRayCastingAtMouse);
     if ((m_enableRayCastingAtMouse = ImGui::CollapsingHeader("Ray Casting"))) {
@@ -714,7 +775,7 @@ void Application::ChannelSelector() {
     if (m_isMultiChannel) {
         SelectedChannel newChannel = m_selectedChannel;
         for (int i = 0; i < m_channelCount; ++i) {
-            if (ImGui::IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false))
+            if (IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false))
                 newChannel = (SelectedChannel) i;
         }
 
@@ -769,7 +830,7 @@ void Application::StatusBar() {
     }
 }
 
-void Application::IntegratorPanel() {
+void Application::IntegratorSettings() {
     ImGui::PushID("Integrator Panel");
     // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);
@@ -784,7 +845,7 @@ void Application::IntegratorPanel() {
     ImGui::PopID();
 }
 
-void Application::GuidePanel() {
+void Application::GuideSettings() {
     static const std::vector guidingTypes = {"MIS", "RIS"};
     ImGui::PushID("Guide Panel");
     // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
@@ -793,13 +854,15 @@ void Application::GuidePanel() {
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
         ImGui::Combo("Guiding Type", reinterpret_cast<int *>(&m_guideSettings.surfaceGuidingType), guidingTypes.data(), guidingTypes.size());
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
-        ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
+        ImGui::Checkbox("Enable Training", &m_guideSettings.enableTraining);
+        if (m_guideSettings.enableTraining)
+            ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
     }
     ImGui::EndDisabled();
     ImGui::PopID();
 }
 
-void Application::SpatialSubdivisionPanel() {
+void Application::SpatialSubdivisionSettings() {
     ImGui::PushID("Spatial Subdivision Panel");
     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);

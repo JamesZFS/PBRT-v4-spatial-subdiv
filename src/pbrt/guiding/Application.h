@@ -7,6 +7,7 @@
 
 #include "ControlPanel.h"
 #include "RenderThread.h"
+#include "View.h"
 #include "Viewport.h"
 #include "ColormapPanel.h"
 #include "CacheMonitor.h"
@@ -22,7 +23,7 @@ struct Field;
 
 namespace pbrt {
 
-class Application {
+class Application : public View {
 public:
     Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference, openpgl::cpp::Field* field, openpgl::cpp::SampleStorage &sampleStorage,
         const PGLKDTreeArguments &args, int spp,
@@ -30,10 +31,12 @@ public:
         const std::function<void(int waveStart)> &renderWave,
         const std::function<void(int waveEnd)> &updateCache,
         const std::function<void(int waveEnd)> &saveImage);
-    ~Application();
+    ~Application() override;
     int Run();
     SelectedChannel GetSelectedChannel() const { return m_selectedChannel; }
     void SetSelectedChannel(SelectedChannel newChannel);
+    bool ShortcutEnabled() const { return m_enableShortcuts; }
+    void Draw() override;
 
 private:
     struct RayCastingData {
@@ -65,6 +68,7 @@ private:
     void CheckIsMainThread();
     RayCastingData RayCast(Point2i pixel) const;
     void UpdateFramebuffer();
+    void SaveRendering(std::string path);
 
     void CacheInfo(const PGLRegionStatistics &cache);
 
@@ -76,6 +80,8 @@ private:
     void UpdateField(int waveEnd);
     void RenderWave(int waveStart);
     void ClearFilm();
+    void ResetCache();
+    void RestartRendering(bool resetCache);
     void UpdateCPUBufferFromFilm();
     void AppendToProbeData();
     void UpdateCacheHistogram();
@@ -87,9 +93,9 @@ private:
 
     void ChannelSelector();
     void StatusBar();
-    void IntegratorPanel();
-    void GuidePanel();
-    void SpatialSubdivisionPanel();
+    void IntegratorSettings();
+    void GuideSettings();
+    void SpatialSubdivisionSettings();
     void CacheMonitorViews();
     void CacheHistogramViews();
 
@@ -116,6 +122,8 @@ private:
     LayoutType m_layout = Layout_Default;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     int m_maxMaxDepth = 15;
+    SelectedChannel m_selectedChannel = Channel_Radiance;
+    bool m_enableShortcuts = true;
     bool m_enableRayCastingAtMouse = false;
     bool m_enableProbes = false;
     bool m_enableHistogram = false;
@@ -138,8 +146,6 @@ private:
     mutable struct {
         std::mutex field, subdivCfg;
     } m_mtx;
-
-    SelectedChannel m_selectedChannel = Channel_Radiance;
 
     struct {
         double renderMS = 0;

@@ -52,6 +52,8 @@ public:
 
     bool IsAutoPlayed() const { return m_autoPlayed; }
 
+    void SetInitial();
+
     int m_forwardWaves = 1;
 
 private:

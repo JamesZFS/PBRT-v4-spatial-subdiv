@@ -650,6 +650,7 @@ SET (PBRT_WAVEFRONT_SOURCE_HEADERS
 if (PBRT_BUILD_GUIDING_VIEWER)
 SET (PBRT_GUIDING_VIEWER_SOURCE
         src/pbrt/guiding/guidingviewer.cpp
+        src/pbrt/guiding/View.cpp
         src/pbrt/guiding/Application.cpp
         src/pbrt/guiding/RenderThread.cpp
         src/pbrt/guiding/ControlPanel.cpp
@@ -927,6 +928,7 @@ target_include_directories (pbrt_lib PUBLIC
   ${IMGUI_INCLUDE}
   ${IMGUI_INCLUDE}/backends
   ${IMPLOT_INCLUDE}
+  ${IMGUIFILEDIALOG_INCLUDE}
 )
 
 if (PBRT_WITH_PATH_GUIDING)
@@ -983,7 +985,7 @@ endif()
 
 if(PBRT_BUILD_GUIDING_VIEWER)
   set (ALL_PBRT_LIBS ${ALL_PBRT_LIBS}
-    imgui implot)
+    imgui implot ImGuiFileDialog)
 endif()
 
 if (PBRT_CUDA_ENABLED)
