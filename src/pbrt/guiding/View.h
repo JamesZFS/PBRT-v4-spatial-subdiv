@@ -21,6 +21,8 @@ public:
     // void Update(Data *data);
 
 protected:
+    bool IsKeyPressed(ImGuiKey key, bool repeat = true);
+
     pbrt::Application *m_parent = nullptr;
 };
 

@@ -45,18 +45,18 @@ void ColormapPanel::Draw() {
         sd.offset = -minVal;
     };
     if (!disableColorMap) {  // Key maps
-        if (ImGui::IsKeyPressed(ImGuiKey_E)) {
+        if (IsKeyPressed(ImGuiKey_E)) {
             if (!io.KeyShift) {
                 sd.scale *= 1.1f;
             } else {
                 sd.scale /= 1.1f;
             }
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_M, false)) {
+        if (IsKeyPressed(ImGuiKey_M, false)) {
             sd.tonemapped ^= true;
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) reset();
-        if (ImGui::IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
+        if (IsKeyPressed(ImGuiKey_R, false)) reset();
+        if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
     }
     if (ImGui::CollapsingHeader("Color Map")) {
         ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f);

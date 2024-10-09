@@ -89,7 +89,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
                 guiding_field = new openpgl::cpp::Field(guiding_device, guideSettings.guidingCacheFileName);
-                guideTraining = false;
+                this->guideSettings.enableTraining = false;
             } else {
                 std::cout << "Warning: Guiding cache file does not exists: guidingCacheFileName = " << guideSettings.guidingCacheFileName << std::endl;
                 guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
@@ -276,7 +276,7 @@ void GuidedPathIntegrator::PostProcessWave() {
 
     waveCounter++;
     std::cout << "GuidedPathIntegrator::PostProcessWave()" << std::endl;
-    if(guideTraining) {
+    if(guideSettings.enableTraining) {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() + guiding_sampleStorage->GetSizeVolume();
         std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t numValidSamples: " << numValidSamples << std::endl;
         if(numValidSamples > 128) {
@@ -284,7 +284,7 @@ void GuidedPathIntegrator::PostProcessWave() {
             guiding_field->Update(*guiding_sampleStorage);
             guidingCacheUpdateTime += guidingFiledUpdateTimer.ElapsedSeconds();
             if(guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
-                guideTraining = false;
+                guideSettings.enableTraining = false;
             }
             guiding_sampleStorage->Clear();
         }
@@ -526,7 +526,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         imageSpaceGuidingBuffer->AddSample(openpgl::cpp::Point2i(pPixel[0], pPixel[1]), cedSample);
     }
 
-    if (guideTraining)
+    if (guideSettings.enableTraining)
     {
         //pathSegmentStorage->ValidateSegments();
         pathSegmentStorage->PropagateSamples(guiding_sampleStorage, true, true);

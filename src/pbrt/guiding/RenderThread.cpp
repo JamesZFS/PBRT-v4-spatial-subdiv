@@ -18,7 +18,7 @@ const std::vector<std::pair<const char *, const char *>> commandNames = {
     {"Pause", "Pause the rendering"},
     {"Forward", "Render the next wave of samples"},
     {"Save", "Save the current rendering"},
-    {"Restart", "Restart rendering"},
+    {"Restart", "Restart rendering (resetting the cache)"},
     {"Terminate", "Terminate rendering"},
     {"None", "No command"},
 };
@@ -48,6 +48,12 @@ void RenderThread::SendCommand(Command cmd) {
 
 void RenderThread::Join() {
     m_thread.join();
+}
+
+void RenderThread::SetInitial() {
+    CHECK(m_state != Rendering);
+    m_state = Initial;
+    m_waveStart = 0;
 }
 
 void RenderThread::Run() {
