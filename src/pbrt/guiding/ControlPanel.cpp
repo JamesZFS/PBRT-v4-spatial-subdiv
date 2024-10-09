@@ -29,6 +29,7 @@ void ControlPanel::Draw() {
     };
 
     bool wasAutoPlayed = m_renderThread.IsAutoPlayed();
+    bool wasForwarding = m_renderThread.IsForwarding();
     for (int i = 0; i < 5; ++i) {
         ImGui::PushID(i);
         auto cmd = (Command) i;
@@ -40,9 +41,9 @@ void ControlPanel::Draw() {
         }
 
         auto nameTip = commandNames[cmd];
-        ImVec4 color = (wasAutoPlayed && cmd == Command::AutoPlay) || (!wasAutoPlayed && cmd == Command::Pause) ? accent_col : bg_col;
+        ImVec4 color = (wasAutoPlayed && !wasForwarding && cmd == Command::AutoPlay) || (!wasAutoPlayed && !wasForwarding && cmd == Command::Pause) || (wasForwarding && cmd == Command::Forward) ? accent_col : bg_col;
         bool activate = ImGui::ImageButton(nameTip.first, m_btnTex, size, cmd2uv0(cmd), cmd2uv1(cmd), color, tint_col);
-        activate |= ((wasAutoPlayed && cmd == Command::Pause) || (!wasAutoPlayed && cmd == Command::AutoPlay)) && IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
+        activate |= (((wasAutoPlayed || wasForwarding) && cmd == Command::Pause) || (!wasAutoPlayed && cmd == Command::AutoPlay)) && IsKeyPressed(ImGuiKey_Space, false);  // Space key for AutoPlay / Pause
         activate |= cmd == Command::Forward && io.KeyCtrl && IsKeyPressed(ImGuiKey_Enter, false);  // Ctrl + Enter key for Forward
         activate |= cmd == Command::Restart && IsKeyPressed(ImGuiKey_F5, false);  // F5 key for Restart
         activate |= cmd == Command::Save && io.KeyCtrl && IsKeyPressed(ImGuiKey_S, false);  // Ctrl + S for Save

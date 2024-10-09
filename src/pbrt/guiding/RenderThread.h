@@ -52,6 +52,8 @@ public:
 
     bool IsAutoPlayed() const { return m_autoPlayed; }
 
+    bool IsForwarding() const { return m_forwarding; }
+
     void SetInitial();
 
     int m_forwardWaves = 1;
@@ -76,6 +78,7 @@ private:
     std::function<void(int waveEnd)> m_saveImage;
 
     bool m_autoPlayed = false;
+    bool m_forwarding = false;
 };
 
 extern const std::vector<std::pair<const char *, const char *>> commandNames;

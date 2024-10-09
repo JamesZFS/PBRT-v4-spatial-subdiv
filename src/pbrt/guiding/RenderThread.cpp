@@ -125,12 +125,24 @@ void RenderThread::Run() {
                 renderedSomething = true;
             }
         } else if (cmd == Forward) {
+            m_forwarding = true;
             m_state = Rendering;
             int wavesLeft = m_forwardWaves;
             while (m_waveStart < m_spp && wavesLeft-- > 0) {
+                // Listen for Pause command
+                if (m_pendingCmd == Pause) {
+                    std::cout << "Pausing rendering" << std::endl;
+                    m_autoPlayed = false;
+                    m_pendingCmd = None;
+                    auto &callback = m_cmdCompleteCallbacks[Pause];
+                    if (callback)
+                        callback();
+                    break;
+                }
                 m_renderStep(m_waveStart++);
                 renderedSomething = true;
             }
+            m_forwarding = false;
         }
         if (renderedSomething && (Options->writePartialImages || m_waveStart == m_spp)) {
             m_saveImage(m_waveStart);
