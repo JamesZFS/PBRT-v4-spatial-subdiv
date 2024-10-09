@@ -73,10 +73,10 @@ int Application::Run() {
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
-    m_cacheMonitor = std::make_unique<CacheMonitor>(this);
-    auto &ceCurve = m_cacheMonitor->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
-    auto &depthCurve = m_cacheMonitor->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
-    auto &samplesCurve = m_cacheMonitor->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
+    m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
+    m_cacheMonitor.ce = &m_cacheMonitor.object->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
+    m_cacheMonitor.depth = &m_cacheMonitor.object->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
+    m_cacheMonitor.samples = &m_cacheMonitor.object->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
 
     m_cacheHistogram.object = std::make_unique<CacheHistogram>(this);
     m_cacheHistogram.fluence = &m_cacheHistogram.object->AddPlot("Fluence Histogram", CacheHistogram::PlotType_Fluence, true);
@@ -111,8 +111,8 @@ int Application::Run() {
             m_controlPanel->Draw();
             int wave = GetCurrentWave();
             ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
-            m_colormapPanel->Draw();
             ErrorMetricSelector();
+            m_colormapPanel->Draw();
             RayCastingPanel();
             ImGui::End();
         }
@@ -135,21 +135,8 @@ int Application::Run() {
         }
         ImGui::End();
 
-        {   // Cache Monitor
-            if (ImGui::Begin("CE Curve"))
-                ceCurve.Draw();
-            ImGui::End();
-
-            if (ImGui::Begin("Depth Curve"))
-                depthCurve.Draw();
-            ImGui::End();
-
-            if (ImGui::Begin("Samples Curve"))
-                samplesCurve.Draw();
-            ImGui::End();
-        }
-
-        CacheHistogramPanel();
+        CacheMonitorViews();
+        CacheHistogramViews();
 
         // ImGui::ShowDemoWindow();
         // ImPlot::ShowDemoWindow();
@@ -433,7 +420,7 @@ void Application::SetupRenderThread() {
             std::lock_guard lock(m_mtx.field);
             m_field.Reset();
         }
-        m_cacheMonitor->Clear();
+        m_cacheMonitor.object->Clear();
         m_cacheHistogram.object->Clear();
         return true;
     });
@@ -551,13 +538,14 @@ void Application::UpdateRayCastingAtMouse() {
 }
 
 void Application::ProbesInteraction() {
+    if (!m_enableProbes) return;
     // Draw all probes
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     ImVec2 leftTop = m_viewport->GetLeftTop();
     float scale = m_viewport->GetScale();
-    m_cacheMonitor->ForEachProbe([&](CacheMonitor::Probe &probe) {
+    m_cacheMonitor.object->ForEachProbe([&](CacheMonitor::Probe &probe) {
         std::string label = StringPrintf("#%d", probe.idx);
-        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), probe.pixel) < m_cacheMonitor->GetProbeRadius();
+        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), probe.pixel) < m_cacheMonitor.object->GetProbeRadius();
         // Right click to remove a probe
         if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right))
             probe.active = false;
@@ -570,7 +558,7 @@ void Application::ProbesInteraction() {
         }
         draw_list->AddCircleFilled(center, 5, col);
         draw_list->AddCircle(center, 5, border_col, 0, 1.2);
-        if (isHovered || m_cacheMonitor->DisplayProbeID()) {
+        if (isHovered || m_cacheMonitor.object->DisplayProbeID()) {
             ImVec2 pos(center.x - 8, center.y - 18);
             draw_list->AddText(pos, border_col, label.c_str());
         }
@@ -579,9 +567,9 @@ void Application::ProbesInteraction() {
     // Left click to add/activate a probe
     if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         Point2i pixel = m_viewport->GetMousePixel();
-        m_cacheMonitor->AddProbe(pixel);
+        m_cacheMonitor.object->AddProbe(pixel);
         if (m_renderThread->GetState() != RenderThread::Rendering) {  // Add a probe with the current CE
-            m_cacheMonitor->UpdateProbe(pixel, [&](auto &probe) {
+            m_cacheMonitor.object->UpdateProbe(pixel, [&](auto &probe) {
                 float iter = GetCurrentWave();
                 if (probe.data.empty() || probe.data.back().iter < iter) {
                     auto rc = RayCast(pixel);
@@ -633,7 +621,7 @@ void Application::AppendToProbeData() {
     CheckIsRenderThread();
     float x = (float) GetCurrentWave();
     const float nan = std::numeric_limits<float>::quiet_NaN();
-    m_cacheMonitor->ForEachProbe([&](CacheMonitor::Probe &probe) {
+    m_cacheMonitor.object->ForEachProbe([&](CacheMonitor::Probe &probe) {
         if (probe.active) {
             auto rc = RayCast(probe.pixel);
             bool cacheValid = rc.cache.id != -1;
@@ -644,7 +632,7 @@ void Application::AppendToProbeData() {
             });
         }
     });
-    m_cacheMonitor->RequestFitAxes();
+    m_cacheMonitor.object->RequestFitAxes();
 }
 
 void Application::UpdateCacheHistogram() {
@@ -695,6 +683,7 @@ void Application::ErrorMetricSelector() {
             m_colormapPanel->errorFunc = m_viewport->errorFunc = GetErrorFunc(m_errorMetric);
             m_viewport->UpdateErrorImage();
         }
+        ImGui::Text("Mean Error: %lf", m_viewport->GetMeanError());
     }
 }
 
@@ -764,20 +753,18 @@ void Application::StatusBar() {
 #endif
     else
         mouseInfo = "<invalid>";
-    if (ImGui::GetColumnWidth() > 950)
-        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Regions: %s | Mean Error: %.5lf | Mouse: %s",
+    if (ImGui::GetColumnWidth() > 850)
+        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Regions: %s | Mouse: %s",
             stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS,
             FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
-            m_viewport->GetMeanError(),
             mouseInfo.c_str());
     else {
         ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms",
             stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS);
-        ImGui::Text("Training Samples: %s | Regions: %s | Mean Error: %.5lf | Mouse: %s",
+        ImGui::Text("Training Samples: %s | Regions: %s | Mouse: %s",
             FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
-            m_viewport->GetMeanError(),
             mouseInfo.c_str());
     }
 }
@@ -834,7 +821,23 @@ void Application::SpatialSubdivisionPanel() {
     // Field will update from subdivCfg in the render thread
 }
 
-void Application::CacheHistogramPanel() {
+void Application::CacheMonitorViews() {
+    bool enableMonitor = false;
+    if (enableMonitor |= ImGui::Begin("CE Curve"))
+        m_cacheMonitor.ce->Draw();
+    ImGui::End();
+
+    if (enableMonitor |= ImGui::Begin("Depth Curve"))
+        m_cacheMonitor.depth->Draw();
+    ImGui::End();
+
+    if (enableMonitor |= ImGui::Begin("Samples Curve"))
+        m_cacheMonitor.samples->Draw();
+    ImGui::End();
+    m_enableProbes = enableMonitor;
+}
+
+void Application::CacheHistogramViews() {
     if (m_layout == Layout_Histograms) {
         // 2x2 Table
         if ((m_enableHistogram = ImGui::Begin("Histograms"))) {

@@ -90,7 +90,8 @@ private:
     void IntegratorPanel();
     void GuidePanel();
     void SpatialSubdivisionPanel();
-    void CacheHistogramPanel();
+    void CacheMonitorViews();
+    void CacheHistogramViews();
 
     Camera m_camera;
     Film m_film;
@@ -113,18 +114,22 @@ private:
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
     LayoutType m_layout = Layout_Default;
-    bool m_enableRayCastingAtMouse = false;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     int m_maxMaxDepth = 15;
+    bool m_enableRayCastingAtMouse = false;
+    bool m_enableProbes = false;
     bool m_enableHistogram = false;
-    ErrorMetric m_errorMetric = Metric_MRSE;
+    ErrorMetric m_errorMetric = Metric_MRAE;
 
     // Components and views
     std::unique_ptr<RenderThread> m_renderThread;
     std::unique_ptr<ControlPanel> m_controlPanel;
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
-    std::unique_ptr<CacheMonitor> m_cacheMonitor;
+    struct {
+        std::unique_ptr<CacheMonitor> object;
+        CacheMonitor::Plot *ce, *depth, *samples;
+    } m_cacheMonitor;
     struct {
         std::unique_ptr<CacheHistogram> object;
         CacheHistogram::Hist *fluence, *ce, *depth, *samples;
