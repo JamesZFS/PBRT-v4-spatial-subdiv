@@ -46,7 +46,7 @@ public:
 
     void UpdateErrorImage();
 
-    std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRSE);
+    std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRAE);
 
 private:
     pbrt::Film m_film;

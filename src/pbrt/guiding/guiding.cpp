@@ -219,7 +219,7 @@ void GuidedPathIntegrator::Render() {
 #ifdef USE_OLD_GUIDING_VIEWER
     GuidingViewerGUI gui(camera, aggregate, guiding_field, guiding_fieldSubdivConfig, spp,
 #else
-    Application app(camera, aggregate, std::move(referenceImage), guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
+    Application app(camera, aggregate, std::move(referenceImage), guiding_device, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
 #endif
         [&](int waveStart) {
             // std::cout << "Rendering wave " << waveStart << std::endl;
