@@ -41,14 +41,14 @@ static std::vector<const char *> errorMetricNames = {
 namespace pbrt {
 
 Application::Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference,
-    openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage, const PGLKDTreeArguments &args, int spp,
-    GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
+    openpgl::cpp::Device *device, openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage, const PGLKDTreeArguments &args,
+    int spp, GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
     const std::function<void(int waveStart)> &renderWave,
     const std::function<void(int waveEnd)> &updateCache,
     const std::function<void(int waveEnd)> &saveImage)
     : View(this),
       m_camera(camera), m_film(camera.GetFilm()), m_reference(std::move(reference)), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
-      m_scene(scene), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_spp(spp),
+      m_scene(scene), m_device(*device), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_spp(spp),
       m_integratorSettings(integratorSettings), m_guideSettings(guideSettings),
       m_renderWave(renderWave), m_updateCache(updateCache), m_saveImage(saveImage),
       m_resolution(m_film.PixelBounds().Diagonal()) {
@@ -415,8 +415,8 @@ void Application::SetupRenderThread() {
         [&](int waveStart) {
             CheckIsRenderThread();
             UpdateField(waveStart);
-            AppendToProbeData();
-            UpdateCacheHistogram();
+            UpdateCacheCurves();
+            UpdateCacheHistograms();
             RenderWave(waveStart);
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
@@ -518,6 +518,38 @@ void Application::SaveRendering(std::string path) {
         std::cout << "Save image to " << path << std::endl;
     else
         Error("Failed to save image to %s", path);
+}
+
+void Application::SaveField(std::string path) {
+    std::lock_guard lock(m_mtx.field);
+    if (m_field.Store(path))
+        std::cout << "Save field to " << path << std::endl;
+    else
+        Error("Failed to save field to %s", path);
+}
+
+void Application::LoadField(std::string path) {
+    std::lock_guard lock(m_mtx.field);
+    if (m_field.Load(&m_device, path))
+        std::cout << "Load field from " << path << " with " << m_field.GetRegionCountSurface() << " regions" << std::endl;
+    else
+        Error("Failed to load field from %s", path);
+}
+
+void Application::SaveSamples(std::string path) {
+    std::lock_guard lock(m_mtx.field);
+    if (m_sampleStorage.Store(path))
+        std::cout << "Save samples to " << path << std::endl;
+    else
+        Error("Failed to save samples to %s", path);
+}
+
+void Application::LoadSamples(std::string path) {
+    std::lock_guard lock(m_mtx.field);
+    if (m_sampleStorage.Load(path))
+        std::cout << "Load " << m_sampleStorage.GetSizeSurface() + m_sampleStorage.GetSizeVolume() << " samples from " << path << std::endl;
+    else
+        Error("Failed to load samples from %s", path);
 }
 
 void Application::CacheInfo(const PGLRegionStatistics &cache) {
@@ -622,6 +654,7 @@ void Application::ClearFilm() {
 void Application::ResetCache() {
     std::lock_guard lock(m_mtx.field);
     m_field.Reset();
+    m_sampleStorage.Clear();
 }
 
 void Application::RestartRendering(bool resetCache) {
@@ -639,8 +672,7 @@ void Application::UpdateCPUBufferFromFilm() {
     std::cout << "Update CPU buffer: " << timer.ElapsedSeconds() * 1e3 << " ms" << std::endl;
 }
 
-void Application::AppendToProbeData() {
-    CheckIsRenderThread();
+void Application::UpdateCacheCurves() {
     float x = (float) GetCurrentWave();
     const float nan = std::numeric_limits<float>::quiet_NaN();
     m_cacheMonitor.object->ForEachProbe([&](CacheMonitor::Probe &probe) {
@@ -657,10 +689,8 @@ void Application::AppendToProbeData() {
     m_cacheMonitor.object->RequestFitAxes();
 }
 
-void Application::UpdateCacheHistogram() {
-    CheckIsRenderThread();
+void Application::UpdateCacheHistograms() {
     if (m_enableHistogram) {
-        Timer timer;
         m_cacheHistogram.object->Update([&](CacheHistogram::Data &data) {
             size_t numRegions = m_field.GetRegionCountSurface();
             data.fluence.resize(numRegions);
@@ -676,7 +706,6 @@ void Application::UpdateCacheHistogram() {
             }
         });
         m_cacheHistogram.object->RequestFitAxes();
-        std::cout << "Update Cache Histogram: " << timer.ElapsedSeconds() * 1e3 << " ms" << std::endl;
     }
 }
 
@@ -702,34 +731,107 @@ void Application::MainMenu() {
                 m_renderThread->SetInitial();
                 RestartRendering(false);
             }
-            if (ImGui::MenuItem("Save image")) {
+            if (ImGui::MenuItem("Save Image")) {
                 m_renderThread->SendCommand(RenderThread::Save);
             }
-            if (ImGui::MenuItem("Save image to...")) {
+            if (ImGui::MenuItem("Save Image To...")) {
                 IGFD::FileDialogConfig config;
                 config.filePathName = m_film.GetFilename();
                 config.flags = ImGuiFileDialogFlags_Default;
-                ImGuiFileDialog::Instance()->OpenDialog("SaveImagePath", "Save image to...", ".exr", config);
+                ImGuiFileDialog::Instance()->OpenDialog("SaveImageTo", "Save Image To...", ".exr", config);
                 m_enableShortcuts = false;  // Disable shortcuts when the modal dialog is open
             }
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Field", m_renderThread->GetState() != RenderThread::Rendering)) {
-            if (ImGui::MenuItem("Reset")) {
+        if (ImGui::BeginMenu("Cache", m_renderThread->GetState() != RenderThread::Rendering)) {
+            if (ImGui::MenuItem("Reset Field")) {
                 ResetCache();
+                m_cacheMonitor.object->Clear();
+                m_cacheHistogram.object->Clear();
+            }
+            if (ImGui::MenuItem("Save Field", 0, nullptr, !m_guideSettings.guidingCacheFileName.empty())) {
+                SaveField(m_guideSettings.guidingCacheFileName);
+            }
+            if (ImGui::MenuItem("Save Field To...")) {
+                IGFD::FileDialogConfig config;
+                config.filePathName = m_guideSettings.guidingCacheFileName.empty() ? "." : m_guideSettings.guidingCacheFileName;
+                config.flags = ImGuiFileDialogFlags_Default;
+                ImGuiFileDialog::Instance()->OpenDialog("SaveFieldTo", "Save Field To...", ".field,.*", config);
+                m_enableShortcuts = false;  // Disable shortcuts when the modal dialog is open
+            }
+            if (ImGui::MenuItem("Load Field", 0, nullptr, !m_guideSettings.guidingCacheFileName.empty())) {
+                LoadField(m_guideSettings.guidingCacheFileName);
+            }
+            if (ImGui::MenuItem("Load Field From...")) {
+                IGFD::FileDialogConfig config;
+                config.filePathName = m_guideSettings.guidingCacheFileName;
+                config.flags = ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_HideColumnType;
+                ImGuiFileDialog::Instance()->OpenDialog("LoadFieldFrom", "Load Field From...", ".field,.*", config);
+                m_enableShortcuts = false;
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Reset Samples")) {
+                std::lock_guard lock(m_mtx.field);
+                m_sampleStorage.Clear();
+            }
+            if (ImGui::MenuItem("Save Samples To...")) {
+                IGFD::FileDialogConfig config;
+                config.filePathName = ".";
+                config.flags = ImGuiFileDialogFlags_Default;
+                ImGuiFileDialog::Instance()->OpenDialog("SaveSamplesTo", "Save Samples To...", ".samples,.*", config);
+                m_enableShortcuts = false;
+            }
+            if (ImGui::MenuItem("Load Samples From...")) {
+                IGFD::FileDialogConfig config;
+                config.filePathName = ".";
+                config.flags = ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_HideColumnType;
+                ImGuiFileDialog::Instance()->OpenDialog("LoadSamplesFrom", "Load Samples From...", ".samples,.*", config);
+                m_enableShortcuts = false;
             }
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
     }
     // Dialogs
-    if (ImGuiFileDialog::Instance()->Display("SaveImagePath")) {
+    if (ImGuiFileDialog::Instance()->Display("SaveImageTo")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             // action if OK
             std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
             SaveRendering(path);
         }
         // close
+        ImGuiFileDialog::Instance()->Close();
+        m_enableShortcuts = true;
+    }
+    if (ImGuiFileDialog::Instance()->Display("SaveFieldTo")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
+            SaveField(path);
+        }
+        ImGuiFileDialog::Instance()->Close();
+        m_enableShortcuts = true;
+    }
+    if (ImGuiFileDialog::Instance()->Display("LoadFieldFrom")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
+            LoadField(path);
+        }
+        ImGuiFileDialog::Instance()->Close();
+        m_enableShortcuts = true;
+    }
+    if (ImGuiFileDialog::Instance()->Display("SaveSamplesTo")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
+            SaveSamples(path);
+        }
+        ImGuiFileDialog::Instance()->Close();
+        m_enableShortcuts = true;
+    }
+    if (ImGuiFileDialog::Instance()->Display("LoadSamplesFrom")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
+            LoadSamples(path);
+        }
         ImGuiFileDialog::Instance()->Close();
         m_enableShortcuts = true;
     }
@@ -852,11 +954,10 @@ void Application::GuideSettings() {
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);
     if (ImGui::CollapsingHeader("Guide Settings")) {
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
-        ImGui::Combo("Guiding Type", reinterpret_cast<int *>(&m_guideSettings.surfaceGuidingType), guidingTypes.data(), guidingTypes.size());
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
         ImGui::Checkbox("Enable Training", &m_guideSettings.enableTraining);
-        if (m_guideSettings.enableTraining)
-            ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
+        ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
+        ImGui::Combo("Guiding Type", reinterpret_cast<int *>(&m_guideSettings.surfaceGuidingType), guidingTypes.data(), guidingTypes.size());
     }
     ImGui::EndDisabled();
     ImGui::PopID();

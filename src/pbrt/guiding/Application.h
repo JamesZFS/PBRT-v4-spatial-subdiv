@@ -25,7 +25,8 @@ namespace pbrt {
 
 class Application : public View {
 public:
-    Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference, openpgl::cpp::Field* field, openpgl::cpp::SampleStorage &sampleStorage,
+    Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference,
+        openpgl::cpp::Device *device, openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage,
         const PGLKDTreeArguments &args, int spp,
         GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
         const std::function<void(int waveStart)> &renderWave,
@@ -69,6 +70,10 @@ private:
     RayCastingData RayCast(Point2i pixel) const;
     void UpdateFramebuffer();
     void SaveRendering(std::string path);
+    void SaveField(std::string path);
+    void LoadField(std::string path);
+    void SaveSamples(std::string path);
+    void LoadSamples(std::string path);
 
     void CacheInfo(const PGLRegionStatistics &cache);
 
@@ -83,8 +88,8 @@ private:
     void ResetCache();
     void RestartRendering(bool resetCache);
     void UpdateCPUBufferFromFilm();
-    void AppendToProbeData();
-    void UpdateCacheHistogram();
+    void UpdateCacheCurves();
+    void UpdateCacheHistograms();
 
     // GUI components
     void MainMenu();
@@ -106,6 +111,7 @@ private:
     int m_channelCount;
     Point2i m_resolution;  // resolution of the rendering
     Primitive m_scene;
+    openpgl::cpp::Device& m_device;
     openpgl::cpp::Field& m_field;
     openpgl::cpp::SampleStorage& m_sampleStorage;
     PGLKDTreeArguments m_subdivCfg;  // config for spatial subdivision

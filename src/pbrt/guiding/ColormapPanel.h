@@ -26,7 +26,7 @@ struct ColormapPanel : public View {
         bool tonemapped = false;
         bool firstNormalized = false;
     } shaderData[Channel_Count];
-    std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRSE);
+    std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRAE);
 
     bool isHovered = false;
     float hoveringValue = std::numeric_limits<float>::infinity();
