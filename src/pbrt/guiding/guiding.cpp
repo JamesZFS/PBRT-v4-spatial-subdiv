@@ -44,10 +44,7 @@
 #include <iostream>
 
 #include <pbrt/guiding/guiding.h>
-#include <pbrt/guiding/guidingviewer.h>
 #include <pbrt/guiding/Application.h>
-
-// #define USE_OLD_GUIDING_VIEWER
 
 namespace pbrt {
 
@@ -216,11 +213,7 @@ void GuidedPathIntegrator::Render() {
     }
 
     // Launch the GUI and render image in waves
-#ifdef USE_OLD_GUIDING_VIEWER
-    GuidingViewerGUI gui(camera, aggregate, guiding_field, guiding_fieldSubdivConfig, spp,
-#else
     Application app(camera, aggregate, std::move(referenceImage), guiding_device, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
-#endif
         [&](int waveStart) {
             // std::cout << "Rendering wave " << waveStart << std::endl;
             Timer pureRenderingTimer;
@@ -261,12 +254,8 @@ void GuidedPathIntegrator::Render() {
             camera.GetFilm().WriteImage(metadata, 1.0f / waveEnd);
         });
 
-#ifdef USE_OLD_GUIDING_VIEWER
-    gui.Launch();
-#else
     if (int ret = app.Run(); ret != 0)
         Error("Guiding viewer application failed with %d", ret);
-#endif
 
     LOG_VERBOSE("Rendering finished");
 }

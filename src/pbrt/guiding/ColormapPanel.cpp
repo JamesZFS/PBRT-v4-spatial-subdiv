@@ -7,22 +7,15 @@
 
 using namespace pbrt;
 
-static const char* cmap_names[CMap_Count] = {
-    "Cividis",
-    "Inferno",
-    "Magma",
-    "Plasma",
-    "Viridis"
-};
-
 ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference)
     : View(parent), film(film), reference(reference) {
     for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Reference, Channel_Error}) {
         shaderData[c].firstNormalized = true;
     }
-    for (auto c: {Channel_Fluence, Channel_CE, Channel_Samples, Channel_ZeroSamples, Channel_Depth, Channel_Error}) {
-        shaderData[c].tonemapped = true;
+    for (auto c: {Channel_Fluence, Channel_CE, Channel_Samples, Channel_ZeroSamples, Channel_Depth}) {
+        shaderData[c].cmap = CMap_Viridis;
     }
+    shaderData[Channel_Error].cmap = CMap_Inferno;
 }
 
 void ColormapPanel::Draw() {
@@ -52,9 +45,6 @@ void ColormapPanel::Draw() {
                 sd.scale /= 1.1f;
             }
         }
-        if (IsKeyPressed(ImGuiKey_M, false)) {
-            sd.tonemapped ^= true;
-        }
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
         if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
     }
@@ -65,11 +55,9 @@ void ColormapPanel::Draw() {
         ImGui::SameLine();
         if (ImGui::Button("Normalize")) normalize();
         ImGui::SetNextItemWidth(90);
-        ImGui::Combo("Tonemap", reinterpret_cast<int *>(&selectedCMap), cmap_names, CMap_Count);
-        ImGui::SameLine();
-        ImGui::Checkbox("##check_tonemap", &sd.tonemapped);
-        if (sd.tonemapped) {
-            ImGui::Image((void *) (uintptr_t) cmap_tex_ids[selectedCMap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
+        ImGui::Combo("Tonemap", reinterpret_cast<int *>(&sd.cmap), cmap_names, CMap_Count);
+        if (sd.cmap != CMap_None) {
+            ImGui::Image((void *) (uintptr_t) cmap_tex_ids[sd.cmap], ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
             float xmin = ImGui::GetItemRectMin().x, xmax = ImGui::GetItemRectMax().x;
             isHovered |= ImGui::IsItemHovered();
             if (isHovered && ImGui::BeginTooltip()) {

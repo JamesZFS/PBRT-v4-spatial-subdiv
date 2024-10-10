@@ -25,7 +25,8 @@ enum SelectedChannel {
 };
 
 enum Colormap {
-    CMap_Cividis = 0,
+    CMap_None = 0,
+    CMap_Cividis,
     CMap_Inferno,
     CMap_Magma,
     CMap_Plasma,
@@ -41,7 +42,16 @@ enum ErrorMetric {
     Metric_Count,
 };
 
+struct TonemapShaderUniforms {
+    float scale, offset, clipValue;
+    GLuint cmapTex;
+};
+
+extern const char* cmap_names[CMap_Count];
+
 extern GLuint cmap_tex_ids[CMap_Count];
+
+void ConfigureTonemapShader(Shader &shader, GLuint sourceTex, bool singleChannel, const TonemapShaderUniforms &uniforms);
 
 bool IsSingleChannel(SelectedChannel channel);
 

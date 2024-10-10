@@ -23,6 +23,21 @@
 
 using namespace pbrt;
 
+void ConfigureTonemapShader(Shader &shader, GLuint sourceTex, bool singleChannel,
+    const TonemapShaderUniforms &uniforms) {
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, sourceTex);
+    shader.setUniform1i("image_tex", 0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, uniforms.cmapTex);
+    shader.setUniform1i("cmap_tex", 1);
+    shader.setUniform1f("scale", uniforms.scale);
+    shader.setUniform1f("offset", uniforms.offset);
+    shader.setUniform1f("clip_val", uniforms.clipValue);
+    shader.setUniform1i("single_channel", singleChannel);
+    shader.setUniform1i("tonemapped", uniforms.cmapTex > 0);
+}
+
 bool IsSingleChannel(SelectedChannel channel) {
     return Channel_Fluence <= channel && channel <= Channel_Depth || channel == Channel_Error;
 }
@@ -233,6 +248,7 @@ static GLuint _vao_full_screen;
 static Shader _image_tonemapped_shader;
 
 static std::string _cmap_paths[CMap_Count] = {
+    "",  // no colormap
     PBRT_ROOT_DIR "images/cmaps/cividis.png",
     PBRT_ROOT_DIR "images/cmaps/inferno.png",
     PBRT_ROOT_DIR "images/cmaps/magma.png",
@@ -240,10 +256,19 @@ static std::string _cmap_paths[CMap_Count] = {
     PBRT_ROOT_DIR "images/cmaps/viridis.png"
 };
 
+const char* cmap_names[CMap_Count] = {
+    "None",
+    "Cividis",
+    "Inferno",
+    "Magma",
+    "Plasma",
+    "Viridis"
+};
+
 GLuint cmap_tex_ids[CMap_Count] = {0};
 
 void InitializeTonemaps() {
-    for (int i = 0; i < CMap_Count; i++) {
+    for (int i = 1; i < CMap_Count; i++) {
         int width, height;
         if (!LoadTextureFromFile(_cmap_paths[i].c_str(), cmap_tex_ids[i], width, height, true))
             pbrt::Error("Failed to load colormap %s from disk", _cmap_paths[i].c_str());

@@ -649,7 +649,6 @@ SET (PBRT_WAVEFRONT_SOURCE_HEADERS
 
 if (PBRT_BUILD_GUIDING_VIEWER)
 SET (PBRT_GUIDING_VIEWER_SOURCE
-        src/pbrt/guiding/guidingviewer.cpp
         src/pbrt/guiding/View.cpp
         src/pbrt/guiding/Application.cpp
         src/pbrt/guiding/RenderThread.cpp
@@ -658,6 +657,7 @@ SET (PBRT_GUIDING_VIEWER_SOURCE
         src/pbrt/guiding/ColormapPanel.cpp
         src/pbrt/guiding/CacheMonitor.cpp
         src/pbrt/guiding/CacheHistogram.cpp
+        src/pbrt/guiding/SamplingDistributionView.cpp
         src/pbrt/guiding/helper.cpp
 )
 else ()
