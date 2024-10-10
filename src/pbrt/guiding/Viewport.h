@@ -13,18 +13,13 @@
 
 class Viewport : public View {
 public:
-    struct Uniforms {
-        float scale, offset, clipValue;
-        GLuint cmapTex;
-    };
-
     Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference);
 
     ~Viewport();
 
     void UpdateCPUBufferFromFilm();
 
-    void UpdateFramebuffer(SelectedChannel channel, const Uniforms &uniforms);
+    void UpdateFramebuffer(SelectedChannel channel, const TonemapShaderUniforms &uniforms);
 
     void Draw() override;
 

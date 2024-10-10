@@ -100,7 +100,7 @@ void Viewport::UpdateErrorImage() {
     }
 }
 
-void Viewport::UpdateFramebuffer(SelectedChannel channel, const Uniforms &uniforms) {
+void Viewport::UpdateFramebuffer(SelectedChannel channel, const TonemapShaderUniforms &uniforms) {
     // Render to the tonemapped framebuffer if the CPU buffer has been updated
     if (m_cpuBufferUpdated.exchange(false)) {
         // Update the rendering texture
@@ -151,17 +151,7 @@ void Viewport::UpdateFramebuffer(SelectedChannel channel, const Uniforms &unifor
 
     Shader &shader = m_framebuffer.getShader();
     shader.bind();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, m_renderingTex);
-    shader.setUniform1i("image_tex", 0);
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, uniforms.cmapTex);
-    shader.setUniform1i("cmap_tex", 1);
-    shader.setUniform1f("scale", uniforms.scale);
-    shader.setUniform1f("offset", uniforms.offset);
-    shader.setUniform1f("clip_val", uniforms.clipValue);
-    shader.setUniform1i("single_channel", IsSingleChannel(channel));
-    shader.setUniform1i("tonemapped", uniforms.cmapTex > 0);
+    ConfigureTonemapShader(shader, m_renderingTex, IsSingleChannel(channel), uniforms);
 
     // Render!
     m_framebuffer.draw();
@@ -181,7 +171,8 @@ void Viewport::Draw() {
     // ImGui::Image((ImTextureID) (uintptr_t) cmap_tex_ids[1], size);
 
     if ((m_isHovered = ImGui::IsItemHovered())) {
-        m_mousePixel = Point2i((int) ((ImGui::GetMousePos().x - m_leftTop.x) / m_scale),
-                               (int) ((ImGui::GetMousePos().y - m_leftTop.y) / m_scale));
+        auto pos = ImGui::GetMousePos();
+        m_mousePixel = Point2i((int) ((pos.x - m_leftTop.x) / m_scale),
+                               (int) ((pos.y - m_leftTop.y) / m_scale));
     }
 }

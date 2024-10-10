@@ -11,7 +11,6 @@
 #include <pbrt/shapes.h>
 #include <pbrt/scene.h>
 #include <pbrt/util/progressreporter.h>
-#include "guiding.h"
 
 #include <iostream>
 #include <imgui_internal.h>
@@ -73,6 +72,7 @@ int Application::Run() {
     InitializeTonemaps();
     m_controlPanel = std::make_unique<ControlPanel>(this, *m_renderThread);
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
+    m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
@@ -142,6 +142,7 @@ void Application::Draw() {
         ChannelSelector();
         m_viewport->Draw();
         ProbesInteraction();
+        SamplingDistributionInteraction();
         ImGui::Separator();
         StatusBar();
     }
@@ -157,6 +158,11 @@ void Application::Draw() {
 
     CacheMonitorViews();
     CacheHistogramViews();
+
+    if ((m_enableSamplingDistributionView = ImGui::Begin("Sampling Distribution"))) {
+        m_samplingDistributionView->Draw();
+    }
+    ImGui::End();
 }
 
 void Application::SetSelectedChannel(SelectedChannel newChannel) {
@@ -221,7 +227,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightTopDock);
         ImGui::DockBuilderSplitNode(leftDock, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Left, 0.5f, &midDock, &rightTopDock);
-        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.3f, &rightTopDock, &rightBottomDock);
+        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.4f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, -1));
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), -1));
@@ -234,6 +240,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", rightTopDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
@@ -291,6 +298,7 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
         ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
@@ -341,6 +349,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Viewport", leftDock);
         ImGui::DockBuilderDockWindow("Controls", rightTopDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
@@ -393,6 +402,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 500), -1));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
@@ -417,6 +427,7 @@ void Application::SetupRenderThread() {
             UpdateField(waveStart);
             UpdateCacheCurves();
             UpdateCacheHistograms();
+            UpdateSamplingDistributionView();
             RenderWave(waveStart);
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
@@ -472,15 +483,16 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
                     // Diffuse surface. Good
                     rc.valid = true;
                     rc.hit = ray(sit->tHit);
-                    rc.normal = sit->intr.n;
+                    if (Dot(ray.d, sit->intr.shading.n) > 0) sit->intr.shading.n *= -1;  // flip normal when backfacing
+                    rc.normal = sit->intr.shading.n;
                     rc.uv = sit->intr.uv;
                     // Query the guiding cache
-                    GuidedBSDF gbsdf(&sampler, &m_field, &ssd, true, EGuideMIS);
+                    pgl_point3f pglP = {rc.hit.x, rc.hit.y, rc.hit.z};
                     float rnd = -1.0f;
                     std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
-                    if (gbsdf.init(&bsdf, ray, sit, rnd)) {
+                    if (ssd.Init(&m_field, pglP, rnd)) {
                         // Guiding region available
-                        uint32_t id = gbsdf.getId();
+                        uint32_t id = ssd.GetId();
                         rc.cache = m_field.GetRegionStatisticsSurface(id);
                     }
                     break;
@@ -508,7 +520,7 @@ void Application::UpdateFramebuffer() {
     } else if (c == Channel_Samples && m_cacheHistogram.samples->isHovered) {
         clipValue = m_cacheHistogram.samples->hoveringValue;
     }
-    m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, clipValue, sd.tonemapped ? cmap_tex_ids[m_colormapPanel->selectedCMap] : 0});
+    m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, clipValue, cmap_tex_ids[sd.cmap]});
 }
 
 void Application::SaveRendering(std::string path) {
@@ -579,6 +591,35 @@ void Application::UpdateRayCastingAtMouse() {
     }
 }
 
+void Application::SamplingDistributionInteraction() {
+    if (!m_enableSamplingDistributionView) return;
+    // Left click to update the sampling distribution
+    if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
+        Point2i pixel = m_viewport->GetMousePixel();
+        m_rcSDV = RayCast(pixel);
+        UpdateSamplingDistributionView();
+    }
+
+    // Draw the view location
+    if (m_rcSDV.cache.id != -1) {
+        ImVec2 leftTop = m_viewport->GetLeftTop();
+        float scale = m_viewport->GetScale();
+        ImVec2 center(leftTop.x + m_rcSDV.pixel.x * scale, leftTop.y + m_rcSDV.pixel.y * scale);
+        ImDrawList *draw_list = ImGui::GetWindowDrawList();
+        float a = 4;
+        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), m_rcSDV.pixel) < 2 * a;
+        draw_list->AddTriangleFilled(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32(255, 0, 0, 255));
+        if (isHovered)
+            draw_list->AddTriangle(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32_WHITE, 2);
+
+        // Right click to clear the sampling distribution
+        if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            m_rcSDV.cache.id = -1;
+            m_samplingDistributionView->Clear();
+        }
+    }
+}
+
 void Application::ProbesInteraction() {
     if (!m_enableProbes) return;
     // Draw all probes
@@ -606,8 +647,8 @@ void Application::ProbesInteraction() {
         }
     });
 
-    // Left click to add/activate a probe
-    if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+    // Middle click to add/activate a probe
+    if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Middle)) {
         Point2i pixel = m_viewport->GetMousePixel();
         m_cacheMonitor.object->AddProbe(pixel);
         if (m_renderThread->GetState() != RenderThread::Rendering) {  // Add a probe with the current CE
@@ -664,6 +705,7 @@ void Application::RestartRendering(bool resetCache) {
         ResetCache();
     m_cacheMonitor.object->Clear();
     m_cacheHistogram.object->Clear();
+    m_samplingDistributionView->Clear();
 }
 
 void Application::UpdateCPUBufferFromFilm() {
@@ -706,6 +748,15 @@ void Application::UpdateCacheHistograms() {
             }
         });
         m_cacheHistogram.object->RequestFitAxes();
+    }
+}
+
+void Application::UpdateSamplingDistributionView() {
+    if (m_rcSDV.cache.id != -1) {
+        std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
+        m_samplingDistributionView->UpdateCPUBuffer(m_rcSDV.hit, m_rcSDV.normal);
+    } else {
+        m_samplingDistributionView->Clear();
     }
 }
 

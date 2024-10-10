@@ -19,11 +19,10 @@ struct ColormapPanel : public View {
 
     pbrt::Film film;
     const pstd::optional<pbrt::Image> &reference;
-    Colormap selectedCMap = CMap_Viridis;
     struct {
         float scale = 1.0f;
         float offset = 0.0f;
-        bool tonemapped = false;
+        Colormap cmap = CMap_None;
         bool firstNormalized = false;
     } shaderData[Channel_Count];
     std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRAE);

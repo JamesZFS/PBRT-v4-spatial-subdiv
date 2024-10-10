@@ -9,11 +9,11 @@
 #include "RenderThread.h"
 #include "View.h"
 #include "Viewport.h"
+#include "SamplingDistributionView.h"
 #include "ColormapPanel.h"
 #include "CacheMonitor.h"
-#include <pbrt/cpu/integrators.h>
-
 #include "CacheHistogram.h"
+#include <pbrt/cpu/integrators.h>
 
 namespace openpgl {
 namespace cpp {
@@ -78,6 +78,7 @@ private:
     void CacheInfo(const PGLRegionStatistics &cache);
 
     void UpdateRayCastingAtMouse();
+    void SamplingDistributionInteraction();
     void ProbesInteraction();
 
     // Callbacks from render thread
@@ -90,6 +91,7 @@ private:
     void UpdateCPUBufferFromFilm();
     void UpdateCacheCurves();
     void UpdateCacheHistograms();
+    void UpdateSamplingDistributionView();
 
     // GUI components
     void MainMenu();
@@ -127,18 +129,21 @@ private:
     bool m_hasSetupLayout = false;
     LayoutType m_layout = Layout_Default;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
+    RayCastingData m_rcSDV;  // ray casting result at the sampling distribution view
     int m_maxMaxDepth = 15;
     SelectedChannel m_selectedChannel = Channel_Radiance;
     bool m_enableShortcuts = true;
     bool m_enableRayCastingAtMouse = false;
     bool m_enableProbes = false;
     bool m_enableHistogram = false;
+    bool m_enableSamplingDistributionView = false;
     ErrorMetric m_errorMetric = Metric_MRAE;
 
     // Components and views
     std::unique_ptr<RenderThread> m_renderThread;
     std::unique_ptr<ControlPanel> m_controlPanel;
     std::unique_ptr<Viewport> m_viewport;
+    std::unique_ptr<SamplingDistributionView> m_samplingDistributionView;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;

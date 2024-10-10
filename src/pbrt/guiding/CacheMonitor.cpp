@@ -14,7 +14,7 @@ void CacheMonitor::Plot::Draw() {
         if (ImGui::BeginItemTooltip())
         {
             ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-            ImGui::BulletText("Left click canvas to insert a guiding cache probe");
+            ImGui::BulletText("Middle click viewport to insert a guiding cache probe");
             ImGui::BulletText("Right click a probe to remove it");
             ImGui::PopTextWrapPos();
             ImGui::EndTooltip();
@@ -125,8 +125,6 @@ void CacheMonitor::Clear() {  // Clear the data but keep the probes
     std::lock_guard lock(m_mutex);
     for (auto &probe: m_probes)
         probe.data.clear();
-    ImPlot::DestroyContext();
-    ImPlot::CreateContext();
     RequestFitAxes();
 }
 
