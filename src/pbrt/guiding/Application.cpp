@@ -77,6 +77,7 @@ int Application::Run() {
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
     m_cacheMonitor.ce = &m_cacheMonitor.object->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
+    m_cacheMonitor.fluence = &m_cacheMonitor.object->AddPlot("Fluence vs. Iter", CacheMonitor::PlotType_Fluence, false);
     m_cacheMonitor.depth = &m_cacheMonitor.object->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
     m_cacheMonitor.samples = &m_cacheMonitor.object->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
 
@@ -242,6 +243,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightTopDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
@@ -304,6 +306,7 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightMidDock);
+        ImGui::DockBuilderDockWindow("Fluence Curve", rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -351,6 +354,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", rightBottomDock);
@@ -404,6 +408,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
@@ -652,11 +657,18 @@ void Application::ProbesInteraction() {
         Point2i pixel = m_viewport->GetMousePixel();
         m_cacheMonitor.object->AddProbe(pixel);
         if (m_renderThread->GetState() != RenderThread::Rendering) {  // Add a probe with the current CE
-            m_cacheMonitor.object->UpdateProbe(pixel, [&](auto &probe) {
-                float iter = GetCurrentWave();
-                if (probe.data.empty() || probe.data.back().iter < iter) {
+            m_cacheMonitor.object->UpdateProbe(pixel, [&](CacheMonitor::Probe &probe) {
+                float x = GetCurrentWave();
+                const float nan = std::numeric_limits<float>::quiet_NaN();
+                if (probe.data.empty() || probe.data.back().iter < x) {
                     auto rc = RayCast(pixel);
-                    probe.data.push_back({iter, rc.cache.id != -1 ? rc.cache.crossEntropy : std::numeric_limits<float>::quiet_NaN()});
+                    bool cacheValid = rc.cache.id != -1;
+                    probe.data.push_back({x,
+                        cacheValid ? rc.cache.fluence : nan,
+                        cacheValid ? rc.cache.crossEntropy : nan,
+                        cacheValid ? (float) rc.cache.depth : nan,
+                        cacheValid ? (float) rc.cache.numSamples : nan
+                    });
                 }
             });
         }
@@ -722,6 +734,7 @@ void Application::UpdateCacheCurves() {
             auto rc = RayCast(probe.pixel);
             bool cacheValid = rc.cache.id != -1;
             probe.data.push_back({x,
+                cacheValid ? rc.cache.fluence : nan,
                 cacheValid ? rc.cache.crossEntropy : nan,
                 cacheValid ? (float) rc.cache.depth : nan,
                 cacheValid ? (float) rc.cache.numSamples : nan
@@ -732,23 +745,21 @@ void Application::UpdateCacheCurves() {
 }
 
 void Application::UpdateCacheHistograms() {
-    if (m_enableHistogram) {
-        m_cacheHistogram.object->Update([&](CacheHistogram::Data &data) {
-            size_t numRegions = m_field.GetRegionCountSurface();
-            data.fluence.resize(numRegions);
-            data.ce.resize(numRegions);
-            data.depth.resize(numRegions);
-            data.samples.resize(numRegions);
-            for (size_t i = 0; i < numRegions; ++i) {
-                auto cache = m_field.GetRegionStatisticsSurface(i);
-                data.fluence[i] = cache.fluence;
-                data.ce[i] = cache.crossEntropy;
-                data.depth[i] = cache.depth;
-                data.samples[i] = cache.numSamples;
-            }
-        });
-        m_cacheHistogram.object->RequestFitAxes();
-    }
+    m_cacheHistogram.object->Update([&](CacheHistogram::Data &data) {
+        size_t numRegions = m_field.GetRegionCountSurface();
+        data.fluence.resize(numRegions);
+        data.ce.resize(numRegions);
+        data.depth.resize(numRegions);
+        data.samples.resize(numRegions);
+        for (size_t i = 0; i < numRegions; ++i) {
+            auto cache = m_field.GetRegionStatisticsSurface(i);
+            data.fluence[i] = cache.fluence;
+            data.ce[i] = cache.crossEntropy;
+            data.depth[i] = cache.depth;
+            data.samples[i] = cache.numSamples;
+        }
+    });
+    m_cacheHistogram.object->RequestFitAxes();
 }
 
 void Application::UpdateSamplingDistributionView() {
@@ -1040,6 +1051,10 @@ void Application::CacheMonitorViews() {
     bool enableMonitor = false;
     if (enableMonitor |= ImGui::Begin("CE Curve"))
         m_cacheMonitor.ce->Draw();
+    ImGui::End();
+
+    if (enableMonitor |= ImGui::Begin("Fluence Curve"))
+        m_cacheMonitor.fluence->Draw();
     ImGui::End();
 
     if (enableMonitor |= ImGui::Begin("Depth Curve"))
