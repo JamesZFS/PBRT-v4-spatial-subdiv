@@ -16,6 +16,7 @@ class CacheMonitor {
 public:
     struct PlotEntry {
         float iter;
+        float fluence;
         float ce;
         float depth;
         float samples;
@@ -29,6 +30,7 @@ public:
     };
 
     enum PlotType {
+        PlotType_Fluence,
         PlotType_CE,
         PlotType_Depth,
         PlotType_Samples,
