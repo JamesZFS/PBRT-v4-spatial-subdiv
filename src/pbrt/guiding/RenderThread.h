@@ -10,9 +10,13 @@
 #include <condition_variable>
 #include <thread>
 
+namespace pbrt {
+class Application;
+}
+
 class RenderThread {
 public:
-    RenderThread(int spp, const std::function<void(int waveStart)> &renderStep,
+    RenderThread(pbrt::Application *parent, const std::function<void(int waveStart)> &renderStep,
                  const std::function<void(int waveEnd)> &saveImage);
 
     enum RendererState {
@@ -61,10 +65,10 @@ public:
 private:
     void Run();
 
+    pbrt::Application *m_parent;
     Command m_pendingCmd = None;
     RendererState m_state = Initial;
     int m_waveStart = 0;
-    const int m_spp;
     const std::thread::id m_mainThreadID;
     std::thread::id m_renderThreadID;
     std::thread m_thread;

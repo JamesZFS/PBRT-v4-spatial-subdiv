@@ -41,16 +41,18 @@ namespace pbrt {
 
 Application::Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference,
     openpgl::cpp::Device *device, openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage, const PGLKDTreeArguments &args,
-    int spp, GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
+    Sampler samplerPrototype, ThreadLocal<Sampler> &samplers, GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
     const std::function<void(int waveStart)> &renderWave,
     const std::function<void(int waveEnd)> &updateCache,
     const std::function<void(int waveEnd)> &saveImage)
     : View(this),
       m_camera(camera), m_film(camera.GetFilm()), m_reference(std::move(reference)), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
-      m_scene(scene), m_device(*device), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_spp(spp),
+      m_scene(scene), m_device(*device), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_samplerPrototype(samplerPrototype), m_samplers(samplers),
       m_integratorSettings(integratorSettings), m_guideSettings(guideSettings),
       m_renderWave(renderWave), m_updateCache(updateCache), m_saveImage(saveImage),
       m_resolution(m_film.PixelBounds().Diagonal()) {
+    m_spp = samplerPrototype.SamplesPerPixel();
+    m_seed = Options->seed;
     m_channelCount = m_isMultiChannel ? (m_reference ? Channel_Count : Channel_Count - 2) : 1;
     m_maxMaxDepth = std::max(m_maxMaxDepth, integratorSettings.maxDepth);
 }
@@ -131,7 +133,7 @@ void Application::Draw() {
         ImGui::Begin("Controls");
         m_controlPanel->Draw();
         int wave = GetCurrentWave();
-        ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave == m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
+        ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave >= m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
         ErrorMetricSelector();
         m_colormapPanel->Draw();
         RayCastingPanel();
@@ -256,10 +258,10 @@ void Application::SetupLayoutDefault() {
 
 void Application::SetupLayoutCacheMonitor() {
     if (!m_hasSetupLayout) {
-        // Figure out proper window size
+        // Set full screen
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(std::min(m_resolution.x + 700, mode->width), std::min(m_resolution.y + 220, mode->height));
-        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
+        m_windowSize = ImVec2(mode->width, mode->height);
+        glfwSetWindowSize(m_window, mode->width, mode->height);
     }
 
     ImGuiViewport *iviewport = ImGui::GetMainViewport();
@@ -280,11 +282,12 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
 
-        ImGuiID left, leftTopDock, leftBottomDock;
+        ImGuiID left, leftTopDock, leftMidDock, leftBottomDock;
         ImGuiID midDock;
         ImGuiID right, rightTopDock, rightMidDock, rightBottomDock;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &left, &right);
-        ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
+        ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.3f, &leftTopDock, &leftBottomDock);
+        ImGui::DockBuilderSplitNode(leftBottomDock, ImGuiDir_Up, 0.5f, &leftMidDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &midDock, &right);
         ImGui::DockBuilderSplitNode(right, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSplitNode(rightBottomDock, ImGuiDir_Up, 0.5f, &rightMidDock, &rightBottomDock);
@@ -296,12 +299,12 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, m_windowSize.y * 0.5));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
+        ImGui::DockBuilderDockWindow("Settings", leftMidDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
-        ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
@@ -426,7 +429,7 @@ void Application::SetupRenderThread() {
     if (m_renderThread)
         ErrorExit("RenderThread already initialized");
     m_renderThread = std::make_unique<RenderThread>(
-        m_spp,
+        this,
         [&](int waveStart) {
             CheckIsRenderThread();
             UpdateField(waveStart);
@@ -1004,6 +1007,23 @@ void Application::IntegratorSettings() {
         ImGui::InputInt("Min RR Depth", &m_integratorSettings.minRRDepth);
         m_integratorSettings.minRRDepth = std::max(0, m_integratorSettings.minRRDepth);
         ImGui::Checkbox("Use NEE", &m_integratorSettings.useNEE);
+        if (m_samplerPrototype.Is<IndependentSampler>()) {
+            auto *sampler = m_samplerPrototype.Cast<IndependentSampler>();
+            int spp = m_spp;
+            if (ImGui::InputInt("SPP", &spp)) {
+                m_spp = std::max(1, spp);
+                sampler->SetSamplesPerPixel(m_spp);
+                m_samplers.ForAll([&](Sampler s) {
+                    s.Cast<IndependentSampler>()->SetSamplesPerPixel(m_spp);
+                });
+            }
+            if (ImGui::InputInt("Seed", &m_seed)) {
+                sampler->SetSeed(m_seed);
+                m_samplers.ForAll([&](Sampler s) {
+                    s.Cast<IndependentSampler>()->SetSeed(m_seed);
+                });
+            }
+        }
     }
     ImGui::EndDisabled();
     ImGui::PopID();
@@ -1034,13 +1054,15 @@ void Application::SpatialSubdivisionSettings() {
         int maxDepth = (int) m_subdivCfg.maxDepth;
         int maxSamples = (int) m_subdivCfg.maxSamples;
         int minSamples = (int) m_subdivCfg.minSamples;
-        ImGui::InputInt("Max Depth", &maxDepth);
+        ImGui::SliderInt("Max Depth", &maxDepth, 1, 32);
         ImGui::InputInt("Max Samples", &maxSamples, 1000, 5000);
         ImGui::InputInt("Min Samples", &minSamples, 1000, 5000);
-        m_subdivCfg.maxDepth = std::max(1, maxDepth);
+        m_subdivCfg.maxDepth = maxDepth;
         m_subdivCfg.maxSamples = std::max(0, maxSamples);
         m_subdivCfg.minSamples = std::max(0, minSamples);
         ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.1f, 1.0f);
+        ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
+        ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
     }
     ImGui::EndDisabled();
     ImGui::PopID();
