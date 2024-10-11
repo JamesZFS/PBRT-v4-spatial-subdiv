@@ -469,6 +469,12 @@ class IndependentSampler {
     Sampler Clone(Allocator alloc);
     std::string ToString() const;
 
+    PBRT_CPU_GPU void SetSamplesPerPixel(int spp) { samplesPerPixel = spp; }
+
+    PBRT_CPU_GPU int GetSeed() const { return seed; }
+
+    PBRT_CPU_GPU void SetSeed(int seed) { this->seed = seed; }
+
   private:
     // IndependentSampler Private Members
     int samplesPerPixel, seed;

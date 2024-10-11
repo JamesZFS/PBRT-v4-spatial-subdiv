@@ -80,8 +80,10 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             std::cout<< "\t regularize = " << regularize << std::endl;
         guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
         guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM, true,
-            guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth, guideSettings.treecethreshold);
+            guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
+        guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
+        guiding_fieldSubdivConfig.ceDecay = guideSettings.treemomentum;
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -94,6 +96,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         } else {
             guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
         }
+        guiding_field->UpdateSubdivConfig(guiding_fieldSubdivConfig);
         guiding_sampleStorage = new openpgl::cpp::SampleStorage();
 
         guiding_threadPathSegmentStorage = new ThreadLocal<openpgl::cpp::PathSegmentStorage*>(
@@ -187,7 +190,6 @@ void GuidedPathIntegrator::Render() {
     ThreadLocal<Sampler> samplers([this]() { return samplerPrototype.Clone(); });
 
     Bounds2i pixelBounds = camera.GetFilm().PixelBounds();
-    int spp = samplerPrototype.SamplesPerPixel();
     Timer totalRenderingTimer;
 
     if (Options->recordPixelStatistics)
@@ -213,7 +215,9 @@ void GuidedPathIntegrator::Render() {
     }
 
     // Launch the GUI and render image in waves
-    Application app(camera, aggregate, std::move(referenceImage), guiding_device, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig, spp, settings, guideSettings,
+    Application app(camera, aggregate, std::move(referenceImage),
+        guiding_device, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig,
+        samplerPrototype, samplers, settings, guideSettings,
         [&](int waveStart) {
             // std::cout << "Rendering wave " << waveStart << std::endl;
             Timer pureRenderingTimer;
@@ -597,6 +601,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treeminsamplesperleaf = parameters.GetOneInt("treeminsamplesperleaf", 100);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
     settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
+    settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);

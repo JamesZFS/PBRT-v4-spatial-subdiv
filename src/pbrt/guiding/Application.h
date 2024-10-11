@@ -27,7 +27,7 @@ class Application : public View {
 public:
     Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference,
         openpgl::cpp::Device *device, openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage,
-        const PGLKDTreeArguments &args, int spp,
+        const PGLKDTreeArguments &args, Sampler samplerPrototype, ThreadLocal<Sampler> &samplers,
         GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
         const std::function<void(int waveStart)> &renderWave,
         const std::function<void(int waveEnd)> &updateCache,
@@ -38,6 +38,8 @@ public:
     void SetSelectedChannel(SelectedChannel newChannel);
     bool ShortcutEnabled() const { return m_enableShortcuts; }
     void Draw() override;
+    int GetCurrentWave() const;
+    int GetSPP() const { return m_spp; }
 
 private:
     struct RayCastingData {
@@ -65,7 +67,6 @@ private:
 
     void SetupRenderThread();
 
-    int GetCurrentWave() const;
     void CheckIsMainThread();
     RayCastingData RayCast(Point2i pixel) const;
     void UpdateFramebuffer();
@@ -117,7 +118,10 @@ private:
     openpgl::cpp::Field& m_field;
     openpgl::cpp::SampleStorage& m_sampleStorage;
     PGLKDTreeArguments m_subdivCfg;  // config for spatial subdivision
-    const int m_spp;
+    int m_spp;
+    int m_seed;
+    Sampler m_samplerPrototype;
+    ThreadLocal<Sampler> &m_samplers;
     GuidedPathIntegrator::IntegratorSettings &m_integratorSettings;  // from the integrator
     GuidedPathIntegrator::GuidingSettings &m_guideSettings;  // from the integrator
     std::function<void(int waveStart)> m_renderWave;
@@ -127,7 +131,7 @@ private:
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
-    LayoutType m_layout = Layout_Default;
+    LayoutType m_layout = Layout_CacheMonitor;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     RayCastingData m_rcSDV;  // ray casting result at the sampling distribution view
     int m_maxMaxDepth = 15;

@@ -10,6 +10,7 @@
 #include <pbrt/scene.h>
 #include <pbrt/util/progressreporter.h>
 #include "RenderThread.h"
+#include "Application.h"
 
 using namespace pbrt;
 
@@ -23,8 +24,8 @@ const std::vector<std::pair<const char *, const char *>> commandNames = {
     {"None", "No command"},
 };
 
-RenderThread::RenderThread(int spp, const std::function<void(int waveStart)> &renderStep, const std::function<void(int waveEnd)> &saveImage)
-    : m_spp(spp), m_mainThreadID(std::this_thread::get_id()), m_cmdCompleteCallbacks(CmdCount), m_renderStep(renderStep), m_saveImage(saveImage) {
+RenderThread::RenderThread(Application *parent, const std::function<void(int waveStart)> &renderStep, const std::function<void(int waveEnd)> &saveImage)
+    : m_parent(parent), m_mainThreadID(std::this_thread::get_id()), m_cmdCompleteCallbacks(CmdCount), m_renderStep(renderStep), m_saveImage(saveImage) {
     // Start the thread
     m_thread = std::thread(&RenderThread::Run, this);
     std::unique_lock lock(m_mtxInitialized);
@@ -72,7 +73,7 @@ void RenderThread::Run() {
     }
 
     while (true) {
-        if (!m_autoPlayed || m_waveStart == m_spp) {
+        if (!m_autoPlayed || m_waveStart >= m_parent->GetSPP()) {
             // Listen for commands from the GUI
             std::unique_lock lock(m_mtxCmd);
             m_cv.wait(lock, [this] { return m_pendingCmd != None; });
@@ -119,7 +120,7 @@ void RenderThread::Run() {
         // Process AutoPlay, Pause, and Forward
         bool renderedSomething = false;
         if (m_autoPlayed) {
-            if (m_waveStart < m_spp) {
+            if (m_waveStart < m_parent->GetSPP()) {
                 m_state = Rendering;
                 m_renderStep(m_waveStart++);
                 renderedSomething = true;
@@ -128,7 +129,7 @@ void RenderThread::Run() {
             m_forwarding = true;
             m_state = Rendering;
             int wavesLeft = m_forwardWaves;
-            while (m_waveStart < m_spp && wavesLeft-- > 0) {
+            while (m_waveStart < m_parent->GetSPP() && wavesLeft-- > 0) {
                 // Listen for Pause command
                 if (m_pendingCmd == Pause) {
                     std::cout << "Pausing rendering" << std::endl;
@@ -144,7 +145,7 @@ void RenderThread::Run() {
             }
             m_forwarding = false;
         }
-        if (renderedSomething && (Options->writePartialImages || m_waveStart == m_spp)) {
+        if (renderedSomething && (Options->writePartialImages || m_waveStart == m_parent->GetSPP())) {
             m_saveImage(m_waveStart);
         }
         m_state = WaveEnd;

@@ -49,8 +49,8 @@ void ColormapPanel::Draw() {
         if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
     }
     if (ImGui::CollapsingHeader("Color Map")) {
-        ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f);
-        ImGui::InputFloat("Offset", &sd.offset, 0.1f, 1.0f);
+        ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f, "%.6f");
+        ImGui::InputFloat("Offset", &sd.offset, 0.1f, 1.0f, "%.6f");
         if (ImGui::Button("Reset")) reset();
         ImGui::SameLine();
         if (ImGui::Button("Normalize")) normalize();
