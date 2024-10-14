@@ -53,8 +53,8 @@ private:
 
     enum LayoutType {
         Layout_Default,
-        Layout_CacheMonitor,
         Layout_Compact,
+        Layout_CacheMonitor,
         Layout_Histograms,
         Layout_Count,
     };
@@ -64,6 +64,7 @@ private:
     void SetupLayoutCacheMonitor();
     void SetupLayoutCompact();
     void SetupLayoutHistograms();
+    void SetFullScreen();
 
     void SetupRenderThread();
 

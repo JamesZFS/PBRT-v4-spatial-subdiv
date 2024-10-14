@@ -57,9 +57,11 @@ private:
         pbrt::Point3f pos;
         pbrt::Normal3f normal;
     } m_prev;
+
+    bool m_localFrame = true;
     bool m_enableCosineProduct = true;
     float m_exposure = 1.0f;
-    Colormap m_colormap = CMap_Viridis;
+    Colormap m_colormaps[Buffer_Count];
 
     float m_stepPhi;
     float m_stepTheta;
