@@ -14,9 +14,11 @@ SamplingDistributionView::SamplingDistributionView(pbrt::Application *parent, co
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.pdf.resize(m_resolution.x * m_resolution.y);
+    m_colormaps[Buffer_PDF] = CMap_Viridis;
 #ifdef OPENPGL_RADIANCE_CACHES
     m_cpuBuffer.Li.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.Lo.resize(m_resolution.x * m_resolution.y);
+    m_colormaps[Buffer_Li] = m_colormaps[Buffer_Lo] = CMap_None;
 #endif
     glGenTextures(1, &m_renderingTex);
 }
@@ -56,7 +58,10 @@ void SamplingDistributionView::UpdateFramebuffer() {
 
     Shader &shader = m_framebuffer.getShader();
     shader.bind();
-    ConfigureTonemapShader(shader, m_renderingTex, m_selectedBuffer == Buffer_PDF, {m_exposure, 0.0f, std::numeric_limits<float>::infinity(), cmap_tex_ids[m_colormap]});
+    ConfigureTonemapShader(shader, m_renderingTex, m_selectedBuffer == Buffer_PDF, {
+                               m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
+                               cmap_tex_ids[m_colormaps[m_selectedBuffer]]
+                           });
 
     // Render!
     m_framebuffer.draw();
@@ -76,22 +81,27 @@ void SamplingDistributionView::Clear() {
 void SamplingDistributionView::Draw() {
 #ifdef OPENPGL_RADIANCE_CACHES
     static const char *bufferNames[Buffer_Count] = {"PDF", "Incidient Radiance", "Outgoing Radiance"};
+    ImGui::SetNextItemWidth(90);
     if (ImGui::Combo("Type", reinterpret_cast<int *>(&m_selectedBuffer), bufferNames, Buffer_Count)) {
         m_cpuBufferUpdated = true;
     }
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90);
 #endif
+    ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormaps[m_selectedBuffer]), cmap_names, CMap_Count);
     ImGui::SetNextItemWidth(150);
     ImGui::SliderFloat("Exposure", &m_exposure, 0, 10);
     ImGui::SameLine();
     if (ImGui::Button("Reset"))
         m_exposure = 1.0f;
-    if (ImGui::Checkbox("Cosine Product", &m_enableCosineProduct)) {
+    bool needsUpdate = false;
+    needsUpdate |= ImGui::Checkbox("Cosine Product", &m_enableCosineProduct);
+    ImGui::SameLine();
+    needsUpdate |= ImGui::Checkbox("Local Frame", &m_localFrame);
+
+    if (needsUpdate) {
         if (m_prev.valid) UpdateCPUBuffer();
     }
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(90);
-    ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormap), cmap_names, CMap_Count);
-
     UpdateFramebuffer();
 
     ImVec2 size{(float) m_resolution.x, (float) m_resolution.y};
@@ -154,8 +164,9 @@ void SamplingDistributionView::UpdateCPUBuffer() {
             int idx = (p.y * m_resolution.x) + p.x;
             float theta = m_stepTheta * (0.5f + float(p.y));
             float phi = m_stepPhi * (0.5f + float(p.x));
-            Vector3f dirLocal = SphericalDirection(std::sin(theta), std::cos(theta), phi);
-            Vector3f dir = frame.FromLocal(dirLocal);
+            Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+            if (m_localFrame)
+                dir = frame.FromLocal(dir);
             pgl_vec3f pglDir{dir.x, dir.y, dir.z};
 
             float pdf = m_ssd.PDF(pglDir);

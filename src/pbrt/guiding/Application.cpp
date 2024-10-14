@@ -183,11 +183,11 @@ void Application::SetupLayout() {
         case Layout_Default:
             SetupLayoutDefault();
             break;
-        case Layout_CacheMonitor:
-            SetupLayoutCacheMonitor();
-            break;
         case Layout_Compact:
             SetupLayoutCompact();
+            break;
+        case Layout_CacheMonitor:
+            SetupLayoutCacheMonitor();
             break;
         case Layout_Histograms:
             SetupLayoutHistograms();
@@ -256,13 +256,63 @@ void Application::SetupLayoutDefault() {
     ImGui::End();
 }
 
-void Application::SetupLayoutCacheMonitor() {
+void Application::SetupLayoutCompact() {
     if (!m_hasSetupLayout) {
-        // Set full screen
+        // Figure out proper window size
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(mode->width, mode->height);
-        glfwSetWindowSize(m_window, mode->width, mode->height);
+        m_windowSize = ImVec2(std::min(m_resolution.x + 400, mode->width), std::min(m_resolution.y + 120, mode->height));
+        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
     }
+
+    // ImGui::DockSpaceOverViewport();
+    ImGuiViewport *iviewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(iviewport->WorkPos);
+    ImGui::SetNextWindowSize(iviewport->WorkSize);
+    ImGui::SetNextWindowViewport(iviewport->ID);
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGui::Begin("MyDockSpace", nullptr, windowFlags);
+
+    ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+    // dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
+    ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
+    // ImGui::DockSpaceOverViewport(dockSpaceID, ImGui::GetMainViewport(), dockFlags);
+
+    if (!m_hasSetupLayout) {
+        ImGui::DockBuilderRemoveNode(dockSpaceID);
+        ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
+
+        ImGuiID leftDock, rightDock, rightTopDock, rightBottomDock;
+        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.7f, &leftDock, &rightDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.4f, &rightTopDock, &rightBottomDock);
+        float padding = ImGui::GetStyle().WindowPadding.x;
+        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 400), -1));
+
+        ImGui::DockBuilderDockWindow("Viewport", leftDock);
+        ImGui::DockBuilderDockWindow("Controls", rightTopDock);
+        ImGui::DockBuilderDockWindow("Settings", rightTopDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
+        ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Fluence Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("CE Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
+        ImGui::DockBuilderFinish(dockSpaceID);
+
+        m_hasSetupLayout = true;
+    }
+
+    ImGui::End();
+}
+
+void Application::SetupLayoutCacheMonitor() {
+    if (!m_hasSetupLayout)
+        SetFullScreen();
 
     ImGuiViewport *iviewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(iviewport->WorkPos);
@@ -318,67 +368,9 @@ void Application::SetupLayoutCacheMonitor() {
     ImGui::End();
 }
 
-void Application::SetupLayoutCompact() {
-    if (!m_hasSetupLayout) {
-        // Figure out proper window size
-        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(std::min(m_resolution.x + 400, mode->width), std::min(m_resolution.y + 120, mode->height));
-        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
-    }
-
-    // ImGui::DockSpaceOverViewport();
-    ImGuiViewport *iviewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(iviewport->WorkPos);
-    ImGui::SetNextWindowSize(iviewport->WorkSize);
-    ImGui::SetNextWindowViewport(iviewport->ID);
-
-    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus;
-    ImGui::Begin("MyDockSpace", nullptr, windowFlags);
-
-    ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
-    // dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
-    ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
-    ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
-    // ImGui::DockSpaceOverViewport(dockSpaceID, ImGui::GetMainViewport(), dockFlags);
-
-    if (!m_hasSetupLayout) {
-        ImGui::DockBuilderRemoveNode(dockSpaceID);
-        ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
-        ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
-
-        ImGuiID leftDock, rightDock, rightTopDock, rightBottomDock;
-        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.7f, &leftDock, &rightDock);
-        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.4f, &rightTopDock, &rightBottomDock);
-        float padding = ImGui::GetStyle().WindowPadding.x;
-        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 400), -1));
-
-        ImGui::DockBuilderDockWindow("Viewport", leftDock);
-        ImGui::DockBuilderDockWindow("Controls", rightTopDock);
-        ImGui::DockBuilderDockWindow("Settings", rightTopDock);
-        ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
-        ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Fluence Histogram", rightBottomDock);
-        ImGui::DockBuilderDockWindow("CE Histogram", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
-        ImGui::DockBuilderFinish(dockSpaceID);
-
-        m_hasSetupLayout = true;
-    }
-
-    ImGui::End();
-}
-
 void Application::SetupLayoutHistograms() {
-    if (!m_hasSetupLayout) {
-        // Figure out proper window size
-        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(std::min(m_resolution.x + 900, mode->width), std::min(m_resolution.y + 120, mode->height));
-        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
-    }
+    if (!m_hasSetupLayout)
+        SetFullScreen();
 
     ImGuiViewport *iviewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(iviewport->WorkPos);
@@ -398,23 +390,24 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
 
-        ImGuiID left, leftTopDock, leftBottomDock;
+        ImGuiID left, leftTopDock, leftMidDock, leftBottomDock;
         ImGuiID midDock;
         ImGuiID right;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &left, &right);
-        ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
+        ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.3f, &leftTopDock, &leftBottomDock);
+        ImGui::DockBuilderSplitNode(leftBottomDock, ImGuiDir_Up, 0.5f, &leftMidDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &midDock, &right);
         ImGui::DockBuilderSetNodeSize(left, ImVec2(239, -1));
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 500), -1));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Settings", leftMidDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
-        ImGui::DockBuilderDockWindow("Settings", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Histograms", right);
         ImGui::DockBuilderFinish(dockSpaceID);
@@ -423,6 +416,12 @@ void Application::SetupLayoutHistograms() {
     }
 
     ImGui::End();
+}
+
+void Application::SetFullScreen() {
+    auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+    m_windowSize = ImVec2(mode->width, mode->height);
+    glfwSetWindowSize(m_window, mode->width, mode->height);
 }
 
 void Application::SetupRenderThread() {
@@ -775,7 +774,7 @@ void Application::UpdateSamplingDistributionView() {
 }
 
 void Application::MainMenu() {
-    static std::string layoutNames[Layout_Count] = {"Default", "Cache Monitor", "Compact", "Histograms"};
+    static std::string layoutNames[Layout_Count] = {"Default", "Compact", "Cache Monitor", "Histograms"};
     ImGuiIO &io = ImGui::GetIO();
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Layout")) {
