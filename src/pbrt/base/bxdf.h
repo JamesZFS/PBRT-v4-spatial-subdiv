@@ -14,6 +14,7 @@
 #include <pbrt/util/vecmath.h>
 
 #include <string>
+#include <openpgl/defines.h>
 
 namespace pbrt {
 
@@ -129,6 +130,9 @@ struct BSDFSample {
           wi(wi),
           pdf(pdf),
           bsdfPdf(pdf),
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+          guidingPDF(pdf),
+#endif
           misPdf(pdf),
           flags(flags),
           sampledRoughness(sampledRoughness),
@@ -151,6 +155,9 @@ struct BSDFSample {
     Vector3f wi;
     Float pdf = 0;
     Float bsdfPdf = 0;
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+    Float guidingPDF = 0;
+#endif
     Float misPdf = 0;
     BxDFFlags flags;
     Float eta = 1;

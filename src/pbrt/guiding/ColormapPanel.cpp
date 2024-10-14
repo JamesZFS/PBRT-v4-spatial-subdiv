@@ -23,8 +23,6 @@ void ColormapPanel::Draw() {
     hoveringValue = std::numeric_limits<float>::infinity();
     auto c = m_parent->GetSelectedChannel();
     bool disableColorMap = c == Channel_CacheID;
-    ImGui::BeginDisabled(disableColorMap);
-    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     auto &io = ImGui::GetIO();
     auto &sd = shaderData[c];
     auto reset = [&]() {
@@ -48,6 +46,8 @@ void ColormapPanel::Draw() {
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
         if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
     }
+    ImGui::BeginDisabled(disableColorMap);
+    ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     if (ImGui::CollapsingHeader("Color Map")) {
         ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f, "%.6f");
         ImGui::InputFloat("Offset", &sd.offset, 0.1f, 1.0f, "%.6f");
