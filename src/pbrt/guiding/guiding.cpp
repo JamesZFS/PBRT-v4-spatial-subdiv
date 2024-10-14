@@ -504,7 +504,11 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         }
 
         // Guiding - Add BSDF data to the current path segment
-        guiding_addSurfaceData(pathSegmentData, bsdfWeight, bs->wi, bs->eta, bs->sampledRoughness, bs->pdf, survivalProb, lambda, colorSpace);
+        guiding_addSurfaceData(pathSegmentData, bsdfWeight, bs->wi, bs->eta, bs->sampledRoughness, bs->pdf,
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+                               bs->guidingPDF,
+#endif
+                               survivalProb, lambda, colorSpace);
     }
     pathLength << depth;
 
@@ -1238,7 +1242,11 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
             beta /= 1 - q;
         }
         // Guiding - Add BSDF data to the current path segment
-        guiding_addSurfaceData(pathSegmentData, bsdfWeight, bs->wi, bs->eta, bs->sampledRoughness, bs->pdf, survivalProb, lambda, colorSpace);
+        guiding_addSurfaceData(pathSegmentData, bsdfWeight, bs->wi, bs->eta, bs->sampledRoughness, bs->pdf,
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+                               bs->guidingPDF,
+#endif
+                               survivalProb, lambda, colorSpace);
     }
 
     pathLength << depth;

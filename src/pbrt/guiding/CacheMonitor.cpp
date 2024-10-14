@@ -32,7 +32,9 @@ void CacheMonitor::Plot::Draw() {
     if (m_shouldFitAxes.exchange(false) && m_monitor.m_autoFitAxes)
         ImPlot::SetNextAxesToFit();
 
-    if (ImPlot::BeginPlot(m_title.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - (m_isMain ? ImGui::GetFrameHeightWithSpacing() : 0.f)), ImPlotFlags_NoTitle)) {
+    ImPlotFlags plot_flags = ImPlotFlags_NoTitle;
+    if (ImPlot::BeginPlot(m_title.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - (m_isMain ? ImGui::GetFrameHeightWithSpacing() : 0.f)), plot_flags)) {
+        ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
         // Hovering behavior: draw a vertical line for all plots at the same x position
         ImDrawList *draw_list = ImPlot::GetPlotDrawList();
         if (ImPlot::IsPlotHovered()) {
@@ -55,7 +57,6 @@ void CacheMonitor::Plot::Draw() {
         }
 
         std::lock_guard lock(m_monitor.m_mutex);
-        ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
         for (const auto &probe: m_monitor.m_probes) {
             const float *x = &probe.data[0].iter;
             ImPlot::PlotLine(StringPrintf("#%d", probe.idx).c_str(), x, x + m_yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));

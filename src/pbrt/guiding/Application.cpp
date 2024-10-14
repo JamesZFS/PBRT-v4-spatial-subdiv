@@ -109,8 +109,6 @@ int Application::Run() {
         UpdateFramebuffer();
         Draw();
 
-        // ImGui::ShowDemoWindow();
-        // ImPlot::ShowDemoWindow();
         RenderImGuiFrame(m_window);
     }
 
@@ -159,6 +157,9 @@ void Application::Draw() {
     }
     ImGui::End();
 
+
+    // ImGui::ShowDemoWindow();
+    // ImPlot::ShowDemoWindow();
     CacheMonitorViews();
     CacheHistogramViews();
 
@@ -231,10 +232,9 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderSplitNode(leftDock, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Left, 0.5f, &midDock, &rightTopDock);
         ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.4f, &rightTopDock, &rightBottomDock);
-        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, -1));
+        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, iviewport->Size.y));
         float padding = ImGui::GetStyle().WindowPadding.x;
-        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), -1));
-        // ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, 600));
+        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
@@ -286,9 +286,11 @@ void Application::SetupLayoutCompact() {
 
         ImGuiID leftDock, rightDock, rightTopDock, rightBottomDock;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.7f, &leftDock, &rightDock);
-        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.4f, &rightTopDock, &rightBottomDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
         float padding = ImGui::GetStyle().WindowPadding.x;
-        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 400), -1));
+        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 400), iviewport->Size.y));
+        ImGui::DockBuilderSetNodeSize(rightTopDock, ImVec2(400, m_windowSize.y * 0.5));
+        ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(400, m_windowSize.y * 0.5));
 
         ImGui::DockBuilderDockWindow("Viewport", leftDock);
         ImGui::DockBuilderDockWindow("Controls", rightTopDock);
@@ -341,12 +343,12 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &midDock, &right);
         ImGui::DockBuilderSplitNode(right, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSplitNode(rightBottomDock, ImGuiDir_Up, 0.5f, &rightMidDock, &rightBottomDock);
-        ImGui::DockBuilderSetNodeSize(left, ImVec2(239, -1));
+        ImGui::DockBuilderSetNodeSize(left, ImVec2(239, iviewport->Size.y));
         float padding = ImGui::GetStyle().WindowPadding.x;
-        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), -1));
-        ImGui::DockBuilderSetNodeSize(rightTopDock, ImVec2(-1, m_windowSize.y * 0.25));
-        ImGui::DockBuilderSetNodeSize(rightMidDock, ImVec2(-1, m_windowSize.y * 0.25));
-        ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(-1, m_windowSize.y * 0.5));
+        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
+        ImGui::DockBuilderSetNodeSize(rightTopDock, ImVec2(350, m_windowSize.y * 0.25));
+        ImGui::DockBuilderSetNodeSize(rightMidDock, ImVec2(350, m_windowSize.y * 0.25));
+        ImGui::DockBuilderSetNodeSize(rightBottomDock, ImVec2(350, m_windowSize.y * 0.5));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
@@ -397,9 +399,9 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.3f, &leftTopDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(leftBottomDock, ImGuiDir_Up, 0.5f, &leftMidDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(right, ImGuiDir_Left, 0.5f, &midDock, &right);
-        ImGui::DockBuilderSetNodeSize(left, ImVec2(239, -1));
+        ImGui::DockBuilderSetNodeSize(left, ImVec2(239, iviewport->Size.y));
         float padding = ImGui::GetStyle().WindowPadding.x;
-        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 500), -1));
+        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 500), iviewport->Size.y));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);

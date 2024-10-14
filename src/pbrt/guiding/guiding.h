@@ -132,19 +132,20 @@ struct GuidedBSDF{
             }
         }
 
+        float guidingPDF = 0;
         if (sampleBSDF){
             bs = m_bsdf->Sample_f(woRender, u, u2, mode, sampleFlags);
             if(bs && useGuiding) {
                 pgl_vec3f pglwi = openpgl::cpp::Vector3(bs->wi[0], bs->wi[1], bs->wi[2]);
-                float guidedPDF = m_surfaceSamplingDistribution->PDF(pglwi);
+                guidingPDF = m_surfaceSamplingDistribution->PDF(pglwi);
                 bs->bsdfPdf = bs->pdf;
-                bs->pdf = ((1.0f - guidingProbability) * bs->pdf) + (guidingProbability * guidedPDF);
+                bs->pdf = ((1.0f - guidingProbability) * bs->pdf) + (guidingProbability * guidingPDF);
                 bs->misPdf = bs->pdf;
             }
         } else {
             pgl_point2f sample2D = openpgl::cpp::Point2(u2[0], u2[1]);
             pgl_vec3f pglwi;
-            float guidedPDF = m_surfaceSamplingDistribution->SamplePDF(sample2D, pglwi);
+            guidingPDF = m_surfaceSamplingDistribution->SamplePDF(sample2D, pglwi);
             
             Vector3f wiRender = Vector3f(pglwi.x, pglwi.y, pglwi.z);
             SampledSpectrum f = m_bsdf->f(woRender, wiRender, mode);
@@ -155,12 +156,16 @@ struct GuidedBSDF{
                 Float eta = m_bsdf->GetEta();
                 bool pdfIsProportional = false;
 
-                float pdf = ((1.0f - guidingProbability) * bsdfPDF) + (guidingProbability * guidedPDF); 
+                float pdf = ((1.0f - guidingProbability) * bsdfPDF) + (guidingProbability * guidingPDF);
                 bs = BSDFSample(f, wiRender, pdf, flags, sampledRoughness, eta, pdfIsProportional);
 				bs->bsdfPdf = bsdfPDF;
                 bs->misPdf = pdf;
             }
         }
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+        if (bs)
+            bs->guidingPDF = guidingPDF;
+#endif
         return bs;
     }
 
@@ -249,6 +254,9 @@ struct GuidedBSDF{
         float misPdf = risSamples[idxRIS].misPDF;
         bs = BSDFSample(risSamples[idxRIS].f, risSamples[idxRIS].wiRender, pdf, risSamples[idxRIS].flags, risSamples[idxRIS].sampledRoughness, risSamples[idxRIS].eta, false);
         bs->bsdfPdf = risSamples[idxRIS].bsdfPDF;
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+        bs->guidingPDF = risSamples[idxRIS].guidingPDF;
+#endif
         bs->misPdf = misPdf;
 
         return bs;
@@ -709,7 +717,11 @@ inline void guiding_addInfiniteLightEmission(openpgl::cpp::PathSegmentStorage* p
     }
 }
 
-inline void guiding_addSurfaceData(openpgl::cpp::PathSegment* pathSegmentData, const SampledSpectrum& bsdfWeight, const Vector3f& wi, const Float eta, const Float sampledRoughness, const Float bsdfPDF, const Float survivalProbability, SampledWavelengths &lambda, const RGBColorSpace *colorSpace)
+inline void guiding_addSurfaceData(openpgl::cpp::PathSegment* pathSegmentData, const SampledSpectrum& bsdfWeight, const Vector3f& wi, const Float eta, const Float sampledRoughness, const Float samplingPDF,
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+    const Float guidingPDF,
+#endif
+    const Float survivalProbability, SampledWavelengths &lambda, const RGBColorSpace *colorSpace)
 {
     const pgl_vec3f pglZero = openpgl::cpp::Vector3(0.0f, 0.0f, 0.0f);
     const pgl_vec3f pglOne = openpgl::cpp::Vector3(1.0f, 1.0f, 1.0f);
@@ -724,7 +736,10 @@ inline void guiding_addSurfaceData(openpgl::cpp::PathSegment* pathSegmentData, c
         openpgl::cpp::SetVolumeScatter(pathSegmentData, false);
         //openpgl::cpp::SetNormal(pathSegmentData, guiding_vec3f(normal));
         openpgl::cpp::SetDirectionIn(pathSegmentData, pglWi);
-        openpgl::cpp::SetPDFDirectionIn(pathSegmentData, bsdfPDF);
+        openpgl::cpp::SetPDFDirectionIn(pathSegmentData, samplingPDF);
+#ifdef OPENPGL_GUIDING_PDF_CACHES
+        openpgl::cpp::SetPDFGuidingDirectionIn(pathSegmentData, guidingPDF);
+#endif
         openpgl::cpp::SetScatteringWeight(pathSegmentData, pglBsdfWeight);
         openpgl::cpp::SetIsDelta(pathSegmentData, is_delta);
         openpgl::cpp::SetEta(pathSegmentData, eta);
