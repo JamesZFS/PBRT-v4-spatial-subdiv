@@ -52,7 +52,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
                 m_cpuBuffer.cacheID[index] = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
             }
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
-            m_cpuBuffer.ce[index] = pixel.guidingData.crossEntropy;
+            m_cpuBuffer.ce[index] = pixel.guidingData.ce;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
             m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;

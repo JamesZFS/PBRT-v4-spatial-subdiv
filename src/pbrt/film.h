@@ -160,7 +160,18 @@ class VisibleSurface {
     bool set = false;
 
     // Guiding
-    PGLRegionStatistics guidingData;
+    // PGLRegionStatistics guidingData;
+    struct GuidingData {
+        uint32_t id = -1;
+        uint32_t fineId = -1;
+        uint32_t numSamples = 0;
+        uint32_t numZeroValueSamples = 0;
+        uint32_t depth = 0;
+        float fluence = 0;
+        float ce = 0;
+        float fineFluence = 0;
+        float fineCE = 0;
+    } guidingData;
 
 };
 
@@ -469,7 +480,8 @@ class GuidedGBufferFilm : public FilmBase {
         double weightSum = 0.;
         double gBufferWeightSum = 0.;
         AtomicDouble rgbSplat[3];
-        PGLRegionStatistics guidingData;
+        // PGLRegionStatistics guidingData;
+        VisibleSurface::GuidingData guidingData;
         //Point3f pSum;
         //Float dzdxSum = 0, dzdySum = 0;
         Normal3f nSum, nsSum;
