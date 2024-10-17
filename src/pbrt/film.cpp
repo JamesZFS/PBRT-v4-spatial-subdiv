@@ -962,8 +962,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                    "FineId.R",
                  "FineId.G",
                  "FineId.B",
-                    "FluenceFine",
-                    "CEFine",
+                    "CE.Fine",
                 });
 
     ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
@@ -972,7 +971,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     ImageChannelDesc guideDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
             "Samples", "ZeroSamples", "Depth", "Fluence", "CE",
-            "FineId.R", "FineId.G", "FineId.B", "FluenceFine", "CEFine"});
+            "FineId.R", "FineId.G", "FineId.B", "CE.Fine"});
 
     std::atomic<int> nClamped{0};
     ParallelFor2D(pixelBounds, [&](Point2i p) {
@@ -1018,8 +1017,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                               (float) pixel.guidingData.numSamples, (float) pixel.guidingData.numZeroValueSamples, (float) pixel.guidingData.depth,
                               pixel.guidingData.fluence, pixel.guidingData.ce,
-                                fineIdRgb[0], fineIdRgb[1], fineIdRgb[2],
-                              pixel.guidingData.fineFluence, pixel.guidingData.fineCE});
+                                fineIdRgb[0], fineIdRgb[1], fineIdRgb[2], pixel.guidingData.fineCE});
 
         //Normal3f n =
         //    LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);

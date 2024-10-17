@@ -26,11 +26,15 @@ enum SelectedChannel {
 
 enum Colormap {
     CMap_None = 0,
+    // Sequential
     CMap_Cividis,
     CMap_Inferno,
     CMap_Magma,
     CMap_Plasma,
     CMap_Viridis,
+    // Diverging
+    CMap_RdYlGn,
+    CMap_Spectral,
     CMap_Count,
 };
 

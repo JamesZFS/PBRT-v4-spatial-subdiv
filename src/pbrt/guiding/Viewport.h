@@ -19,7 +19,7 @@ public:
 
     void UpdateCPUBufferFromFilm();
 
-    void UpdateFramebuffer(SelectedChannel channel, const TonemapShaderUniforms &uniforms);
+    void UpdateFramebuffer(const TonemapShaderUniforms &uniforms);
 
     void Draw() override;
 
@@ -51,9 +51,17 @@ private:
 
     struct {
         std::vector<pbrt::RGB> radiance;
-        std::vector<pbrt::RGB> cacheID;
+        struct {
+            std::vector<pbrt::RGB> coarse;
+            std::vector<pbrt::RGB> fine;
+            std::vector<pbrt::RGB> diff;
+        } cacheID;
         std::vector<float> fluence;
-        std::vector<float> ce;
+        struct {
+            std::vector<float> coarse;
+            std::vector<float> fine;
+            std::vector<float> diff;
+        } ce;
         std::vector<float> samples;
         std::vector<float> zeroSamples;
         std::vector<float> depth;

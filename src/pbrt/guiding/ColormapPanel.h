@@ -15,16 +15,18 @@ struct ColormapPanel : public View {
 
     void Draw() override;
 
-    std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c) const;
+    std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c, bool showFine) const;
 
     pbrt::Film film;
     const pstd::optional<pbrt::Image> &reference;
-    struct {
+    struct ShaderData {
         float scale = 1.0f;
         float offset = 0.0f;
         Colormap cmap = CMap_None;
         bool firstNormalized = false;
-    } shaderData[Channel_Count];
+    };
+    ShaderData shaderData[Channel_Count];
+    ShaderData shaderDataDiffCE {1.0f, 0.5f, CMap_RdYlGn, true};
     std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRAE);
 
     bool isHovered = false;

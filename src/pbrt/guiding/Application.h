@@ -40,6 +40,8 @@ public:
     void Draw() override;
     int GetCurrentWave() const;
     int GetSPP() const { return m_spp; }
+    bool IsShowingFine() const { return m_showFine; }
+    bool IsShowingDiff() const { return m_showDiff; }
 
 private:
     struct RayCastingData {
@@ -101,6 +103,7 @@ private:
     void RayCastingPanel();
 
     void ChannelSelector();
+    void ToggleShowFine();
     void StatusBar();
     void IntegratorSettings();
     void GuideSettings();
@@ -137,6 +140,8 @@ private:
     RayCastingData m_rcSDV;  // ray casting result at the sampling distribution view
     int m_maxMaxDepth = 15;
     SelectedChannel m_selectedChannel = Channel_Radiance;
+    bool m_showFine = false;  // show the fine cache ID and CE
+    bool m_showDiff = false;  // show the difference between fine and coarse
     bool m_enableShortcuts = true;
     bool m_enableRayCastingAtMouse = false;
     bool m_enableProbes = false;

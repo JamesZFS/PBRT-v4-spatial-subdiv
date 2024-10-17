@@ -133,6 +133,7 @@ void Application::Draw() {
         int wave = GetCurrentWave();
         ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave >= m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
         ErrorMetricSelector();
+        ToggleShowFine();
         m_colormapPanel->Draw();
         RayCastingPanel();
         ImGui::End();
@@ -516,7 +517,8 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
 void Application::UpdateFramebuffer() {
     // Update the framebuffer when the film is updated
     SelectedChannel c = m_selectedChannel;
-    auto &sd = m_colormapPanel->shaderData[c];
+    bool isDiffCE = c == Channel_CE && m_showDiff;
+    auto &sd = isDiffCE ? m_colormapPanel->shaderDataDiffCE : m_colormapPanel->shaderData[c];
     float clipValue = std::numeric_limits<float>::infinity();
     if (m_colormapPanel->isHovered) {
         clipValue = m_colormapPanel->hoveringValue;
@@ -529,7 +531,7 @@ void Application::UpdateFramebuffer() {
     } else if (c == Channel_Samples && m_cacheHistogram.samples->isHovered) {
         clipValue = m_cacheHistogram.samples->hoveringValue;
     }
-    m_viewport->UpdateFramebuffer(c, {sd.scale, sd.offset, clipValue, cmap_tex_ids[sd.cmap]});
+    m_viewport->UpdateFramebuffer({sd.scale, sd.offset, clipValue, cmap_tex_ids[sd.cmap]});
 }
 
 void Application::SaveRendering(std::string path) {
@@ -961,6 +963,20 @@ void Application::ChannelSelector() {
         }
 
         SetSelectedChannel(newChannel);
+    }
+}
+
+void Application::ToggleShowFine() {
+    bool showFineOld = m_showFine, showDiffOld = m_showDiff;
+    if (IsKeyPressed(ImGuiKey_F, false)) m_showFine ^= true;
+    if (IsKeyPressed(ImGuiKey_D, false)) m_showDiff ^= true;
+    ImGui::Checkbox("Show Lookaheads", &m_showFine);
+    ImGui::SetItemTooltip("(F) Works for Cache ID, CE channels, and sampling distribution view.");
+    ImGui::SameLine();
+    ImGui::Checkbox("Show Difference", &m_showDiff);
+    ImGui::SetItemTooltip("(D) Only works for Cache ID and CE channels.");
+    if (m_showFine != showFineOld || m_showDiff != showDiffOld) {
+        m_viewport->RequestUpdate();
     }
 }
 
