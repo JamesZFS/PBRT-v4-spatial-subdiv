@@ -948,6 +948,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                  //"Ns.x",
                  //"Ns.y",
                  //"Ns.z",
+                    // Coarse:
                  "GuideId.R",
                  "GuideId.G",
                  "GuideId.B",
@@ -956,6 +957,13 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                  "Depth",
                  "Fluence",
                  "CE",
+
+                    // Fine:
+                   "FineId.R",
+                 "FineId.G",
+                 "FineId.B",
+                    "FluenceFine",
+                    "CEFine",
                 });
 
     ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
@@ -963,7 +971,8 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
     ImageChannelDesc guideDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
-            "Samples", "ZeroSamples", "Depth", "Fluence", "CE"});
+            "Samples", "ZeroSamples", "Depth", "Fluence", "CE",
+            "FineId.R", "FineId.G", "FineId.B", "FluenceFine", "CEFine"});
 
     std::atomic<int> nClamped{0};
     ParallelFor2D(pixelBounds, [&](Point2i p) {
@@ -974,6 +983,11 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         if(pixel.guidingData.id != -1)
         {
             guideIdRgb = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
+        }
+        RGB fineIdRgb = guideIdRgb;
+        if(pixel.guidingData.fineId != -1)
+        {
+            fineIdRgb = RGB(HashFloat(pixel.guidingData.fineId, 0), HashFloat(pixel.guidingData.fineId, 1), HashFloat(pixel.guidingData.fineId, 2));
         }
 
         // Normalize pixel with weight sum
@@ -1003,7 +1017,9 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         image.SetChannels(pOffset, guideDesc,
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                               (float) pixel.guidingData.numSamples, (float) pixel.guidingData.numZeroValueSamples, (float) pixel.guidingData.depth,
-                              pixel.guidingData.fluence, pixel.guidingData.crossEntropy});
+                              pixel.guidingData.fluence, pixel.guidingData.ce,
+                                fineIdRgb[0], fineIdRgb[1], fineIdRgb[2],
+                              pixel.guidingData.fineFluence, pixel.guidingData.fineCE});
 
         //Normal3f n =
         //    LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
