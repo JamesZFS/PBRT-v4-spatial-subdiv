@@ -253,7 +253,9 @@ static std::string _cmap_paths[CMap_Count] = {
     PBRT_ROOT_DIR "images/cmaps/inferno.png",
     PBRT_ROOT_DIR "images/cmaps/magma.png",
     PBRT_ROOT_DIR "images/cmaps/plasma.png",
-    PBRT_ROOT_DIR "images/cmaps/viridis.png"
+    PBRT_ROOT_DIR "images/cmaps/viridis.png",
+    PBRT_ROOT_DIR "images/cmaps/RdYlGn.png",
+    PBRT_ROOT_DIR "images/cmaps/spectral.png",
 };
 
 const char* cmap_names[CMap_Count] = {
@@ -262,7 +264,9 @@ const char* cmap_names[CMap_Count] = {
     "Inferno",
     "Magma",
     "Plasma",
-    "Viridis"
+    "Viridis",
+    "RdYlGn",
+    "Spectral",
 };
 
 GLuint cmap_tex_ids[CMap_Count] = {0};

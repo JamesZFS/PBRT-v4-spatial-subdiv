@@ -3,6 +3,7 @@
 //
 
 #include "Viewport.h"
+#include "Application.h"
 
 using namespace pbrt;
 
@@ -11,9 +12,13 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
       m_resolution(film.PixelBounds().Diagonal()),
       m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     m_cpuBuffer.radiance.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.cacheID.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.cacheID.coarse.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.cacheID.fine.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.cacheID.diff.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.fluence.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.ce.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.ce.coarse.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.ce.fine.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.ce.diff.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
@@ -49,10 +54,20 @@ void Viewport::UpdateCPUBufferFromFilm() {
             RGB radiance = gFilm->GetPixelRGB(p);
             m_cpuBuffer.radiance[index] = radiance;
             if (pixel.guidingData.id != -1) {
-                m_cpuBuffer.cacheID[index] = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
+                m_cpuBuffer.cacheID.coarse[index] = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
+            } else {
+                m_cpuBuffer.cacheID.coarse[index] = RGB(0, 0, 0);
+            }
+            if (pixel.guidingData.fineId != -1) {
+                m_cpuBuffer.cacheID.diff[index] = m_cpuBuffer.cacheID.fine[index] = RGB(HashFloat(pixel.guidingData.fineId, 0), HashFloat(pixel.guidingData.fineId, 1), HashFloat(pixel.guidingData.fineId, 2));
+            } else {
+                m_cpuBuffer.cacheID.diff[index] = RGB(0, 0, 0);
+                m_cpuBuffer.cacheID.fine[index] = m_cpuBuffer.cacheID.coarse[index];
             }
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
-            m_cpuBuffer.ce[index] = pixel.guidingData.ce;
+            m_cpuBuffer.ce.coarse[index] = pixel.guidingData.ce;
+            m_cpuBuffer.ce.fine[index] = pixel.guidingData.fineCE;
+            m_cpuBuffer.ce.diff[index] = pixel.guidingData.fineId != -1 ? pixel.guidingData.ce - pixel.guidingData.fineCE : 0;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
             m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;
@@ -100,8 +115,11 @@ void Viewport::UpdateErrorImage() {
     }
 }
 
-void Viewport::UpdateFramebuffer(SelectedChannel channel, const TonemapShaderUniforms &uniforms) {
+void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
     // Render to the tonemapped framebuffer if the CPU buffer has been updated
+    auto channel = m_parent->GetSelectedChannel();
+    bool showFine = m_parent->IsShowingFine();
+    bool showDiff = m_parent->IsShowingDiff();
     if (m_cpuBufferUpdated.exchange(false)) {
         // Update the rendering texture
         switch (channel) {
@@ -110,7 +128,7 @@ void Viewport::UpdateFramebuffer(SelectedChannel channel, const TonemapShaderUni
                 break;
             case Channel_CacheID:
                 CHECK(m_isMultiChannel);
-                UpdateTextureFromRGBData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.cacheID.data(), m_resolution.x, m_resolution.y, false);
+                UpdateTextureFromRGBData((GLuint) (uintptr_t) m_renderingTex, showDiff ? m_cpuBuffer.cacheID.diff.data() : showFine ? m_cpuBuffer.cacheID.fine.data() : m_cpuBuffer.cacheID.coarse.data(), m_resolution.x, m_resolution.y, false);
                 break;
             case Channel_Fluence:
                 CHECK(m_isMultiChannel);
@@ -118,7 +136,7 @@ void Viewport::UpdateFramebuffer(SelectedChannel channel, const TonemapShaderUni
                 break;
             case Channel_CE:
                 CHECK(m_isMultiChannel);
-                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.ce.data(), m_resolution.x, m_resolution.y, false);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, showDiff ? m_cpuBuffer.ce.diff.data() : showFine ? m_cpuBuffer.ce.fine.data() : m_cpuBuffer.ce.coarse.data(), m_resolution.x, m_resolution.y, false);
                 break;
             case Channel_Samples:
                 CHECK(m_isMultiChannel);
