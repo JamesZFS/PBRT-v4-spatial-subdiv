@@ -622,7 +622,7 @@ inline openpgl::cpp::PathSegment* guiding_newSurfacePathSegment(openpgl::cpp::Pa
     
     const Vector3f wo = -ray.d;
     const Point3f p = ray.o + si->tHit * ray.d;
-    const Normal3f n = isect.shading.n;
+    const Normal3f n = (Dot(ray.d, isect.shading.n) > 0 ? -1 : 1) * isect.shading.n;
     pgl_point3f pglP = openpgl::cpp::Point3(p[0], p[1], p[2]);
     pgl_vec3f pglNormal = openpgl::cpp::Vector3(n[0], n[1], n[2]);
     pgl_vec3f pglWo = openpgl::cpp::Vector3(wo[0], wo[1], wo[2]);
