@@ -42,7 +42,8 @@ void ColormapPanel::Draw() {
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
-            ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f");
+            if (ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f"))
+                sd.offset = 0.5f / sd.scale;
             if (ImGui::Button("Reset")) reset();
             ImGui::SetNextItemWidth(90);
             ImGui::Combo("Tonemap", reinterpret_cast<int *>(&sd.cmap), cmap_names, CMap_Count);

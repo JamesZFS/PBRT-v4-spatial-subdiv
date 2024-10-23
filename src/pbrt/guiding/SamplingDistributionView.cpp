@@ -27,8 +27,8 @@ SamplingDistributionView::~SamplingDistributionView() {
     glDeleteTextures(1, &m_renderingTex);
 }
 
-void SamplingDistributionView::UpdateCPUBuffer(const pbrt::Point3f &pos, const pbrt::Normal3f &normal) {
-    m_prev = {true, pos, normal};
+void SamplingDistributionView::UpdateCPUBuffer(const pbrt::Point3f &pos, const pbrt::Normal3f &normal, bool lookahead) {
+    m_prev = {true, pos, normal, lookahead};
     UpdateCPUBuffer();
 }
 
@@ -80,7 +80,7 @@ void SamplingDistributionView::Clear() {
 
 void SamplingDistributionView::Draw() {
 #ifdef OPENPGL_RADIANCE_CACHES
-    static const char *bufferNames[Buffer_Count] = {"PDF", "Incidient Radiance", "Outgoing Radiance"};
+    static const char *bufferNames[Buffer_Count] = {"PDF", "Incident Radiance", "Outgoing Radiance"};
     ImGui::SetNextItemWidth(90);
     if (ImGui::Combo("Type", reinterpret_cast<int *>(&m_selectedBuffer), bufferNames, Buffer_Count)) {
         m_cpuBufferUpdated = true;
@@ -151,7 +151,12 @@ void SamplingDistributionView::UpdateCPUBuffer() {
     auto normal = m_prev.normal;
     pgl_point3f pglP = {pos.x, pos.y, pos.z};
     float rnd = -1;
-    if (m_ssd.Init(&m_field, pglP, rnd)) {
+    bool success = false;
+    if (m_prev.lookahead)
+        success = m_ssd.Init<true>(&m_field, pglP, rnd);
+    else
+        success = m_ssd.Init<false>(&m_field, pglP, rnd);
+    if (success) {
         if (m_enableCosineProduct) {
             pgl_vec3f pglN = {normal.x, normal.y, normal.z};
             m_ssd.ApplyCosineProduct(pglN);
@@ -179,6 +184,6 @@ void SamplingDistributionView::UpdateCPUBuffer() {
 
         m_cpuBufferUpdated = true;
     } else {
-        Error("Failed to initialize the sampling distribution");
+        Clear();
     }
 }
