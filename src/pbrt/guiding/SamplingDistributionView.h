@@ -19,7 +19,7 @@ public:
 
     ~SamplingDistributionView();
 
-    void UpdateCPUBuffer(const pbrt::Point3f &pos, const pbrt::Normal3f &normal);
+    void UpdateCPUBuffer(const pbrt::Point3f &pos, const pbrt::Normal3f &normal, bool lookahead);
 
     void UpdateFramebuffer();
 
@@ -56,6 +56,7 @@ private:
         bool valid = false;
         pbrt::Point3f pos;
         pbrt::Normal3f normal;
+        bool lookahead = false;
     } m_prev;
 
     bool m_localFrame = true;

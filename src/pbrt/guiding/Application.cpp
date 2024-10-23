@@ -575,8 +575,12 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Cache: <invalid>");
         return;
     }
-    ImGui::Text("Cache ID: %u", coarse.id);
-    ImGui::Text("Removed: %s", coarse.removed ? "true" : "false");
+    CHECK(!coarse.removed);
+    CHECK(!fineIsValid || !fine.removed);
+    if (fineIsValid)
+        ImGui::Text("Cache ID Parent/Child: %u/%u", coarse.id, fine.id);
+    else
+        ImGui::Text("Cache ID: %u", coarse.id);
     ImGui::Text("Fluence: %f", coarse.fluence);
     if (fineIsValid)
         ImGui::Text("CE Parent/Child: %f/%f %s", coarse.crossEntropy, fine.crossEntropy,
@@ -681,8 +685,8 @@ void Application::ProbesInteraction() {
                         coarseValid ? rc.coarse.fluence : nan,
                         coarseValid ? rc.coarse.crossEntropy : nan,
                         fineValid ? rc.fine.crossEntropy : nan,
-                        0,
-                        coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : 0,
+                        coarseValid && fineValid ? 0 : nan,
+                        coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
                         coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
                     });
                 }
@@ -756,8 +760,8 @@ void Application::UpdateCacheCurves() {
                 coarseValid ? rc.coarse.fluence : nan,
                 coarseValid ? rc.coarse.crossEntropy : nan,
                 fineValid ? rc.fine.crossEntropy : nan,
-                0,
-                coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : 0,
+                coarseValid && fineValid ? 0 : nan,
+                coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
                 coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
             });
         }
@@ -787,7 +791,7 @@ void Application::UpdateCacheHistograms() {
 void Application::UpdateSamplingDistributionView() {
     if (m_rcSDV.coarse.id != -1) {
         std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
-        m_samplingDistributionView->UpdateCPUBuffer(m_rcSDV.hit, m_rcSDV.normal);
+        m_samplingDistributionView->UpdateCPUBuffer(m_rcSDV.hit, m_rcSDV.normal, m_showFine);
     } else {
         m_samplingDistributionView->Clear();
     }
@@ -990,6 +994,9 @@ void Application::ToggleShowFine() {
     if (m_showFine != showFineOld || m_showDiff != showDiffOld) {
         m_viewport->RequestUpdate();
     }
+    if (m_showFine != showFineOld) {
+        UpdateSamplingDistributionView();
+    }
 }
 
 void Application::StatusBar() {
@@ -1083,10 +1090,10 @@ void Application::SpatialSubdivisionSettings() {
         int maxDepth = (int) m_subdivCfg.maxDepth;
         int maxSamples = (int) m_subdivCfg.maxSamples;
         int minSamples = (int) m_subdivCfg.minSamples;
-        ImGui::SliderInt("Max Depth", &maxDepth, 1, 32);
+        ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
         ImGui::InputInt("Max Samples", &maxSamples, 1000, 5000);
         ImGui::InputInt("Min Samples", &minSamples, 1000, 5000);
-        m_subdivCfg.maxDepth = maxDepth;
+        m_subdivCfg.maxDepth = std::max(1, std::min(32, maxDepth));
         m_subdivCfg.maxSamples = std::max(0, maxSamples);
         m_subdivCfg.minSamples = std::max(0, minSamples);
         ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.1f, 1.0f);
