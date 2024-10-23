@@ -16,10 +16,14 @@ class CacheMonitor {
 public:
     struct PlotEntry {
         float iter;
-        float fluence;
-        float ce;
         float depth;
         float samples;
+        float fluence;
+        float coarseCE;
+        float fineCE;
+        float negerr;   // 0
+        float poserr;   // fineCE - coarseCE
+        float splitCE;  // coarseCE - threshold
     };
 
     struct Probe {
@@ -30,10 +34,10 @@ public:
     };
 
     enum PlotType {
+        PlotType_Depth = 0,
+        PlotType_Samples,
         PlotType_Fluence,
         PlotType_CE,
-        PlotType_Depth,
-        PlotType_Samples,
     };
 
     /// A window that plots a data field of the probes
@@ -44,12 +48,12 @@ public:
         uint64_t ID() const { return (uint64_t) this; }
 
     private:
-        Plot(pbrt::Application* parent, bool isMain, const std::string &title, int yOffset, CacheMonitor &monitor)
-            : View(parent), m_isMain(isMain), m_title(title), m_yOffset(yOffset), m_monitor(monitor) {}
+        Plot(pbrt::Application* parent, bool isMain, const std::string &title, PlotType type, CacheMonitor &monitor)
+            : View(parent), m_isMain(isMain), m_title(title), m_type(type), m_monitor(monitor) {}
 
         bool m_isMain;
         std::string m_title;
-        int m_yOffset;
+        PlotType m_type;
         CacheMonitor &m_monitor;
         std::atomic_bool m_shouldFitAxes = true;
 
@@ -93,9 +97,12 @@ private:
     } m_mouse;
 
     float m_probeRadius = 10;
+    float m_lineWeight = 1;
     float m_markerSize = 2;
+    float m_alpha = 0.5f;
     bool m_displayProbeID = false;
     bool m_autoFitAxes = true;
+    bool m_plotLookahead = true;
 };
 
 

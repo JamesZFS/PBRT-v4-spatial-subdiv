@@ -464,7 +464,6 @@ void Application::CheckIsRenderThread() {
 
 Application::RayCastingData Application::RayCast(Point2i pixel) const {
     RayCastingData rc{pixel};
-    static openpgl::cpp::SurfaceSamplingDistribution ssd(&m_field);
     static ScratchBuffer scratchBuffer;
     if (rc.pixel.x >= 0 && rc.pixel.x < m_resolution.x && rc.pixel.y >= 0 && rc.pixel.y < m_resolution.y) {
         IndependentSampler _sampler(m_spp, 0);
@@ -498,13 +497,8 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
                     rc.uv = sit->intr.uv;
                     // Query the guiding cache
                     pgl_point3f pglP = {rc.hit.x, rc.hit.y, rc.hit.z};
-                    float rnd = -1.0f;
                     std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
-                    if (ssd.Init(&m_field, pglP, rnd)) {
-                        // Guiding region available
-                        uint32_t id = ssd.GetId();
-                        rc.cache = m_field.GetRegionStatisticsSurface(id);
-                    }
+                    std::tie(rc.coarse, rc.fine) = m_field.GetCoarseFineRegionStatisticsSurface(pglP);
                     break;
                 }
             }
@@ -575,12 +569,22 @@ void Application::LoadSamples(std::string path) {
         Error("Failed to load samples from %s", path);
 }
 
-void Application::CacheInfo(const PGLRegionStatistics &cache) {
-    ImGui::Text("Cache ID: %u", cache.id);
-    ImGui::Text("Fluence: %f", cache.fluence);
-    ImGui::Text("CE: %f", cache.crossEntropy);
-    ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(cache.numSamples).c_str(), FormatInteger(cache.numZeroValueSamples).c_str());
-    ImGui::Text("Depth: %d", (int) cache.depth);
+void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionStatistics &fine) {
+    bool coarseIsValid = coarse.id != -1, fineIsValid = fine.id != -1;
+    if (!coarseIsValid) {
+        ImGui::Text("Cache: <invalid>");
+        return;
+    }
+    ImGui::Text("Cache ID: %u", coarse.id);
+    ImGui::Text("Removed: %s", coarse.removed ? "true" : "false");
+    ImGui::Text("Fluence: %f", coarse.fluence);
+    if (fineIsValid)
+        ImGui::Text("CE Parent/Child: %f/%f %s", coarse.crossEntropy, fine.crossEntropy,
+            coarse.crossEntropy == fine.crossEntropy ? "" : coarse.crossEntropy > fine.crossEntropy ? "(+)" : "(-)");
+    else
+        ImGui::Text("CE: %f", coarse.crossEntropy);
+    ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(coarse.numSamples).c_str(), FormatInteger(coarse.numZeroValueSamples).c_str());
+    ImGui::Text("Depth: %d", (int) coarse.depth);
 }
 
 void Application::UpdateRayCastingAtMouse() {
@@ -589,13 +593,14 @@ void Application::UpdateRayCastingAtMouse() {
             m_rcMouse = RayCast(m_viewport->GetMousePixel());
         } else {
             m_rcMouse.valid = false;
-            m_rcMouse.cache.id = -1;
+            m_rcMouse.coarse.id = m_rcMouse.fine.id = -1;
         }
-        if (m_rcMouse.cache.id != -1) {
+        if (m_rcMouse.coarse.id != -1) {
             // Tooltip next to the mouse
             if (ImGui::BeginTooltip()) {
-                CacheInfo(m_rcMouse.cache);
-                ImGui::Text("Error: %f", m_viewport->GetErrorAtPixel(m_rcMouse.pixel));
+                CacheInfo(m_rcMouse.coarse, m_rcMouse.fine);
+                if (m_reference)
+                    ImGui::Text("Error: %f", m_viewport->GetErrorAtPixel(m_rcMouse.pixel));
                 ImGui::EndTooltip();
             }
         }
@@ -612,7 +617,7 @@ void Application::SamplingDistributionInteraction() {
     }
 
     // Draw the view location
-    if (m_rcSDV.cache.id != -1) {
+    if (m_rcSDV.coarse.id != -1) {
         ImVec2 leftTop = m_viewport->GetLeftTop();
         float scale = m_viewport->GetScale();
         ImVec2 center(leftTop.x + m_rcSDV.pixel.x * scale, leftTop.y + m_rcSDV.pixel.y * scale);
@@ -625,7 +630,7 @@ void Application::SamplingDistributionInteraction() {
 
         // Right click to clear the sampling distribution
         if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            m_rcSDV.cache.id = -1;
+            m_rcSDV.coarse.id = -1;
             m_samplingDistributionView->Clear();
         }
     }
@@ -668,12 +673,17 @@ void Application::ProbesInteraction() {
                 const float nan = std::numeric_limits<float>::quiet_NaN();
                 if (probe.data.empty() || probe.data.back().iter < x) {
                     auto rc = RayCast(pixel);
-                    bool cacheValid = rc.cache.id != -1;
+                    bool coarseValid = rc.coarse.id != -1;
+                    bool fineValid = rc.fine.id != -1;
                     probe.data.push_back({x,
-                        cacheValid ? rc.cache.fluence : nan,
-                        cacheValid ? rc.cache.crossEntropy : nan,
-                        cacheValid ? (float) rc.cache.depth : nan,
-                        cacheValid ? (float) rc.cache.numSamples : nan
+                        coarseValid ? (float) rc.coarse.depth : nan,
+                        coarseValid ? (float) rc.coarse.numSamples : nan,
+                        coarseValid ? rc.coarse.fluence : nan,
+                        coarseValid ? rc.coarse.crossEntropy : nan,
+                        fineValid ? rc.fine.crossEntropy : nan,
+                        0,
+                        coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : 0,
+                        coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
                     });
                 }
             });
@@ -738,12 +748,17 @@ void Application::UpdateCacheCurves() {
     m_cacheMonitor.object->ForEachProbe([&](CacheMonitor::Probe &probe) {
         if (probe.active) {
             auto rc = RayCast(probe.pixel);
-            bool cacheValid = rc.cache.id != -1;
+            bool coarseValid = rc.coarse.id != -1;
+            bool fineValid = rc.fine.id != -1;
             probe.data.push_back({x,
-                cacheValid ? rc.cache.fluence : nan,
-                cacheValid ? rc.cache.crossEntropy : nan,
-                cacheValid ? (float) rc.cache.depth : nan,
-                cacheValid ? (float) rc.cache.numSamples : nan
+                coarseValid ? (float) rc.coarse.depth : nan,
+                coarseValid ? (float) rc.coarse.numSamples : nan,
+                coarseValid ? rc.coarse.fluence : nan,
+                coarseValid ? rc.coarse.crossEntropy : nan,
+                fineValid ? rc.fine.crossEntropy : nan,
+                0,
+                coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : 0,
+                coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
             });
         }
     });
@@ -753,23 +768,24 @@ void Application::UpdateCacheCurves() {
 void Application::UpdateCacheHistograms() {
     m_cacheHistogram.object->Update([&](CacheHistogram::Data &data) {
         size_t numRegions = m_field.GetRegionCountSurface();
-        data.fluence.resize(numRegions);
-        data.ce.resize(numRegions);
-        data.depth.resize(numRegions);
-        data.samples.resize(numRegions);
+        data.fluence.clear();
+        data.ce.clear();
+        data.depth.clear();
+        data.samples.clear();
         for (size_t i = 0; i < numRegions; ++i) {
             auto cache = m_field.GetRegionStatisticsSurface(i);
-            data.fluence[i] = cache.fluence;
-            data.ce[i] = cache.crossEntropy;
-            data.depth[i] = cache.depth;
-            data.samples[i] = cache.numSamples;
+            if (cache.removed) continue;
+            data.fluence.push_back(cache.fluence);
+            data.ce.push_back(cache.crossEntropy);
+            data.depth.push_back(cache.depth);
+            data.samples.push_back(cache.numSamples);
         }
     });
     m_cacheHistogram.object->RequestFitAxes();
 }
 
 void Application::UpdateSamplingDistributionView() {
-    if (m_rcSDV.cache.id != -1) {
+    if (m_rcSDV.coarse.id != -1) {
         std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
         m_samplingDistributionView->UpdateCPUBuffer(m_rcSDV.hit, m_rcSDV.normal);
     } else {
@@ -929,11 +945,7 @@ void Application::RayCastingPanel() {
             ImGui::Text("Hit: (%.2f, %.2f, %.2f)", m_rcMouse.hit.x, m_rcMouse.hit.y, m_rcMouse.hit.z);
             ImGui::Text("Normal: (%.2f, %.2f, %.2f)", m_rcMouse.normal.x, m_rcMouse.normal.y, m_rcMouse.normal.z);
             ImGui::Text("UV: (%.2f, %.2f)", m_rcMouse.uv.x, m_rcMouse.uv.y);
-            if (m_rcMouse.cache.id == -1)
-                ImGui::Text("Cache ID: <invalid>");
-            else {
-                CacheInfo(m_rcMouse.cache);
-            }
+            CacheInfo(m_rcMouse.coarse, m_rcMouse.fine);
         } else {
             ImGui::Text("No intersection");
         }
