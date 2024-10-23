@@ -90,10 +90,8 @@ void SamplingDistributionView::Draw() {
 #endif
     ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormaps[m_selectedBuffer]), cmap_names, CMap_Count);
     ImGui::SetNextItemWidth(150);
-    ImGui::SliderFloat("Exposure", &m_exposure, 0, 10);
-    ImGui::SameLine();
-    if (ImGui::Button("Reset"))
-        m_exposure = 1.0f;
+    ImGui::DragFloat("Exposure", &m_exposure, 0.01f, 0, 0, "%.4f");
+    m_exposure = std::max(m_exposure, 0.0f);
     bool needsUpdate = false;
     needsUpdate |= ImGui::Checkbox("Cosine Product", &m_enableCosineProduct);
     ImGui::SameLine();

@@ -42,7 +42,7 @@ void ColormapPanel::Draw() {
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
-            ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f, "%.6f");
+            ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f");
             if (ImGui::Button("Reset")) reset();
             ImGui::SetNextItemWidth(90);
             ImGui::Combo("Tonemap", reinterpret_cast<int *>(&sd.cmap), cmap_names, CMap_Count);
@@ -83,8 +83,8 @@ void ColormapPanel::Draw() {
         if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
-            ImGui::InputFloat("Scale", &sd.scale, 0.1f, 1.0f, "%.6f");
-            ImGui::InputFloat("Offset", &sd.offset, 0.1f, 1.0f, "%.6f");
+            ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f");
+            ImGui::DragFloat("Offset", &sd.offset, 0.01f, 0, 0, "%.8f");
             if (ImGui::Button("Reset")) reset();
             ImGui::SameLine();
             if (ImGui::Button("Normalize")) normalize();
