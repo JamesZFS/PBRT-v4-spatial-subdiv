@@ -7,6 +7,8 @@
 #include <pbrt/util/error.h>
 #include <pbrt/util/parallel.h>
 
+#include "pbrt/util/transform.h"
+
 using namespace pbrt;
 
 SamplingDistributionView::SamplingDistributionView(pbrt::Application *parent, const openpgl::cpp::Field &field) :
@@ -97,8 +99,8 @@ void SamplingDistributionView::Draw() {
     ImGui::SameLine();
     needsUpdate |= ImGui::Checkbox("Local Frame", &m_localFrame);
 
-    if (needsUpdate) {
-        if (m_prev.valid) UpdateCPUBuffer();
+    if (needsUpdate && m_prev.valid) {
+        UpdateCPUBuffer();
     }
     UpdateFramebuffer();
 
@@ -148,7 +150,7 @@ void SamplingDistributionView::Draw() {
 
 void SamplingDistributionView::UpdateCPUBuffer() {
     auto pos = m_prev.pos;
-    auto normal = m_prev.normal;
+    auto normal = Vector3f(m_prev.normal);
     pgl_point3f pglP = {pos.x, pos.y, pos.z};
     float rnd = -1;
     bool success = false;

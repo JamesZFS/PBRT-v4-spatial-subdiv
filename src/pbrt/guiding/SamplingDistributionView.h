@@ -9,7 +9,6 @@
 #include "View.h"
 #include <pbrt/util/framebuffer.h>
 #include <atomic>
-#include <mutex>
 #include <openpgl/cpp/OpenPGL.h>
 
 

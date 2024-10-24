@@ -39,7 +39,7 @@ static std::vector<const char *> errorMetricNames = {
 
 namespace pbrt {
 
-Application::Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference,
+Application::Application(Camera camera, Primitive scene, const std::vector<Light> &lights, pstd::optional<Image> &&reference,
     openpgl::cpp::Device *device, openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage, const PGLKDTreeArguments &args,
     Sampler samplerPrototype, ThreadLocal<Sampler> &samplers, GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
     const std::function<void(int waveStart)> &renderWave,
@@ -47,7 +47,7 @@ Application::Application(Camera camera, Primitive scene, pstd::optional<Image> &
     const std::function<void(int waveEnd)> &saveImage)
     : View(this),
       m_camera(camera), m_film(camera.GetFilm()), m_reference(std::move(reference)), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
-      m_scene(scene), m_device(*device), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_samplerPrototype(samplerPrototype), m_samplers(samplers),
+      m_scene(scene), m_lights(lights), m_device(*device), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_samplerPrototype(samplerPrototype), m_samplers(samplers),
       m_integratorSettings(integratorSettings), m_guideSettings(guideSettings),
       m_renderWave(renderWave), m_updateCache(updateCache), m_saveImage(saveImage),
       m_resolution(m_film.PixelBounds().Diagonal()) {
@@ -75,6 +75,7 @@ int Application::Run() {
     m_controlPanel = std::make_unique<ControlPanel>(this, *m_renderThread);
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
     m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field);
+    m_radianceView = std::make_unique<RadianceView>(this, m_scene, m_lights);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
@@ -107,6 +108,7 @@ int Application::Run() {
         glClear(GL_COLOR_BUFFER_BIT);
 
         UpdateFramebuffer();
+        RadianceViewRenderStep();
         Draw();
 
         RenderImGuiFrame(m_window);
@@ -143,8 +145,8 @@ void Application::Draw() {
     if (ImGui::Begin("Viewport")) {
         ChannelSelector();
         m_viewport->Draw();
-        ProbesInteraction();
-        SamplingDistributionInteraction();
+        CacheProbesInteraction();
+        SDRViewInteraction();
         ImGui::Separator();
         StatusBar();
     }
@@ -166,6 +168,11 @@ void Application::Draw() {
 
     if ((m_enableSamplingDistributionView = ImGui::Begin("Sampling Distribution"))) {
         m_samplingDistributionView->Draw();
+    }
+    ImGui::End();
+
+    if ((m_enableRadianceView = ImGui::Begin("Radiance View"))) {
+        m_radianceView->Draw();
     }
     ImGui::End();
 }
@@ -245,6 +252,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightTopDock);
+        ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
@@ -297,6 +305,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Controls", rightTopDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Radiance View", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
@@ -358,6 +367,7 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Radiance View", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
@@ -411,6 +421,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Radiance View", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Histograms", right);
         ImGui::DockBuilderFinish(dockSpaceID);
@@ -611,36 +622,39 @@ void Application::UpdateRayCastingAtMouse() {
     }
 }
 
-void Application::SamplingDistributionInteraction() {
-    if (!m_enableSamplingDistributionView) return;
+// Sampling distribution and radiance view
+void Application::SDRViewInteraction() {
+    if (!m_enableSamplingDistributionView && !m_enableRadianceView) return;
     // Left click to update the sampling distribution
     if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
         Point2i pixel = m_viewport->GetMousePixel();
-        m_rcSDV = RayCast(pixel);
+        m_rcSDRV = RayCast(pixel);
         UpdateSamplingDistributionView();
+        NewRadianceViewRendering();
     }
 
     // Draw the view location
-    if (m_rcSDV.coarse.id != -1) {
+    if (m_rcSDRV.coarse.id != -1) {
         ImVec2 leftTop = m_viewport->GetLeftTop();
         float scale = m_viewport->GetScale();
-        ImVec2 center(leftTop.x + m_rcSDV.pixel.x * scale, leftTop.y + m_rcSDV.pixel.y * scale);
+        ImVec2 center(leftTop.x + m_rcSDRV.pixel.x * scale, leftTop.y + m_rcSDRV.pixel.y * scale);
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
         float a = 4;
-        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), m_rcSDV.pixel) < 2 * a;
+        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), m_rcSDRV.pixel) < 2 * a;
         draw_list->AddTriangleFilled(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32(255, 0, 0, 255));
         if (isHovered)
             draw_list->AddTriangle(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32_WHITE, 2);
 
-        // Right click to clear the sampling distribution
+        // Right click to clear the views
         if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            m_rcSDV.coarse.id = -1;
+            m_rcSDRV.coarse.id = -1;
             m_samplingDistributionView->Clear();
+            m_radianceView->Clear();
         }
     }
 }
 
-void Application::ProbesInteraction() {
+void Application::CacheProbesInteraction() {
     if (!m_enableProbes) return;
     // Draw all probes
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
@@ -789,11 +803,27 @@ void Application::UpdateCacheHistograms() {
 }
 
 void Application::UpdateSamplingDistributionView() {
-    if (m_rcSDV.coarse.id != -1) {
+    if (m_rcSDRV.coarse.id != -1) {
         std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
-        m_samplingDistributionView->UpdateCPUBuffer(m_rcSDV.hit, m_rcSDV.normal, m_showFine);
+        m_samplingDistributionView->UpdateCPUBuffer(m_rcSDRV.hit, m_rcSDRV.normal, m_showFine);
     } else {
         m_samplingDistributionView->Clear();
+    }
+}
+
+void Application::NewRadianceViewRendering() {
+    if (m_rcSDRV.valid) {
+        // Launch a new rendering task at the clicked point
+        m_radianceView->RenderStart(m_rcSDRV.hit, m_rcSDRV.normal);
+        // The rendering step is performed in the main loop when the render thread is not busy
+    } else {
+        m_radianceView->Clear();
+    }
+}
+
+void Application::RadianceViewRenderStep() {
+    if (m_radianceView->IsRendering() && m_renderThread->GetState() != RenderThread::Rendering) {
+        m_radianceView->RenderStep();
     }
 }
 
