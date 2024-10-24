@@ -10,6 +10,7 @@
 #include "View.h"
 #include "Viewport.h"
 #include "SamplingDistributionView.h"
+#include "RadianceView.h"
 #include "ColormapPanel.h"
 #include "CacheMonitor.h"
 #include "CacheHistogram.h"
@@ -25,7 +26,7 @@ namespace pbrt {
 
 class Application : public View {
 public:
-    Application(Camera camera, Primitive scene, pstd::optional<Image> &&reference,
+    Application(Camera camera, Primitive scene, const std::vector<Light> &lights, pstd::optional<Image> &&reference,
         openpgl::cpp::Device *device, openpgl::cpp::Field *field, openpgl::cpp::SampleStorage &sampleStorage,
         const PGLKDTreeArguments &args, Sampler samplerPrototype, ThreadLocal<Sampler> &samplers,
         GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
@@ -42,6 +43,9 @@ public:
     int GetSPP() const { return m_spp; }
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
+    const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
+    const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
+    const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
 
 private:
     struct RayCastingData {
@@ -83,8 +87,8 @@ private:
     void CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionStatistics &fine);
 
     void UpdateRayCastingAtMouse();
-    void SamplingDistributionInteraction();
-    void ProbesInteraction();
+    void SDRViewInteraction();
+    void CacheProbesInteraction();
 
     // Callbacks from render thread
     void CheckIsRenderThread();
@@ -97,6 +101,8 @@ private:
     void UpdateCacheCurves();
     void UpdateCacheHistograms();
     void UpdateSamplingDistributionView();
+    void NewRadianceViewRendering();
+    void RadianceViewRenderStep();
 
     // GUI components
     void MainMenu();
@@ -119,6 +125,7 @@ private:
     int m_channelCount;
     Point2i m_resolution;  // resolution of the rendering
     Primitive m_scene;
+    const std::vector<Light> &m_lights;
     openpgl::cpp::Device& m_device;
     openpgl::cpp::Field& m_field;
     openpgl::cpp::SampleStorage& m_sampleStorage;
@@ -136,9 +143,9 @@ private:
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
-    LayoutType m_layout = Layout_CacheMonitor;
+    LayoutType m_layout = Layout_Compact;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
-    RayCastingData m_rcSDV;  // ray casting result at the sampling distribution view
+    RayCastingData m_rcSDRV;  // ray casting result at the sampling distribution / radiance view
     int m_maxMaxDepth = 15;
     SelectedChannel m_selectedChannel = Channel_Radiance;
     bool m_showFine = false;  // show the fine cache ID and CE
@@ -148,6 +155,7 @@ private:
     bool m_enableProbes = false;
     bool m_enableHistogram = false;
     bool m_enableSamplingDistributionView = false;
+    bool m_enableRadianceView = false;
     ErrorMetric m_errorMetric = Metric_MRAE;
 
     // Components and views
@@ -155,6 +163,7 @@ private:
     std::unique_ptr<ControlPanel> m_controlPanel;
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<SamplingDistributionView> m_samplingDistributionView;
+    std::unique_ptr<RadianceView> m_radianceView;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;

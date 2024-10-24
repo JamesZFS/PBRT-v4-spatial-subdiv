@@ -669,6 +669,7 @@ SET (PBRT_GUIDING_VIEWER_SOURCE
         src/pbrt/guiding/CacheMonitor.cpp
         src/pbrt/guiding/CacheHistogram.cpp
         src/pbrt/guiding/SamplingDistributionView.cpp
+        src/pbrt/guiding/RadianceView.cpp
         src/pbrt/guiding/helper.cpp
 )
 else ()

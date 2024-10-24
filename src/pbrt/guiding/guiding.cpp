@@ -215,7 +215,7 @@ void GuidedPathIntegrator::Render() {
     }
 
     // Launch the GUI and render image in waves
-    Application app(camera, aggregate, std::move(referenceImage),
+    Application app(camera, aggregate, lights, std::move(referenceImage),
         guiding_device, guiding_field, *guiding_sampleStorage, guiding_fieldSubdivConfig,
         samplerPrototype, samplers, settings, guideSettings,
         [&](int waveStart) {

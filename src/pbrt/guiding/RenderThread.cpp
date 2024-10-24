@@ -27,9 +27,10 @@ const std::vector<std::pair<const char *, const char *>> commandNames = {
 RenderThread::RenderThread(Application *parent, const std::function<void(int waveStart)> &renderStep, const std::function<void(int waveEnd)> &saveImage)
     : m_parent(parent), m_mainThreadID(std::this_thread::get_id()), m_cmdCompleteCallbacks(CmdCount), m_renderStep(renderStep), m_saveImage(saveImage) {
     // Start the thread
+    auto oldId = m_renderThreadID;
     m_thread = std::thread(&RenderThread::Run, this);
     std::unique_lock lock(m_mtxInitialized);
-    m_cvInitialized.wait(lock);
+    m_cvInitialized.wait(lock, [&] { return m_renderThreadID != oldId; });
     std::cout << "RenderThread initialized with id: " << m_renderThreadID << std::endl;
 }
 
