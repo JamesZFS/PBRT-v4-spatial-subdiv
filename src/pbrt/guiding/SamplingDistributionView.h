@@ -56,11 +56,12 @@ private:
         pbrt::Point3f pos;
         pbrt::Normal3f normal;
         bool lookahead = false;
+        bool localFrame = true;
     } m_prev;
 
-    bool m_localFrame = true;
-    bool m_enableCosineProduct = true;
-    float m_exposure = 1.0f;
+    bool &m_localFrame;
+    float &m_exposure;
+    bool m_enableCosineProduct;
     Colormap m_colormaps[Buffer_Count];
 
     float m_stepPhi;

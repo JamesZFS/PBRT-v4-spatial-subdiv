@@ -52,11 +52,12 @@ private:
         bool valid = false;
         pbrt::Point3f pos;
         pbrt::Normal3f normal;
+        bool localFrame = true;
     } m_prev;
     pbrt::Frame m_frame;
 
-    bool m_localFrame = true;
-    float m_exposure = 1.0f;
+    bool &m_localFrame;
+    float &m_exposure;
     float m_rayEps = 1e-4f;
     Colormap m_colormap = CMap_None;
 
