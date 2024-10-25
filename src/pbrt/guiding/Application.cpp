@@ -195,6 +195,9 @@ void Application::SetupLayout() {
         case Layout_Compact:
             SetupLayoutCompact();
             break;
+        case Layout_ProbeViews:
+            SetupLayoutProbeViews();
+            break;
         case Layout_CacheMonitor:
             SetupLayoutCacheMonitor();
             break;
@@ -314,6 +317,60 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("CE Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
+        ImGui::DockBuilderFinish(dockSpaceID);
+
+        m_hasSetupLayout = true;
+    }
+
+    ImGui::End();
+}
+
+void Application::SetupLayoutProbeViews() {
+    if (!m_hasSetupLayout) {
+        // Figure out proper window size
+        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 120, mode->height));
+        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
+    }
+
+    // ImGui::DockSpaceOverViewport();
+    ImGuiViewport *iviewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(iviewport->WorkPos);
+    ImGui::SetNextWindowSize(iviewport->WorkSize);
+    ImGui::SetNextWindowViewport(iviewport->ID);
+
+    ImGuiWindowFlags windowFlags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    ImGui::Begin("MyDockSpace", nullptr, windowFlags);
+
+    ImGuiDockNodeFlags dockFlags = ImGuiDockNodeFlags_PassthruCentralNode;
+    // dockFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
+    ImGuiID dockSpaceID = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockSpaceID, ImVec2(0.0f, 0.0f), dockFlags);
+    // ImGui::DockSpaceOverViewport(dockSpaceID, ImGui::GetMainViewport(), dockFlags);
+
+    if (!m_hasSetupLayout) {
+        ImGui::DockBuilderRemoveNode(dockSpaceID);
+        ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
+
+        ImGuiID leftDock, leftTopDock, leftBottomDock, midDock, rightDock, rightTopDock, rightBottomDock;
+        ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightDock);
+        ImGui::DockBuilderSplitNode(leftDock, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Left, 0.5f, &midDock, &rightDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
+        ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, iviewport->Size.y));
+        float padding = ImGui::GetStyle().WindowPadding.x;
+        ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
+
+        ImGui::DockBuilderDockWindow("Controls", leftTopDock);
+        for (auto s: {"Settings",
+            "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram",
+            "CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
+        })
+            ImGui::DockBuilderDockWindow(s, leftBottomDock);
+        ImGui::DockBuilderDockWindow("Viewport", midDock);
+        ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -822,13 +879,13 @@ void Application::NewRadianceViewRendering() {
 }
 
 void Application::RadianceViewRenderStep() {
-    if (m_radianceView->IsRendering() && m_renderThread->GetState() != RenderThread::Rendering) {
+    if (m_enableRadianceView && m_radianceView->IsRendering() && m_renderThread->GetState() != RenderThread::Rendering) {
         m_radianceView->RenderStep();
     }
 }
 
 void Application::MainMenu() {
-    static std::string layoutNames[Layout_Count] = {"Default", "Compact", "Cache Monitor", "Histograms"};
+    static std::string layoutNames[Layout_Count] = {"Default", "Compact", "Probe Views", "Cache Monitor", "Histograms"};
     ImGuiIO &io = ImGui::GetIO();
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Layout")) {

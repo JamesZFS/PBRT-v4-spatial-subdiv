@@ -47,6 +47,9 @@ public:
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
 
+    bool sdrLocalFrame = true;
+    float sdrExposure = 1.0f;
+
 private:
     struct RayCastingData {
         Point2i pixel;  // in: pixel coordinate at the mouse position
@@ -61,6 +64,7 @@ private:
     enum LayoutType {
         Layout_Default,
         Layout_Compact,
+        Layout_ProbeViews,
         Layout_CacheMonitor,
         Layout_Histograms,
         Layout_Count,
@@ -68,8 +72,9 @@ private:
 
     void SetupLayout();
     void SetupLayoutDefault();
-    void SetupLayoutCacheMonitor();
     void SetupLayoutCompact();
+    void SetupLayoutProbeViews();
+    void SetupLayoutCacheMonitor();
     void SetupLayoutHistograms();
     void SetFullScreen();
 
@@ -143,7 +148,7 @@ private:
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
-    LayoutType m_layout = Layout_Compact;
+    LayoutType m_layout = Layout_Default;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     RayCastingData m_rcSDRV;  // ray casting result at the sampling distribution / radiance view
     int m_maxMaxDepth = 15;

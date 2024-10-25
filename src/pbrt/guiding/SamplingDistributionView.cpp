@@ -7,12 +7,14 @@
 #include <pbrt/util/error.h>
 #include <pbrt/util/parallel.h>
 
+#include "Application.h"
 #include "pbrt/util/transform.h"
 
 using namespace pbrt;
 
 SamplingDistributionView::SamplingDistributionView(pbrt::Application *parent, const openpgl::cpp::Field &field) :
-    View(parent), m_field(field), m_ssd(&field), m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+    View(parent), m_localFrame(parent->sdrLocalFrame), m_exposure(parent->sdrExposure),
+    m_field(field), m_ssd(&field), m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.pdf.resize(m_resolution.x * m_resolution.y);
@@ -91,13 +93,22 @@ void SamplingDistributionView::Draw() {
     ImGui::SetNextItemWidth(90);
 #endif
     ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormaps[m_selectedBuffer]), cmap_names, CMap_Count);
-    ImGui::SetNextItemWidth(150);
+    std::string text;
+    if (m_prev.valid) {
+        if (m_prev.lookahead) text = "Lookahead";
+        else text = "Coarse";
+    } else text = "None";
+    ImGui::Text("Showing: %s", text.c_str());
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90);
     ImGui::DragFloat("Exposure", &m_exposure, 0.01f, 0, 0, "%.4f");
     m_exposure = std::max(m_exposure, 0.0f);
     bool needsUpdate = false;
     needsUpdate |= ImGui::Checkbox("Cosine Product", &m_enableCosineProduct);
     ImGui::SameLine();
     needsUpdate |= ImGui::Checkbox("Local Frame", &m_localFrame);
+    needsUpdate |= m_localFrame != m_prev.localFrame;
+    m_prev.localFrame = m_localFrame;
 
     if (needsUpdate && m_prev.valid) {
         UpdateCPUBuffer();
@@ -109,8 +120,12 @@ void SamplingDistributionView::Draw() {
     // Scale the image to fit the available space
     float scale = std::min(avail.x / size.x, avail.y / size.y);
     size = {size.x * scale, size.y * scale};
-    ImVec2 leftTop = ImGui::GetCursorScreenPos();
+    ImVec2 offset{(avail.x - size.x) / 2, (avail.y - size.y) / 2};
+    ImVec2 current = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
+    auto leftTop = ImGui::GetCursorScreenPos();
     ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + offset.y);
 
     // Hovering: show value at the pixel
     if (ImGui::IsItemHovered()) {

@@ -10,7 +10,7 @@ using namespace pbrt;
 
 RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &scene,
                            const std::vector<pbrt::Light> &lights)
-    : View(parent),
+    : View(parent), m_localFrame(parent->sdrLocalFrame), m_exposure(parent->sdrExposure),
       m_scene(scene), m_lights(lights),
       m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
@@ -162,7 +162,7 @@ void RadianceView::Draw() {
     ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormap), cmap_names, CMap_Count);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90);
-    ImGui::DragFloat("Exposure", &m_exposure, 0.01f, 0, 0);
+    ImGui::DragFloat("Exposure", &m_exposure, 0.01f, 0, 0, "%.4f");
     m_exposure = std::max(m_exposure, 0.0f);
     bool needsRestart = false;
     ImGui::SetNextItemWidth(50);
@@ -172,6 +172,8 @@ void RadianceView::Draw() {
     needsRestart |= ImGui::DragFloat("Offset", &m_rayEps, 0.0001, 0, 1, "%.1e");
     ImGui::SameLine();
     needsRestart |= ImGui::Checkbox("Local Frame", &m_localFrame);
+    needsRestart |= m_localFrame != m_prev.localFrame;
+    m_prev.localFrame = m_localFrame;
 
     if (needsRestart && m_prev.valid) {
         RenderStart();
@@ -183,8 +185,12 @@ void RadianceView::Draw() {
     // Scale the image to fit the available space
     float scale = std::min(avail.x / size.x, avail.y / size.y);
     size = {size.x * scale, size.y * scale};
-    ImVec2 leftTop = ImGui::GetCursorScreenPos();
+    ImVec2 offset{(avail.x - size.x) / 2, (avail.y - size.y) / 2};
+    ImVec2 current = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
+    auto leftTop = ImGui::GetCursorScreenPos();
     ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + offset.y);
 
     // Hovering: show value at the pixel
     if (ImGui::IsItemHovered()) {
