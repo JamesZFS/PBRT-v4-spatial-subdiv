@@ -1187,6 +1187,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.maxDepthWithSampleCount = std::max(1, std::min(32, maxDepthWithSampleCount));
         m_subdivCfg.maxSamples = std::max(0, maxSamples);
         m_subdivCfg.minSamples = std::max(0, minSamples);
+        ImGui::Checkbox("Enable CE", &m_subdivCfg.enableCE);
         ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.1f, 1.0f);
         ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);

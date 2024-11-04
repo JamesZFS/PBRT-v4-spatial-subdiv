@@ -426,7 +426,7 @@ inline void Image::SetChannel(Point2i p, int c, Float value) {
     // CHECK(!IsNaN(value));
     if (IsNaN(value)) {
 #ifndef PBRT_IS_GPU_CODE
-        LOG_ERROR("NaN at pixel %d,%d comp %d", p.x, p.y, c);
+        // LOG_ERROR("NaN at pixel %d,%d comp %d", p.x, p.y, c);
 #endif
         value = 0;
     }
