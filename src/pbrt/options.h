@@ -48,7 +48,7 @@ struct PBRTOptions : BasicPBRTOptions {
     bool quickRender = false;
     bool upgrade = false;
     std::string imageFile;
-    std::string mseReferenceImage, mseReferenceOutput;
+    std::string referenceImage, csvOutput;
     std::string debugStart;
     std::string displayServer;
     pstd::optional<Bounds2f> cropWindow;

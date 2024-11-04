@@ -50,6 +50,7 @@
 namespace pbrt {
 
 STAT_COUNTER("Integrator/Camera rays traced", nCameraRays);
+STAT_TIME_COUNTER("Total Rendering Time", totalRenderingTime);
 STAT_TIME_COUNTER("Pure Rendering Time", pureRenderingTime);
 // RandomWalkIntegrator Method Definitions
 std::unique_ptr<RandomWalkIntegrator> RandomWalkIntegrator::Create(
@@ -120,9 +121,9 @@ void ImageTileIntegrator::Render() {
                               RemoveExtension(camera.GetFilm().GetFilename()));
     // Handle MSE reference image, if provided
     pstd::optional<Image> referenceImage;
-    FILE *mseOutFile = nullptr;
-    if (!Options->mseReferenceImage.empty()) {
-        auto mse = Image::Read(Options->mseReferenceImage);
+    FILE *logFile = nullptr;
+    if (!Options->referenceImage.empty()) {
+        auto mse = Image::Read(Options->referenceImage);
         referenceImage = mse.image;
 
         Bounds2i msePixelBounds =
@@ -144,9 +145,14 @@ void ImageTileIntegrator::Render() {
         *referenceImage = referenceImage->Crop(cropBounds);
         CHECK_EQ(referenceImage->Resolution(), Point2i(pixelBounds.Diagonal()));
 
-        mseOutFile = FOpenWrite(Options->mseReferenceOutput);
-        if (!mseOutFile)
-            ErrorExit("%s: %s", Options->mseReferenceOutput, ErrorString());
+        logFile = FOpenWrite(Options->csvOutput);  // treating as CSV
+        if (!logFile)
+            ErrorExit("%s: %s", Options->csvOutput, ErrorString());
+
+        fprintf(logFile, "iter, total time, pure rendering time, ");
+        LogFileHead(logFile);
+        fprintf(logFile, "MRAE, MRSE\n");
+        fflush(logFile);
     }
 
     // Connect to display server if needed
@@ -168,7 +174,7 @@ void ImageTileIntegrator::Render() {
 
     // Render image in waves
     while (waveStart < spp) {
-        Timer pureRenderingTimer;
+        Timer timer;
         // Render current wave's image tiles in parallel
         ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
             // Render image tile given by _tileBounds_
@@ -194,8 +200,9 @@ void ImageTileIntegrator::Render() {
                      tileBounds.pMin.y, tileBounds.pMax.x, tileBounds.pMax.y);
             progress.Update((waveEnd - waveStart) * tileBounds.Area());
         });
-        pureRenderingTime += pureRenderingTimer.ElapsedSeconds();
+        pureRenderingTime += timer.ElapsedSeconds();
         PostProcessWave();
+        totalRenderingTime += timer.ElapsedSeconds();
 
         // Update start and end wave
         waveStart = waveEnd;
@@ -205,23 +212,25 @@ void ImageTileIntegrator::Render() {
         nextWaveSize = 1;
         if (waveStart == spp)
             progress.Done();
+
+        if (referenceImage) {  // update log file
+            ImageMetadata filmMetadata;
+            Image filmImage = camera.GetFilm().GetImage(&filmMetadata, 1.f / waveStart);
+            ImageChannelDesc desc = filmImage.GetChannelDesc({"R", "G", "B"});
+            float mrae = filmImage.MRAE(desc, *referenceImage).Average();
+            float mrse = filmImage.MRSE(desc, *referenceImage).Average();
+            fprintf(logFile, "%d, %.9f, %.9f, ", waveStart, totalRenderingTime, pureRenderingTime);
+            LogFileRow(logFile);  // e.g. training time and number of regions
+            fprintf(logFile, "%.9f, %.9f\n", mrae, mrse);
+            fflush(logFile);
+        }
         //std::cout << "nextWaveSize: " << nextWaveSize << "\t spp: " << spp << "\t waveStart: " << waveStart << "\t waveEnd: " << waveEnd << std::endl;
         // Optionally write current image to disk
-        if (waveStart == spp || Options->writePartialImages || referenceImage) {
+        if (waveStart == spp || Options->writePartialImages) {
             LOG_VERBOSE("Writing image with spp = %d", waveStart);
             ImageMetadata metadata;
             metadata.renderTimeSeconds = progress.ElapsedSeconds();
             metadata.samplesPerPixel = waveStart;
-            if (referenceImage) {
-                ImageMetadata filmMetadata;
-                Image filmImage =
-                    camera.GetFilm().GetImage(&filmMetadata, 1.f / waveStart);
-                ImageChannelValues mse =
-                    filmImage.MSE(filmImage.AllChannelsDesc(), *referenceImage);
-                fprintf(mseOutFile, "%d, %.9g\n", waveStart, mse.Average());
-                metadata.MSE = mse.Average();
-                fflush(mseOutFile);
-            }
             if (waveStart == spp || Options->writePartialImages) {
                 camera.InitMetadata(&metadata);
                 camera.GetFilm().WriteImage(metadata, 1.0f / waveStart);
@@ -229,8 +238,8 @@ void ImageTileIntegrator::Render() {
         }
     }
 
-    if (mseOutFile)
-        fclose(mseOutFile);
+    if (logFile)
+        fclose(logFile);
     DisconnectFromDisplayServer();
     LOG_VERBOSE("Rendering finished");
 }

@@ -616,7 +616,7 @@ void Application::SaveField(std::string path) {
 void Application::LoadField(std::string path) {
     std::lock_guard lock(m_mtx.field);
     if (m_field.Load(&m_device, path))
-        std::cout << "Load field from " << path << " with " << m_field.GetRegionCountSurface() << " regions" << std::endl;
+        std::cout << "Load field from " << path << " with " << m_field.GetRegionCountSurface(false) << " regions" << std::endl;
     else
         Error("Failed to load field from %s", path);
 }
@@ -778,7 +778,7 @@ void Application::UpdateField(int waveEnd) {
     if (waveEnd > 0)
         m_updateCache(waveEnd);  // calls GuidedPathIntegrator::PostProcessWave()
     m_waveStats.postprocessMS = timer.ElapsedSeconds() * 1e3;
-    m_waveStats.numRegions = m_field.GetRegionCountSurface();
+    m_waveStats.numRegions = m_field.GetRegionCountSurface(false);
 }
 
 void Application::RenderWave(int waveStart) {

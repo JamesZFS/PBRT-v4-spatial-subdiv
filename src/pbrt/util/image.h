@@ -326,6 +326,8 @@ class Image {
                            Image *errorImage = nullptr) const;
     ImageChannelValues MSE(const ImageChannelDesc &desc, const Image &ref,
                            Image *mseImage = nullptr) const;
+    ImageChannelValues MRAE(const ImageChannelDesc &desc, const Image &ref,
+                            Image *mraeImage = nullptr) const;
     ImageChannelValues MRSE(const ImageChannelDesc &desc, const Image &ref,
                             Image *mrseImage = nullptr) const;
 

@@ -529,11 +529,11 @@ void BasicSceneBuilder::Option(const std::string &name, const std::string &value
     } else if (nName == "msereferenceimage") {
         if (value.size() < 3 || value.front() != '"' || value.back() != '"')
             ErrorExitDeferred(&loc, "%s: expected quoted string for option value", value);
-        Options->mseReferenceImage = value.substr(1, value.size() - 2);
+        Options->referenceImage = value.substr(1, value.size() - 2);
     } else if (nName == "msereferenceout") {
         if (value.size() < 3 || value.front() != '"' || value.back() != '"')
             ErrorExitDeferred(&loc, "%s: expected quoted string for option value", value);
-        Options->mseReferenceOutput = value.substr(1, value.size() - 2);
+        Options->csvOutput = value.substr(1, value.size() - 2);
     } else if (nName == "rendercoordsys") {
         if (value.size() < 3 || value.front() != '"' || value.back() != '"')
             ErrorExitDeferred(&loc, "%s: expected quoted string for option value", value);

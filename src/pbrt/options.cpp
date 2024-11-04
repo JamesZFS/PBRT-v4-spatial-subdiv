@@ -48,7 +48,7 @@ std::string PBRTOptions::ToString() const {
         disableImageTextures, forceDiffuse, useGPU, wavefront, interactive, fullscreen,
         renderingSpace, nThreads, logLevel, logFile, logUtilization, writePartialImages,
         recordPixelStatistics, printStatistics, pixelSamples, gpuDevice, quickRender, upgrade,
-        imageFile, mseReferenceImage, mseReferenceOutput, debugStart, displayServer, cropWindow,
+        imageFile, referenceImage, csvOutput, debugStart, displayServer, cropWindow,
         pixelBounds, pixelMaterial, displacementEdgeScale);
 }
 
