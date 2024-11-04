@@ -260,6 +260,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool knnLookup {true};
         int guideNumTrainingWaves {128};
 
+        PGL_DIRECTIONAL_DISTRIBUTION_TYPE dtype {PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM};
         int treemaxsamplesperleaf {PGL_TREE_MAX_SAMPLE_PER_LEAF};
         int treeminsamplesperleaf {100};
         int treemaxdepth {32};
