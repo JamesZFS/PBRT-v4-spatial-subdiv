@@ -1176,12 +1176,15 @@ void Application::SpatialSubdivisionSettings() {
     if (ImGui::CollapsingHeader("Spatial Subdivision")) {
         std::lock_guard lock(m_mtx.subdivCfg);
         int maxDepth = (int) m_subdivCfg.maxDepth;
+        int maxDepthWithSampleCount = (int) m_subdivCfg.maxDepthWithSampleCount;
         int maxSamples = (int) m_subdivCfg.maxSamples;
         int minSamples = (int) m_subdivCfg.minSamples;
         ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
+        ImGui::InputInt("Max Depth with Sample Count", &maxDepthWithSampleCount, 1, 10);
         ImGui::InputInt("Max Samples", &maxSamples, 1000, 5000);
         ImGui::InputInt("Min Samples", &minSamples, 1000, 5000);
         m_subdivCfg.maxDepth = std::max(1, std::min(32, maxDepth));
+        m_subdivCfg.maxDepthWithSampleCount = std::max(1, std::min(32, maxDepthWithSampleCount));
         m_subdivCfg.maxSamples = std::max(0, maxSamples);
         m_subdivCfg.minSamples = std::max(0, minSamples);
         ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.1f, 1.0f);

@@ -82,6 +82,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, guideSettings.dtype, true,
             guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
+        guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
         guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treemomentum;
 
@@ -625,6 +626,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treemaxsamplesperleaf = parameters.GetOneInt("treemaxsamplesperleaf", PGL_TREE_MAX_SAMPLE_PER_LEAF);
     settings.treeminsamplesperleaf = parameters.GetOneInt("treeminsamplesperleaf", 100);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
+    settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", 32);
     settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
     settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
 
