@@ -79,7 +79,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             std::cout<< "\t lightSampleStrategy = " << lightSampleStrategy << std::endl;
             std::cout<< "\t regularize = " << regularize << std::endl;
         guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
-        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE, true,
+        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, guideSettings.dtype, true,
             guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
@@ -617,6 +617,11 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.surfaceGuidingType = strSurfaceGuidingType == "mis" ? EGuideMIS : EGuideRIS;
 
     settings.guideNumTrainingWaves = parameters.GetOneInt("numtrainingwaves", 128);
+    auto dtype = parameters.GetOneString("dtype", "pavmm");
+    if (dtype == "pavmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM;
+    else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
+    else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
+    else throw std::runtime_error("Unknown dtype: " + dtype);
     settings.treemaxsamplesperleaf = parameters.GetOneInt("treemaxsamplesperleaf", PGL_TREE_MAX_SAMPLE_PER_LEAF);
     settings.treeminsamplesperleaf = parameters.GetOneInt("treeminsamplesperleaf", 100);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
