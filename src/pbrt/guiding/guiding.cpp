@@ -79,7 +79,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             std::cout<< "\t lightSampleStrategy = " << lightSampleStrategy << std::endl;
             std::cout<< "\t regularize = " << regularize << std::endl;
         guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
-        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM, true,
+        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE, true,
             guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
@@ -269,7 +269,11 @@ void GuidedPathIntegrator::PostProcessWave() {
 
     waveCounter++;
     std::cout << "GuidedPathIntegrator::PostProcessWave()" << std::endl;
-    if(guideSettings.enableTraining) {
+    if (guideSettings.evaluateOnly) {
+        std::cout << "Evaluation Pass" << std::endl;
+        guiding_field->Evaluate(*guiding_sampleStorage);
+    }
+    else if (guideSettings.enableTraining) {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() + guiding_sampleStorage->GetSizeVolume();
         std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t numValidSamples: " << numValidSamples << std::endl;
         if(numValidSamples > 128) {
@@ -279,7 +283,6 @@ void GuidedPathIntegrator::PostProcessWave() {
             if(guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
                 guideSettings.enableTraining = false;
             }
-            guiding_sampleStorage->Clear();
         }
     }
     guiding_sampleStorage->Clear();

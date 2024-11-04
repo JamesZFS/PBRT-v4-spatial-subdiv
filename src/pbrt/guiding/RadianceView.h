@@ -58,7 +58,7 @@ private:
 
     bool &m_localFrame;
     float &m_exposure;
-    float m_rayEps = 1e-4f;
+    float m_rayEps = 1e-3f;
     Colormap m_colormap = CMap_None;
 
     float m_stepPhi;

@@ -1161,6 +1161,7 @@ void Application::GuideSettings() {
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
         ImGui::Checkbox("Enable Training", &m_guideSettings.enableTraining);
+        ImGui::Checkbox("Evaluate Only", &m_guideSettings.evaluateOnly);
         ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
         ImGui::Combo("Guiding Type", reinterpret_cast<int *>(&m_guideSettings.surfaceGuidingType), guidingTypes.data(), guidingTypes.size());
     }
