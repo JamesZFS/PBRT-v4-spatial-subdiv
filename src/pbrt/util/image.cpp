@@ -604,6 +604,37 @@ ImageChannelValues Image::MSE(const ImageChannelDesc &desc, const Image &ref,
     return mse;
 }
 
+ImageChannelValues Image::MRAE(const ImageChannelDesc &desc, const Image &ref, Image *mraeImage) const {
+    std::vector<double> sumRAE(desc.size(), 0.);
+
+    ImageChannelDesc refDesc = ref.GetChannelDesc(ChannelNames(desc));
+    CHECK((bool)refDesc);
+    CHECK_EQ(Resolution(), ref.Resolution());
+
+    if (mraeImage)
+        *mraeImage = Image(PixelFormat::Float, Resolution(), ChannelNames());
+
+    for (int y = 0; y < Resolution().y; ++y)
+        for (int x = 0; x < Resolution().x; ++x) {
+            ImageChannelValues v = GetChannels({x, y}, desc);
+            ImageChannelValues vref = ref.GetChannels({x, y}, refDesc);
+
+            for (int c = 0; c < desc.size(); ++c) {
+                double rae = std::abs(double(v[c]) - double(vref[c])) / (vref[c] + 0.01);
+                if (IsInf(rae))
+                    continue;
+                sumRAE[c] += rae;
+                if (mraeImage)
+                    mraeImage->SetChannel({x, y}, c, rae);
+            }
+        }
+
+    ImageChannelValues mrse(desc.size());
+    for (int c = 0; c < desc.size(); ++c)
+        mrse[c] = sumRAE[c] / (Float(Resolution().x) * Float(Resolution().y));
+    return mrse;
+}
+
 ImageChannelValues Image::MRSE(const ImageChannelDesc &desc, const Image &ref,
                                Image *mrseImage) const {
     std::vector<double> sumRSE(desc.size(), 0.);

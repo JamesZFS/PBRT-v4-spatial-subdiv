@@ -97,6 +97,10 @@ class ImageTileIntegrator : public Integrator {
     virtual void PostProcessWave();
 
   protected:
+    virtual void LogFileHead(FILE *logFile) const {}
+
+    virtual void LogFileRow(FILE *logFile) const {}
+
     // ImageTileIntegrator Protected Members
     Camera camera;
     Sampler samplerPrototype;
@@ -310,6 +314,11 @@ class GuidedPathIntegrator : public RayIntegrator {
                                                   const FileLoc *loc);
 
     std::string ToString() const override;
+
+  protected:
+    void LogFileHead(FILE *logFile) const override;
+
+    void LogFileRow(FILE *logFile) const override;
 
   private:
     // GuidedPathIntegrator Private Methods

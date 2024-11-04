@@ -199,8 +199,8 @@ void GuidedPathIntegrator::Render() {
                               RemoveExtension(camera.GetFilm().GetFilename()));
 
     pstd::optional<Image> referenceImage;
-    if (!Options->mseReferenceImage.empty()) {
-        auto mse = Image::Read(Options->mseReferenceImage);
+    if (!Options->referenceImage.empty()) {
+        auto mse = Image::Read(Options->referenceImage);
         referenceImage = mse.image;
 
         Bounds2i msePixelBounds =
@@ -600,6 +600,14 @@ SampledSpectrum GuidedPathIntegrator::SampleLd(const SurfaceInteraction &intr, c
 std::string GuidedPathIntegrator::ToString() const {
     return StringPrintf("[ GuidedPathIntegrator maxDepth: %d lightSampler: %s regularize: %s ]",
                         settings.maxDepth, lightSampler, settings.regularize);
+}
+
+void GuidedPathIntegrator::LogFileHead(FILE *logFile) const {
+    fprintf(logFile, "training time, number of regions, ");
+}
+
+void GuidedPathIntegrator::LogFileRow(FILE *logFile) const {
+    fprintf(logFile, "%.9f, %ld, ", guidingCacheUpdateTime, guiding_field->GetRegionCountSurface(false));
 }
 
 std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(

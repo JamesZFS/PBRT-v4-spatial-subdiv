@@ -58,8 +58,8 @@ Rendering options:
             R"(
   --help                        Print this help text.
   --interactive                 Enable interactive rendering mode.
-  --reference-image         Filename for reference image to use for MSE computation.
-  --mse-reference-out           File to write MSE error vs spp results.
+  --reference-image             Filename for reference image to use for MSE computation.
+  --csv-out                     File to write error, number of regions, etc. vs. time and spp.
   --nthreads <num>              Use specified number of threads for rendering.
   --outfile <filename>          Write the final image to the given filename.
   --pixel <x,y>                 Render just the specified pixel.
@@ -189,9 +189,9 @@ int main(int argc, char *argv[]) {
             ParseArg(&iter, args.end(), "log-file", &options.logFile, onError) ||
             ParseArg(&iter, args.end(), "interactive", &options.interactive, onError) ||
             ParseArg(&iter, args.end(), "fullscreen", &options.fullscreen, onError) ||
-            ParseArg(&iter, args.end(), "reference-image", &options.mseReferenceImage,
+            ParseArg(&iter, args.end(), "reference-image", &options.referenceImage,
                      onError) ||
-            ParseArg(&iter, args.end(), "mse-reference-out", &options.mseReferenceOutput,
+            ParseArg(&iter, args.end(), "csv-out", &options.csvOutput,
                      onError) ||
             ParseArg(&iter, args.end(), "nthreads", &options.nThreads, onError) ||
             ParseArg(&iter, args.end(), "outfile", &options.imageFile, onError) ||
@@ -246,16 +246,16 @@ int main(int argc, char *argv[]) {
         ErrorExit("%s: unknown rendering coordinate system.", renderCoordSys);
 
 #ifdef PBRT_BUILD_GUIDING_VIEWER
-    if (!options.guidingViewer && !options.mseReferenceImage.empty() && options.mseReferenceOutput.empty())
-        ErrorExit("Must provide MSE reference output filename via "
-                  "--mse-reference-out");
+    if (!options.guidingViewer && !options.referenceImage.empty() && options.csvOutput.empty())
+        ErrorExit("Must provide log output filename via "
+                  "--csv-out");
 #else
     if (!options.mseReferenceImage.empty() && options.mseReferenceOutput.empty())
-        ErrorExit("Must provide MSE reference output filename via "
-                  "--mse-reference-out");
+        ErrorExit("Must provide log output filename via "
+                  "--csv-out");
 #endif
-    if (!options.mseReferenceOutput.empty() && options.mseReferenceImage.empty())
-        ErrorExit("Must provide MSE reference image via --reference-image");
+    if (!options.csvOutput.empty() && options.referenceImage.empty())
+        ErrorExit("Must provide reference image via --reference-image");
 
     if (options.pixelMaterial && options.useGPU) {
         Warning("Disabling --use-gpu since --pixelmaterial was specified.");

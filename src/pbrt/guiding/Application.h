@@ -148,7 +148,7 @@ private:
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
-    LayoutType m_layout = Layout_Default;
+    LayoutType m_layout = Layout_ProbeViews;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     RayCastingData m_rcSDRV;  // ray casting result at the sampling distribution / radiance view
     int m_maxMaxDepth = 15;
