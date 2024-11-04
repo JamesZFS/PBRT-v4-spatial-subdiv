@@ -125,7 +125,6 @@ void SamplingDistributionView::Draw() {
     ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
     auto leftTop = ImGui::GetCursorScreenPos();
     ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size);
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + offset.y);
 
     // Hovering: show value at the pixel
     if (ImGui::IsItemHovered()) {

@@ -250,6 +250,7 @@ class GuidedPathIntegrator : public RayIntegrator {
     struct GuidingSettings {
         bool enableGuiding {true};
         bool enableTraining {true};
+        bool evaluateOnly {false};
         bool guideSurface {true};
 
         bool guideRR {false};
