@@ -269,7 +269,8 @@ class GuidedPathIntegrator : public RayIntegrator {
         int treeminsamplesperleaf {100};
         int treemaxdepth {32};
         int treemaxdepthwithsamplecount {32};
-        int treeenablece {32};
+        bool treeenablece {true};
+        bool treefailuredecay {false};
         float treecethreshold {std::numeric_limits<float>::infinity()};
         float treemomentum {0.8f};
 

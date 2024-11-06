@@ -868,7 +868,8 @@ void Application::NewRadianceViewRendering() {
     if (m_rcSDRV.valid) {
         // Launch a new rendering task at the clicked point
         m_radianceView->RenderStart(m_rcSDRV.hit, m_rcSDRV.normal);
-        // The rendering step is performed in the main loop when the render thread is not busy
+        RadianceViewRenderStep();
+        // Later rendering steps are performed in the main loop when the render thread is not busy
     } else {
         m_radianceView->Clear();
     }
@@ -1185,6 +1186,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamples = std::max(0, minSamples);
         ImGui::Checkbox("Enable CE", &m_subdivCfg.enableCE);
         ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.1f, 1.0f);
+        ImGui::Checkbox("Failure Decay", &m_subdivCfg.failureDecay);
         ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
     }
