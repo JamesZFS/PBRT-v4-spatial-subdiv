@@ -90,15 +90,15 @@ void SamplingDistributionView::Draw() {
         m_cpuBufferUpdated = true;
     }
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(90);
 #endif
-    ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormaps[m_selectedBuffer]), cmap_names, CMap_Count);
     std::string text;
     if (m_prev.valid) {
         if (m_prev.lookahead) text = "Lookahead";
         else text = "Coarse";
     } else text = "None";
     ImGui::Text("Showing: %s", text.c_str());
+    ImGui::SetNextItemWidth(90);
+    ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormaps[m_selectedBuffer]), cmap_names, CMap_Count);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90);
     ImGui::DragFloat("Exposure", &m_exposure, 0.01f, 0, 0, "%.4f");
