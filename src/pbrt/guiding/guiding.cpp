@@ -84,6 +84,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
         guiding_fieldSubdivConfig.enableCE = guideSettings.treeenablece;
+        guiding_fieldSubdivConfig.failureDecay = guideSettings.treefailuredecay;
         guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treemomentum;
 
@@ -541,7 +542,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         imageSpaceGuidingBuffer->AddSample(openpgl::cpp::Point2i(pPixel[0], pPixel[1]), cedSample);
     }
 
-    if (guideSettings.enableTraining)
+    if (guideSettings.enableTraining || guideSettings.evaluateOnly)
     {
         //pathSegmentStorage->ValidateSegments();
         pathSegmentStorage->PropagateSamples(guiding_sampleStorage, true, true);
@@ -637,6 +638,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
     settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", 32);
     settings.treeenablece = parameters.GetOneBool("treeenablece", true);
+    settings.treefailuredecay = parameters.GetOneBool("treefailuredecay", false);
     settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
     settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
 
