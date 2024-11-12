@@ -103,6 +103,7 @@ private:
     bool m_displayProbeID = false;
     bool m_autoFitAxes = true;
     bool m_plotLookahead = true;
+    bool m_showIntegratedCE = false;
 };
 
 

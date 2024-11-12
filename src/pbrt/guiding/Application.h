@@ -43,6 +43,7 @@ public:
     int GetSPP() const { return m_spp; }
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
+    double GetCrossEntropySDR() const { return m_samplingDistributionView->GetCrossEntropy(); }
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }

@@ -30,6 +30,8 @@ public:
 
     void Draw() override;
 
+    double GetCrossEntropy() const { return m_crossEntropy; }
+
 private:
     void UpdateCPUBuffer();
 
@@ -69,7 +71,6 @@ private:
     bool &m_localFrame;
     float &m_exposure;
     bool m_enableCosineProduct = true;
-    Colormap m_colormaps[Buffer_Count];
 
     float m_stepPhi;
     float m_stepTheta;
