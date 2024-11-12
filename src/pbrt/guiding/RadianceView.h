@@ -65,7 +65,6 @@ private:
     bool &m_localFrame;
     float &m_exposure;
     float m_rayEps = 1e-3f;
-    Colormap m_colormap = CMap_Viridis;
 
     float m_stepPhi;
     float m_stepTheta;

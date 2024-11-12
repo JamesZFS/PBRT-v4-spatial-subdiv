@@ -170,9 +170,10 @@ void RadianceView::UpdateFramebuffer() {
 
     Shader &shader = m_framebuffer.getShader();
     shader.bind();
+    Colormap cmap = m_pdf ? CMap_Viridis : CMap_None;
     ConfigureTonemapShader(shader, m_renderingTex, false, {
                                m_pdf ? (float) (m_exposure / m_normalizer) : m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
-                               cmap_tex_ids[m_colormap]
+                               cmap_tex_ids[cmap]
                            });
 
     // Render!
@@ -184,26 +185,23 @@ void RadianceView::Draw() {
     ImGui::TextDisabled("(?)");
     ImGui::SameLine();
     ImGui::SetItemTooltip("The radiance view will automatically render when there is left click on the viewport and the render thread is not busy.");
-    ImGui::Checkbox("PDF", &m_pdf);
-    ImGui::SetItemTooltip("Normalize the radiance to the ground truth distribution.");
-    ImGui::SameLine();
     ImGui::ProgressBar((float) m_numSamples / (float) m_spp, {ImGui::GetContentRegionAvail().x, 0}, m_numSamples >= m_spp ? "Done" : StringPrintf("%d/%d SPP", m_numSamples, m_spp).c_str());
-    ImGui::SetNextItemWidth(90);
-    ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormap), cmap_names, CMap_Count);
+    bool needsRestart = false;
+    needsRestart |= ImGui::Checkbox("Local Frame", &m_localFrame);
+    needsRestart |= m_localFrame != m_prev.localFrame;
+    m_prev.localFrame = m_localFrame;
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90);
     ImGui::DragFloat("Exposure", &m_exposure, 0.01f, 0, 0, "%.4f");
     m_exposure = std::max(m_exposure, 0.0f);
-    bool needsRestart = false;
+    ImGui::Checkbox("PDF", &m_pdf);
+    ImGui::SetItemTooltip("Normalize the radiance to the ground truth distribution.");
+    ImGui::SameLine();
     ImGui::SetNextItemWidth(50);
     needsRestart |= ImGui::DragInt("SPP", &m_spp, 0.2, 1, 1024);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(60);
     needsRestart |= ImGui::DragFloat("Offset", &m_rayEps, 0.0001, 0, 1, "%.1e");
-    ImGui::SameLine();
-    needsRestart |= ImGui::Checkbox("Local Frame", &m_localFrame);
-    needsRestart |= m_localFrame != m_prev.localFrame;
-    m_prev.localFrame = m_localFrame;
 
     if (needsRestart && m_prev.valid) {
         RenderStart();

@@ -23,11 +23,13 @@ void CacheMonitor::Plot::Draw() {
             ImGui::EndTooltip();
         }
         ImGui::SameLine();
-        ImGui::Checkbox("Display Probe ID", &m_monitor.m_displayProbeID);
-        ImGui::SameLine();
         ImGui::Checkbox("Auto Fit", &m_monitor.m_autoFitAxes);
         ImGui::SameLine();
         ImGui::Checkbox("Lookaheads", &m_monitor.m_plotLookahead);
+        ImGui::SameLine();
+        ImGui::Checkbox("Integrated CE", &m_monitor.m_showIntegratedCE);
+        ImGui::SameLine();
+        ImGui::Checkbox("Probe ID", &m_monitor.m_displayProbeID);
     }
 
     ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
@@ -82,6 +84,10 @@ void CacheMonitor::Plot::Draw() {
             }
             ImPlot::SetNextLineStyle(lineColor);
             ImPlot::PlotLine(label.c_str(), x, x + yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
+            if (m_type == PlotType_CE && m_monitor.m_showIntegratedCE) {  // Plot a horizontal line
+                double ce = m_parent->GetCrossEntropySDR();
+                ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 1, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+            }
         }
         ImPlot::EndPlot();
     }

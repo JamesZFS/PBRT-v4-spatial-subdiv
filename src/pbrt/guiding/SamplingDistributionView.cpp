@@ -19,11 +19,9 @@ SamplingDistributionView::SamplingDistributionView(pbrt::Application *parent, co
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.pdf.resize(m_resolution.x * m_resolution.y);
-    m_colormaps[Buffer_PDF] = CMap_Viridis;
 #ifdef OPENPGL_RADIANCE_CACHES
     m_cpuBuffer.Li.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.Lo.resize(m_resolution.x * m_resolution.y);
-    m_colormaps[Buffer_Li] = m_colormaps[Buffer_Lo] = CMap_None;
 #endif
     glGenTextures(1, &m_renderingTex);
 }
@@ -63,9 +61,10 @@ void SamplingDistributionView::UpdateFramebuffer() {
 
     Shader &shader = m_framebuffer.getShader();
     shader.bind();
+    Colormap cmap = m_selectedBuffer == Buffer_PDF ? CMap_Viridis : CMap_None;
     ConfigureTonemapShader(shader, m_renderingTex, m_selectedBuffer == Buffer_PDF, {
                                m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
-                               cmap_tex_ids[m_colormaps[m_selectedBuffer]]
+                               cmap_tex_ids[cmap]
                            });
 
     // Render!
@@ -100,24 +99,21 @@ void SamplingDistributionView::Draw() {
         else text = "Coarse";
     } else text = "None";
     ImGui::Text("Showing: %s", text.c_str());
-    ImGui::SetNextItemWidth(90);
-    ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormaps[m_selectedBuffer]), cmap_names, CMap_Count);
+    bool needsUpdate = false;
+    needsUpdate |= ImGui::Checkbox("Local Frame", &m_localFrame);
+    needsUpdate |= m_localFrame != m_prev.localFrame;
+    m_prev.localFrame = m_localFrame;
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90);
     ImGui::DragFloat("Exposure", &m_exposure, 0.01f, 0, 0, "%.4f");
     m_exposure = std::max(m_exposure, 0.0f);
-    bool needsUpdate = false;
     needsUpdate |= ImGui::Checkbox("Cosine Product", &m_enableCosineProduct);
-    ImGui::SameLine();
-    needsUpdate |= ImGui::Checkbox("Local Frame", &m_localFrame);
-    needsUpdate |= m_localFrame != m_prev.localFrame;
-    m_prev.localFrame = m_localFrame;
 
     if (m_prev.valid && m_ceUpdateTimer.ElapsedSeconds() > 0.2) {
         ComputeCrossEntropy();
         m_ceUpdateTimer = Timer();
     }
-    ImGui::Text("Normalizer: %.6lf", m_normalizer);
+    // ImGui::Text("Normalizer: %.6lf", m_normalizer);
     ImGui::SameLine();
     ImGui::Text("Cross Entropy: %.6lf", m_crossEntropy);
 
