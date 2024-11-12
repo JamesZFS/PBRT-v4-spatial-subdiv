@@ -29,6 +29,10 @@ public:
 
     bool IsRendering() const { return m_prev.valid && m_numSamples < m_spp; }
 
+    double GetPDF(const pbrt::Point2i &p) const;
+
+    pbrt::Point2i GetResolution() const { return m_resolution; }
+
 private:
     void EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler, pbrt::ScratchBuffer &scratchBuffer);
 
@@ -44,6 +48,7 @@ private:
     pbrt::Point2i m_resolution{640, 320};
 
     std::vector<pbrt::RGB> m_cpuBuffer;
+    double m_normalizer = 1;
     int m_numSamples;
     int m_spp = 64;
     std::atomic_bool m_cpuBufferUpdated = false;
@@ -56,10 +61,11 @@ private:
     } m_prev;
     pbrt::Frame m_frame;
 
+    bool m_pdf = true;
     bool &m_localFrame;
     float &m_exposure;
     float m_rayEps = 1e-3f;
-    Colormap m_colormap = CMap_None;
+    Colormap m_colormap = CMap_Viridis;
 
     float m_stepPhi;
     float m_stepTheta;

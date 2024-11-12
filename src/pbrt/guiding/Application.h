@@ -167,8 +167,8 @@ private:
     std::unique_ptr<RenderThread> m_renderThread;
     std::unique_ptr<ControlPanel> m_controlPanel;
     std::unique_ptr<Viewport> m_viewport;
-    std::unique_ptr<SamplingDistributionView> m_samplingDistributionView;
     std::unique_ptr<RadianceView> m_radianceView;
+    std::unique_ptr<SamplingDistributionView> m_samplingDistributionView;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;

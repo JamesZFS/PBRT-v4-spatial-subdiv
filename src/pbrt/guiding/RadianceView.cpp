@@ -50,27 +50,41 @@ void RadianceView::RenderStart() {
     auto camera = Camera(m_camera.get());
     auto sampler = Sampler(m_sampler.get());
     auto &settings = m_parent->GetIntegratorSettings();
-    m_integrator = std::make_unique<PathIntegrator>(settings.maxDepth, camera, sampler, m_scene, m_lights);
+    m_integrator = std::make_unique<PathIntegrator>(settings.maxDepth - 1, camera, sampler, m_scene, m_lights);
 }
+
+thread_local double thread_normalizer = 0;
 
 void RadianceView::RenderStep() {
     // Render one sample per pixel
     CHECK_LT(m_numSamples, m_spp);
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
+    double normalizer = 0;
+    std::mutex mutex;
     ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
         // Render image tile given by _tileBounds_
         ScratchBuffer &scratchBuffer = m_scratchBuffers.Get();
         IndependentSampler _sampler = *m_sampler;
         Sampler sampler(&_sampler);
+        thread_normalizer = 0;
         for (Point2i pPixel : tileBounds) {
             // Render samples in pixel _pPixel_
             sampler.StartPixelSample(pPixel, m_numSamples);
             EvaluatePixelSample(pPixel, m_numSamples, sampler, scratchBuffer);
             scratchBuffer.Reset();
         }
+        {
+            std::lock_guard lock(mutex);
+            normalizer += thread_normalizer;
+        }
     });
+    m_normalizer = normalizer;
     m_numSamples++;
     m_cpuBufferUpdated = true;
+}
+
+double RadianceView::GetPDF(const pbrt::Point2i &p) const {
+    return Luminance(m_cpuBuffer[p.y * m_resolution.x + p.x]) / m_normalizer;
 }
 
 void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler,
@@ -124,6 +138,19 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
     size_t index = pPixel.y * m_resolution.x + pPixel.x;
     RGB rgb = m_camera->GetFilm().ToOutputRGB(L, lambda);
     m_cpuBuffer[index] = Lerp(1 / (Float) (sampleIndex + 1), m_cpuBuffer[index], rgb);
+    if (cameraRay) {
+        auto d = cameraRay->ray.d;
+        if (Dot(d, m_prev.normal) < 0) {
+            m_cpuBuffer[index] = RGB(0, 0, 0);
+        } else {
+            float val = Luminance(m_cpuBuffer[index]);
+            float cosTheta;
+            if (m_localFrame) cosTheta = Dot(d, m_prev.normal);
+            else cosTheta = d.z;
+            float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
+            thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
+        }
+    }
 }
 
 void RadianceView::Clear() {
@@ -144,7 +171,7 @@ void RadianceView::UpdateFramebuffer() {
     Shader &shader = m_framebuffer.getShader();
     shader.bind();
     ConfigureTonemapShader(shader, m_renderingTex, false, {
-                               m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
+                               m_pdf ? (float) (m_exposure / m_normalizer) : m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
                                cmap_tex_ids[m_colormap]
                            });
 
@@ -157,6 +184,9 @@ void RadianceView::Draw() {
     ImGui::TextDisabled("(?)");
     ImGui::SameLine();
     ImGui::SetItemTooltip("The radiance view will automatically render when there is left click on the viewport and the render thread is not busy.");
+    ImGui::Checkbox("PDF", &m_pdf);
+    ImGui::SetItemTooltip("Normalize the radiance to the ground truth distribution.");
+    ImGui::SameLine();
     ImGui::ProgressBar((float) m_numSamples / (float) m_spp, {ImGui::GetContentRegionAvail().x, 0}, m_numSamples >= m_spp ? "Done" : StringPrintf("%d/%d SPP", m_numSamples, m_spp).c_str());
     ImGui::SetNextItemWidth(90);
     ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_colormap), cmap_names, CMap_Count);
@@ -200,8 +230,9 @@ void RadianceView::Draw() {
             float theta = m_stepTheta * (0.5f + float(pixel.y));
             float phi = m_stepPhi * (0.5f + float(pixel.x));
             ImGui::Text("Omega: (%.1f, %.1f) deg", Degrees(theta), Degrees(phi));
-            RGB value = m_cpuBuffer[idx];
-            ImGui::Text("Li: (%.4f, %.4f, %.4f)", value.r, value.g, value.b);
+            RGB rgb = m_cpuBuffer[idx];
+            if (m_pdf) ImGui::Text("PDF: %.6lf", Luminance(rgb) / m_normalizer);
+            else ImGui::Text("Li: (%.4f, %.4f, %.4f)", rgb.r, rgb.g, rgb.b);
             ImGui::EndTooltip();
         }
     }
