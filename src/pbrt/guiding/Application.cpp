@@ -74,8 +74,8 @@ int Application::Run() {
     InitializeTonemaps();
     m_controlPanel = std::make_unique<ControlPanel>(this, *m_renderThread);
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
-    m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field);
     m_radianceView = std::make_unique<RadianceView>(this, m_scene, m_lights);
+    m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field, *m_radianceView);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
@@ -166,13 +166,13 @@ void Application::Draw() {
     CacheMonitorViews();
     CacheHistogramViews();
 
-    if ((m_enableSamplingDistributionView = ImGui::Begin("Sampling Distribution"))) {
-        m_samplingDistributionView->Draw();
+    if ((m_enableRadianceView = ImGui::Begin("Radiance View"))) {
+        m_radianceView->Draw();
     }
     ImGui::End();
 
-    if ((m_enableRadianceView = ImGui::Begin("Radiance View"))) {
-        m_radianceView->Draw();
+    if ((m_enableSamplingDistributionView = ImGui::Begin("Sampling Distribution"))) {
+        m_samplingDistributionView->Draw();
     }
     ImGui::End();
 }
@@ -687,7 +687,7 @@ void Application::SDRViewInteraction() {
     }
 
     // Draw the view location
-    if (m_rcSDRV.coarse.id != -1) {
+    if (m_rcSDRV.valid) {
         ImVec2 leftTop = m_viewport->GetLeftTop();
         float scale = m_viewport->GetScale();
         ImVec2 center(leftTop.x + m_rcSDRV.pixel.x * scale, leftTop.y + m_rcSDRV.pixel.y * scale);
@@ -700,7 +700,7 @@ void Application::SDRViewInteraction() {
 
         // Right click to clear the views
         if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            m_rcSDRV.coarse.id = -1;
+            m_rcSDRV.valid = false;
             m_samplingDistributionView->Clear();
             m_radianceView->Clear();
         }
@@ -856,7 +856,7 @@ void Application::UpdateCacheHistograms() {
 }
 
 void Application::UpdateSamplingDistributionView() {
-    if (m_rcSDRV.coarse.id != -1) {
+    if (m_rcSDRV.valid) {
         std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
         m_samplingDistributionView->UpdateCPUBuffer(m_rcSDRV.hit, m_rcSDRV.normal, m_showFine);
     } else {
@@ -1051,12 +1051,12 @@ void Application::ChannelSelector() {
 
         if (ImGui::BeginTabBar("ChannelSelector")) {
             for (int i = 0; i < m_channelCount; ++i) {
-                if (newChannel == i)
+                if (m_selectedChannel == i)
                     ImGui::PushStyleColor(ImGuiCol_Tab, ImGui::GetStyleColorVec4(ImGuiCol_TabSelected));
                 if (ImGui::TabItemButton(channelNames[i])) {
                     newChannel = (SelectedChannel) i;
                 }
-                if (newChannel == i)
+                if (m_selectedChannel == i)
                     ImGui::PopStyleColor();
             }
             ImGui::EndTabBar();

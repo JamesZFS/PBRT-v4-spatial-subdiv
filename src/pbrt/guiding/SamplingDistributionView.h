@@ -7,14 +7,18 @@
 
 
 #include "View.h"
+#include "RadianceView.h"
+
 #include <pbrt/util/framebuffer.h>
 #include <atomic>
 #include <openpgl/cpp/OpenPGL.h>
 
+#include "pbrt/util/progressreporter.h"
+
 
 class SamplingDistributionView : public View {
 public:
-    SamplingDistributionView(pbrt::Application *parent, const openpgl::cpp::Field &field);
+    SamplingDistributionView(pbrt::Application *parent, const openpgl::cpp::Field &field, const RadianceView &radianceView);
 
     ~SamplingDistributionView();
 
@@ -29,7 +33,10 @@ public:
 private:
     void UpdateCPUBuffer();
 
+    void ComputeCrossEntropy();
+
     const openpgl::cpp::Field &m_field;
+    const RadianceView &m_radianceView;
     openpgl::cpp::SurfaceSamplingDistribution m_ssd;
     pbrt::Point2i m_resolution{640, 320};
 
@@ -61,11 +68,15 @@ private:
 
     bool &m_localFrame;
     float &m_exposure;
-    bool m_enableCosineProduct;
+    bool m_enableCosineProduct = true;
     Colormap m_colormaps[Buffer_Count];
 
     float m_stepPhi;
     float m_stepTheta;
+    double m_normalizer = 1;   // pdf normalizer, should be close to 1
+    double m_crossEntropy = 0;  // integrated cross entropy between the sampling pdf and the rendered radiance distribution
+
+    pbrt::Timer m_ceUpdateTimer;
 
     GLuint m_renderingTex = 0;  // stores the selected cpu buffer
     Framebuffer m_framebuffer;

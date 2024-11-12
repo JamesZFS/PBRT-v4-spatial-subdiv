@@ -12,9 +12,10 @@
 
 using namespace pbrt;
 
-SamplingDistributionView::SamplingDistributionView(pbrt::Application *parent, const openpgl::cpp::Field &field) :
+SamplingDistributionView::SamplingDistributionView(pbrt::Application *parent, const openpgl::cpp::Field &field, const RadianceView &radianceView) :
     View(parent), m_localFrame(parent->sdrLocalFrame), m_exposure(parent->sdrExposure),
-    m_field(field), m_ssd(&field), m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+    m_field(field), m_radianceView(radianceView),
+    m_ssd(&field), m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.pdf.resize(m_resolution.x * m_resolution.y);
@@ -32,7 +33,7 @@ SamplingDistributionView::~SamplingDistributionView() {
 }
 
 void SamplingDistributionView::UpdateCPUBuffer(const pbrt::Point3f &pos, const pbrt::Normal3f &normal, bool lookahead) {
-    m_prev = {true, pos, normal, lookahead};
+    m_prev = {true, pos, normal, lookahead, m_localFrame};
     UpdateCPUBuffer();
 }
 
@@ -79,6 +80,8 @@ void SamplingDistributionView::Clear() {
     std::fill(m_cpuBuffer.Li.begin(), m_cpuBuffer.Li.end(), RGB(0, 0, 0));
     std::fill(m_cpuBuffer.Lo.begin(), m_cpuBuffer.Lo.end(), RGB(0, 0, 0));
 #endif
+    m_normalizer = 1;
+    m_crossEntropy = 0;
     m_cpuBufferUpdated = true;
 }
 
@@ -109,6 +112,14 @@ void SamplingDistributionView::Draw() {
     needsUpdate |= ImGui::Checkbox("Local Frame", &m_localFrame);
     needsUpdate |= m_localFrame != m_prev.localFrame;
     m_prev.localFrame = m_localFrame;
+
+    if (m_prev.valid && m_ceUpdateTimer.ElapsedSeconds() > 0.2) {
+        ComputeCrossEntropy();
+        m_ceUpdateTimer = Timer();
+    }
+    ImGui::Text("Normalizer: %.6lf", m_normalizer);
+    ImGui::SameLine();
+    ImGui::Text("Cross Entropy: %.6lf", m_crossEntropy);
 
     if (needsUpdate && m_prev.valid) {
         UpdateCPUBuffer();
@@ -179,27 +190,57 @@ void SamplingDistributionView::UpdateCPUBuffer() {
         }
         auto frame = Frame::FromZ(normal);
 
-        ParallelFor2D(Bounds2i({0, 0}, m_resolution), [&](Point2i p) {
-            int idx = (p.y * m_resolution.x) + p.x;
-            float theta = m_stepTheta * (0.5f + float(p.y));
-            float phi = m_stepPhi * (0.5f + float(p.x));
-            Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
-            if (m_localFrame)
-                dir = frame.FromLocal(dir);
-            pgl_vec3f pglDir{dir.x, dir.y, dir.z};
+        ParallelFor2D(Bounds2i({0, 0}, m_resolution), [&](Bounds2i tileBounds) {
+            for (Point2i p: tileBounds) {
+                int idx = (p.y * m_resolution.x) + p.x;
+                float theta = m_stepTheta * (0.5f + float(p.y));
+                float phi = m_stepPhi * (0.5f + float(p.x));
+                float sinTheta = std::sin(theta);
+                Vector3f dir = SphericalDirection(sinTheta, std::cos(theta), phi);
+                if (m_localFrame)
+                    dir = frame.FromLocal(dir);
+                pgl_vec3f pglDir{dir.x, dir.y, dir.z};
 
-            float pdf = m_ssd.PDF(pglDir);
-            m_cpuBuffer.pdf[idx] = pdf;
+                float pdf = m_ssd.PDF(pglDir);
+                m_cpuBuffer.pdf[idx] = pdf;
 #ifdef OPENPGL_RADIANCE_CACHES
-            pgl_vec3f li = m_ssd.IncomingRadiance(pglDir, false);
-            pgl_vec3f lo = m_ssd.OutgoingRadiance(pglDir);
-            m_cpuBuffer.Li[idx] = RGB(li.x, li.y, li.z);
-            m_cpuBuffer.Lo[idx] = RGB(lo.x, lo.y, lo.z);
+                pgl_vec3f li = m_ssd.IncomingRadiance(pglDir, false);
+                pgl_vec3f lo = m_ssd.OutgoingRadiance(pglDir);
+                m_cpuBuffer.Li[idx] = RGB(li.x, li.y, li.z);
+                m_cpuBuffer.Lo[idx] = RGB(lo.x, lo.y, lo.z);
 #endif
+            }
         });
 
         m_cpuBufferUpdated = true;
     } else {
         Clear();
     }
+}
+
+void SamplingDistributionView::ComputeCrossEntropy() {
+    CHECK_EQ(m_resolution, m_radianceView.GetResolution());
+    double crossEntropy = 0;
+    double normalizer = 0;
+    std::mutex mutex;
+    ParallelFor2D(Bounds2i({0, 0}, m_resolution), [&](Bounds2i tileBounds) {
+        double thread_crossEntropy = 0;
+        double thread_normalizer = 0;
+        for (Point2i p: tileBounds) {
+            int idx = (p.y * m_resolution.x) + p.x;
+            float theta = m_stepTheta * (0.5f + float(p.y));
+            float sinTheta = std::sin(theta);
+            double guidingPDF = m_cpuBuffer.pdf[idx];
+            double pdfGT = m_radianceView.GetPDF(p);
+            thread_crossEntropy += -pdfGT * std::log(guidingPDF) * sinTheta * m_stepPhi * m_stepTheta;
+            thread_normalizer += guidingPDF * sinTheta * m_stepPhi * m_stepTheta;
+        }
+        {
+            std::lock_guard lock(mutex);
+            crossEntropy += thread_crossEntropy;
+            normalizer += thread_normalizer;
+        }
+    });
+    m_crossEntropy = crossEntropy;
+    m_normalizer = normalizer;
 }

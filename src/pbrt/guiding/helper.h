@@ -59,6 +59,10 @@ void ConfigureTonemapShader(Shader &shader, GLuint sourceTex, bool singleChannel
 
 bool IsSingleChannel(SelectedChannel channel);
 
+inline float Luminance(const pbrt::RGB &rgb) {
+    return 0.2126f * rgb.r + 0.7152f * rgb.g + 0.0722f * rgb.b;
+}
+
 template<ErrorMetric metric>
 float CalcError(float x, float ref);
 
