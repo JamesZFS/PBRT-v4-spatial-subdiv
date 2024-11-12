@@ -228,7 +228,8 @@ void SamplingDistributionView::ComputeCrossEntropy() {
             float sinTheta = std::sin(theta);
             double guidingPDF = m_cpuBuffer.pdf[idx];
             double pdfGT = m_radianceView.GetPDF(p);
-            thread_crossEntropy += -pdfGT * std::log(guidingPDF) * sinTheta * m_stepPhi * m_stepTheta;
+            if (pdfGT > 0)
+                thread_crossEntropy += -pdfGT * std::log(guidingPDF) * sinTheta * m_stepPhi * m_stepTheta;
             thread_normalizer += guidingPDF * sinTheta * m_stepPhi * m_stepTheta;
         }
         {

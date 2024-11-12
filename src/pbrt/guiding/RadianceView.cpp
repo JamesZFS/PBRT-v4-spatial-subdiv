@@ -145,7 +145,7 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
         } else {
             float val = Luminance(m_cpuBuffer[index]);
             float cosTheta;
-            if (m_localFrame) cosTheta = Dot(d, m_prev.normal);
+            if (m_localFrame) cosTheta = Clamp(Dot(d, m_prev.normal), -1, 1);
             else cosTheta = d.z;
             float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
             thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
