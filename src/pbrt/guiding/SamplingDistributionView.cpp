@@ -63,7 +63,7 @@ void SamplingDistributionView::UpdateFramebuffer() {
     shader.bind();
     Colormap cmap = m_selectedBuffer == Buffer_PDF ? CMap_Viridis : CMap_None;
     ConfigureTonemapShader(shader, m_renderingTex, m_selectedBuffer == Buffer_PDF, {
-                               m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
+                               (float) (m_exposure / m_normalizer), 0.0f, std::numeric_limits<float>::infinity(),
                                cmap_tex_ids[cmap]
                            });
 
@@ -145,7 +145,7 @@ void SamplingDistributionView::Draw() {
             switch (m_selectedBuffer) {
                 case Buffer_PDF: {
                     float value = m_cpuBuffer.pdf[idx];
-                    ImGui::Text("PDF: %.6f", value);
+                    ImGui::Text("PDF: %.6f", value / m_normalizer);
                     break;
                 }
 #ifdef OPENPGL_RADIANCE_CACHES
@@ -169,6 +169,22 @@ void SamplingDistributionView::Draw() {
     }
 }
 
+void SamplingDistributionView::SetResolution(const pbrt::Point2i &resolution) {
+    m_resolution = resolution;
+    m_framebuffer.rescale(resolution.x, resolution.y);
+    m_cpuBuffer.pdf.resize(resolution.x * resolution.y);
+#ifdef OPENPGL_RADIANCE_CACHES
+    m_cpuBuffer.Li.resize(resolution.x * resolution.y);
+    m_cpuBuffer.Lo.resize(resolution.x * resolution.y);
+#endif
+    m_stepPhi = (2.0f * M_PI) / (float) resolution.x;
+    m_stepTheta = (M_PI) / (float) resolution.y;
+
+    if (m_prev.valid) {
+        UpdateCPUBuffer();
+    }
+}
+
 void SamplingDistributionView::UpdateCPUBuffer() {
     auto pos = m_prev.pos;
     auto normal = Vector3f(m_prev.normal);
@@ -186,7 +202,10 @@ void SamplingDistributionView::UpdateCPUBuffer() {
         }
         auto frame = Frame::FromZ(normal);
 
+        std::mutex mutex;
+        double normalizer = 0;
         ParallelFor2D(Bounds2i({0, 0}, m_resolution), [&](Bounds2i tileBounds) {
+            double thread_normalizer = 0;
             for (Point2i p: tileBounds) {
                 int idx = (p.y * m_resolution.x) + p.x;
                 float theta = m_stepTheta * (0.5f + float(p.y));
@@ -205,9 +224,15 @@ void SamplingDistributionView::UpdateCPUBuffer() {
                 m_cpuBuffer.Li[idx] = RGB(li.x, li.y, li.z);
                 m_cpuBuffer.Lo[idx] = RGB(lo.x, lo.y, lo.z);
 #endif
+                thread_normalizer += pdf * sinTheta;
+            }
+            {
+                std::lock_guard lock(mutex);
+                normalizer += thread_normalizer;
             }
         });
 
+        m_normalizer = normalizer * m_stepPhi * m_stepTheta;
         m_cpuBufferUpdated = true;
     } else {
         Clear();
@@ -217,27 +242,22 @@ void SamplingDistributionView::UpdateCPUBuffer() {
 void SamplingDistributionView::ComputeCrossEntropy() {
     CHECK_EQ(m_resolution, m_radianceView.GetResolution());
     double crossEntropy = 0;
-    double normalizer = 0;
     std::mutex mutex;
     ParallelFor2D(Bounds2i({0, 0}, m_resolution), [&](Bounds2i tileBounds) {
         double thread_crossEntropy = 0;
-        double thread_normalizer = 0;
         for (Point2i p: tileBounds) {
             int idx = (p.y * m_resolution.x) + p.x;
             float theta = m_stepTheta * (0.5f + float(p.y));
             float sinTheta = std::sin(theta);
-            double guidingPDF = m_cpuBuffer.pdf[idx];
+            double guidingPDF = m_cpuBuffer.pdf[idx] / m_normalizer;
             double pdfGT = m_radianceView.GetPDF(p);
             if (pdfGT > 0)
-                thread_crossEntropy += -pdfGT * std::log(guidingPDF) * sinTheta * m_stepPhi * m_stepTheta;
-            thread_normalizer += guidingPDF * sinTheta * m_stepPhi * m_stepTheta;
+                thread_crossEntropy += -pdfGT * std::log(guidingPDF) * sinTheta;
         }
         {
             std::lock_guard lock(mutex);
             crossEntropy += thread_crossEntropy;
-            normalizer += thread_normalizer;
         }
     });
-    m_crossEntropy = crossEntropy;
-    m_normalizer = normalizer;
+    m_crossEntropy = crossEntropy * m_stepPhi * m_stepTheta;
 }

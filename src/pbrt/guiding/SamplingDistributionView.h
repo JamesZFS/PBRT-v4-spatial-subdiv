@@ -32,6 +32,10 @@ public:
 
     double GetCrossEntropy() const { return m_crossEntropy; }
 
+    pbrt::Point2i GetResolution() const { return m_resolution; }
+
+    void SetResolution(const pbrt::Point2i &resolution);
+
 private:
     void UpdateCPUBuffer();
 

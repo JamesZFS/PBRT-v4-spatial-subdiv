@@ -7,6 +7,8 @@
 
 using namespace pbrt;
 
+static BoxFilter *filter = new BoxFilter(Vector2f{0.5, 0.5});
+static PixelSensor *sensor = PixelSensor::CreateDefault();
 
 RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &scene,
                            const std::vector<pbrt::Light> &lights)
@@ -17,10 +19,11 @@ RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &sce
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.resize(m_resolution.x * m_resolution.y);
     glGenTextures(1, &m_renderingTex);
-    auto filter = new BoxFilter(Vector2f{0.5, 0.5});
-    FilmBaseParameters fp(m_resolution, Bounds2i({0, 0}, m_resolution), filter, 35., PixelSensor::CreateDefault(),
+    FilmBaseParameters fp(m_resolution, Bounds2i({0, 0}, m_resolution), filter, 35., sensor,
                           "RadianceView-temp.exr");
     m_cbp.film = {new RGBFilm(fp, RGBColorSpace::sRGB)};
+    auto &settings = m_parent->GetIntegratorSettings();
+    m_maxDepth = settings.maxDepth;
 }
 
 RadianceView::~RadianceView() {
@@ -49,8 +52,7 @@ void RadianceView::RenderStart() {
     m_camera = std::make_unique<SphericalCamera>(m_cbp, SphericalCamera::Mapping::EquiRectangular);
     auto camera = Camera(m_camera.get());
     auto sampler = Sampler(m_sampler.get());
-    auto &settings = m_parent->GetIntegratorSettings();
-    m_integrator = std::make_unique<PathIntegrator>(settings.maxDepth - 1, camera, sampler, m_scene, m_lights);
+    m_integrator = std::make_unique<PathIntegrator>(m_maxDepth, camera, sampler, m_scene, m_lights);
 }
 
 thread_local double thread_normalizer = 0;
@@ -85,6 +87,24 @@ void RadianceView::RenderStep() {
 
 double RadianceView::GetPDF(const pbrt::Point2i &p) const {
     return Luminance(m_cpuBuffer[p.y * m_resolution.x + p.x]) / m_normalizer;
+}
+
+void RadianceView::SetResolution(const pbrt::Point2i &resolution) {
+    m_resolution = resolution;
+    m_framebuffer.rescale(resolution.x, resolution.y);
+    m_cpuBuffer.resize(m_resolution.x * m_resolution.y);
+    m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
+    m_stepTheta = (M_PI) / (float) m_resolution.y;
+    auto film = m_cbp.film.Cast<RGBFilm>();
+    delete film;
+    auto filter = new BoxFilter(Vector2f{0.5, 0.5});
+    FilmBaseParameters fp(m_resolution, Bounds2i({0, 0}, m_resolution), filter, 35., sensor,
+                          "RadianceView-temp.exr");
+    m_cbp.film = {new RGBFilm(fp, RGBColorSpace::sRGB)};
+
+    if (m_prev.valid) {
+        RenderStart();
+    }
 }
 
 void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler,
@@ -156,6 +176,7 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
 void RadianceView::Clear() {
     m_prev.valid = false;
     std::fill(m_cpuBuffer.begin(), m_cpuBuffer.end(), RGB(0, 0, 0));
+    m_normalizer = 1;
     m_cpuBufferUpdated = true;
 }
 
@@ -197,8 +218,11 @@ void RadianceView::Draw() {
     ImGui::Checkbox("PDF", &m_pdf);
     ImGui::SetItemTooltip("Normalize the radiance to the ground truth distribution.");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(50);
+    ImGui::SetNextItemWidth(30);
     needsRestart |= ImGui::DragInt("SPP", &m_spp, 0.2, 1, 1024);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(30);
+    needsRestart |= ImGui::DragInt("Max Depth", &m_maxDepth, 0.1, 0, 128);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(60);
     needsRestart |= ImGui::DragFloat("Offset", &m_rayEps, 0.0001, 0, 1, "%.1e");

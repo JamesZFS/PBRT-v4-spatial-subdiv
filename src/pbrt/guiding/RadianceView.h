@@ -33,6 +33,8 @@ public:
 
     pbrt::Point2i GetResolution() const { return m_resolution; }
 
+    void SetResolution(const pbrt::Point2i &resolution);
+
 private:
     void EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler, pbrt::ScratchBuffer &scratchBuffer);
 
@@ -65,6 +67,7 @@ private:
     bool &m_localFrame;
     float &m_exposure;
     float m_rayEps = 1e-3f;
+    int m_maxDepth;
 
     float m_stepPhi;
     float m_stepTheta;

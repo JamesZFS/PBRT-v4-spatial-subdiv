@@ -11,7 +11,7 @@ public:
 
     ~Framebuffer();
 
-    void rescale(float width, float height);
+    void rescale(int width, int height);
 
     void bind();
 
