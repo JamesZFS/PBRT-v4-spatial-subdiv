@@ -884,6 +884,7 @@ void Application::RadianceViewRenderStep() {
 void Application::MainMenu() {
     static std::string layoutNames[Layout_Count] = {"Default", "Compact", "Probe Views", "Cache Monitor", "Histograms"};
     ImGuiIO &io = ImGui::GetIO();
+    bool openChangeResolutionPopup = false;
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Layout")) {
             for (int i = 0; i < Layout_Count; ++i) {
@@ -962,6 +963,18 @@ void Application::MainMenu() {
             }
             ImGui::EndMenu();
         }
+        if (ImGui::BeginMenu("SDR View", m_renderThread->GetState() != RenderThread::Rendering)) {
+            if (ImGui::MenuItem("Clear")) {
+                m_rcSDRV.valid = false;
+                m_samplingDistributionView->Clear();
+                m_radianceView->Clear();
+            }
+            if (ImGui::MenuItem("Set Resolution")) {
+                openChangeResolutionPopup = true;
+                m_enableShortcuts = false;
+            }
+            ImGui::EndMenu();
+        }
         ImGui::EndMainMenuBar();
     }
     // Dialogs
@@ -1006,6 +1019,32 @@ void Application::MainMenu() {
         }
         ImGuiFileDialog::Instance()->Close();
         m_enableShortcuts = true;
+    }
+    if (openChangeResolutionPopup) ImGui::OpenPopup("Change Resolution");
+    if (ImGui::BeginPopupModal("Change Resolution", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        static Point2i resolution;
+        if (!m_hasOpenedChangeResolutionPopup) {
+            resolution = m_samplingDistributionView->GetResolution();
+            m_hasOpenedChangeResolutionPopup = true;
+        }
+        ImGui::InputInt("Width", &resolution.x);
+        ImGui::InputInt("Height", &resolution.y);
+        resolution.x = std::max(1, resolution.x);
+        resolution.y = std::max(1, resolution.y);
+        if (ImGui::Button("OK")) {
+            m_radianceView->SetResolution(resolution);
+            m_samplingDistributionView->SetResolution(resolution);
+            ImGui::CloseCurrentPopup();
+            m_hasOpenedChangeResolutionPopup = false;
+            m_enableShortcuts = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) {
+            ImGui::CloseCurrentPopup();
+            m_hasOpenedChangeResolutionPopup = false;
+            m_enableShortcuts = true;
+        }
+        ImGui::EndPopup();
     }
 }
 

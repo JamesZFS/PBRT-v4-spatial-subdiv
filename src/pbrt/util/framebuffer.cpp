@@ -82,7 +82,7 @@ Framebuffer::~Framebuffer() {
 }
 
 
-void Framebuffer::rescale(float width, float height) {
+void Framebuffer::rescale(int width, int height) {
     glBindTexture(GL_TEXTURE_2D, m_tex);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, width, height, 0, GL_RGB, GL_FLOAT, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
