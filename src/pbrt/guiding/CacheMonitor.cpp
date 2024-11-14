@@ -86,7 +86,8 @@ void CacheMonitor::Plot::Draw() {
             ImPlot::PlotLine(label.c_str(), x, x + yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
             if (m_type == PlotType_CE && m_monitor.m_showIntegratedCE) {  // Plot a horizontal line
                 double ce = m_parent->GetCrossEntropySDR();
-                ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 1, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+                ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+                ImPlot::Annotation(0, ce, ImVec4(0, 0, 0, 0), ImVec2(0, -5), true, m_parent->IsShowingFine() ? "Lookahead" : "Parent");
             }
         }
         ImPlot::EndPlot();

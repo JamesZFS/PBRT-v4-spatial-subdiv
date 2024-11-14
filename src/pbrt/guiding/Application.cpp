@@ -1224,10 +1224,15 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.maxSamples = std::max(0, maxSamples);
         m_subdivCfg.minSamples = std::max(0, minSamples);
         ImGui::Checkbox("Enable CE", &m_subdivCfg.enableCE);
+        ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.1f, 1.0f);
         ImGui::Checkbox("Failure Decay", &m_subdivCfg.failureDecay);
         ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
+        if (ImGui::Button("Clear CE Statistics")) {
+            std::lock_guard lock_(m_mtx.field);
+            m_field.ClearCEStatistics();
+        }
     }
     ImGui::EndDisabled();
     ImGui::PopID();

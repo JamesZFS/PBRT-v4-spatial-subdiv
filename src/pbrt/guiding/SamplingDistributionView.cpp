@@ -96,7 +96,7 @@ void SamplingDistributionView::Draw() {
     std::string text;
     if (m_prev.valid) {
         if (m_prev.lookahead) text = "Lookahead";
-        else text = "Coarse";
+        else text = "Parent";
     } else text = "None";
     ImGui::Text("Showing: %s", text.c_str());
     bool needsUpdate = false;
@@ -109,7 +109,7 @@ void SamplingDistributionView::Draw() {
     m_exposure = std::max(m_exposure, 0.0f);
     needsUpdate |= ImGui::Checkbox("Cosine Product", &m_enableCosineProduct);
 
-    if (m_prev.valid && m_ceUpdateTimer.ElapsedSeconds() > 0.2) {
+    if (m_prev.valid && m_ceUpdateTimer.ElapsedSeconds() > 0.3) {
         ComputeCrossEntropy();
         m_ceUpdateTimer = Timer();
     }
