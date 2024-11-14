@@ -85,6 +85,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
         guiding_fieldSubdivConfig.enableCE = guideSettings.treeenablece;
         guiding_fieldSubdivConfig.failureDecay = guideSettings.treefailuredecay;
+        guiding_fieldSubdivConfig.singleSidePromotion = guideSettings.treesinglesidepromotion;
         guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treemomentum;
 
@@ -639,6 +640,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", 32);
     settings.treeenablece = parameters.GetOneBool("treeenablece", true);
     settings.treefailuredecay = parameters.GetOneBool("treefailuredecay", true);
+    settings.treesinglesidepromotion = parameters.GetOneBool("treesinglesidepromotion", true);
     settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
     settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
 
