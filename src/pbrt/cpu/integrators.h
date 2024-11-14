@@ -271,6 +271,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         int treemaxdepthwithsamplecount {32};
         bool treeenablece {true};
         bool treefailuredecay {false};
+        bool treesinglesidepromotion {true};
         float treecethreshold {std::numeric_limits<float>::infinity()};
         float treemomentum {0.8f};
 
