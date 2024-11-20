@@ -930,6 +930,7 @@ target_include_directories (pbrt_lib PUBLIC
   ${IMGUI_INCLUDE}/backends
   ${IMPLOT_INCLUDE}
   ${IMGUIFILEDIALOG_INCLUDE}
+  ${LIBNPY_INCLUDE}
 )
 
 if (PBRT_WITH_PATH_GUIDING)

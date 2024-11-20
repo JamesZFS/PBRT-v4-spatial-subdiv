@@ -220,6 +220,12 @@ target_include_directories(ImGuiFileDialog PUBLIC ${IMGUIFILEDIALOG_INCLUDE} ${I
 target_link_libraries(ImGuiFileDialog imgui)
 
 ###########################################################################
+# libnpy
+
+set (LIBNPY_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/libnpy/include)
+set (LIBNPY_INCLUDE ${LIBNPY_INCLUDE} PARENT_SCOPE)
+
+###########################################################################
 # TBB
 #if (PBRT_WITH_PATH_GUIDING OR PBRT_WITH_OIDN)
 #include(ExternalProject)

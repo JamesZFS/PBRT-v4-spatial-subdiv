@@ -175,6 +175,10 @@ void Application::Draw() {
         m_samplingDistributionView->Draw();
     }
     ImGui::End();
+
+    if (ImGui::Begin("Ray Casting History")) {
+        RayCastingHistory();
+    }
 }
 
 void Application::SetSelectedChannel(SelectedChannel newChannel) {
@@ -249,7 +253,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        for (auto s: {"Settings", "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram"})
+        for (auto s: {"Settings", "Ray Casting History", "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram"})
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
@@ -303,6 +307,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Viewport", leftDock);
         ImGui::DockBuilderDockWindow("Controls", rightTopDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
+        ImGui::DockBuilderDockWindow("Ray Casting History", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
@@ -359,7 +364,7 @@ void Application::SetupLayoutProbeViews() {
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        for (auto s: {"Settings",
+        for (auto s: {"Settings", "Ray Casting History",
             "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram",
             "CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
         })
@@ -415,6 +420,7 @@ void Application::SetupLayoutCacheMonitor() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
+        ImGui::DockBuilderDockWindow("Ray Casting History", leftMidDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
@@ -469,6 +475,7 @@ void Application::SetupLayoutHistograms() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
+        ImGui::DockBuilderDockWindow("Ray Casting History", leftMidDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
@@ -498,6 +505,7 @@ void Application::SetupRenderThread() {
         this,
         [&](int waveStart) {
             CheckIsRenderThread();
+            if (m_recordSamples) SaveSamplesNpy(m_recordSamplesDir);
             UpdateField(waveStart);
             UpdateCacheCurves();
             UpdateCacheHistograms();
@@ -633,6 +641,11 @@ void Application::LoadSamples(std::string path) {
         Error("Failed to load samples from %s", path);
 }
 
+void Application::SaveSamplesNpy(std::string dir) {
+    std::lock_guard lock(m_mtx.field);
+    dumpSampleStorage(dir, &m_sampleStorage, GetCurrentWave() - 1);
+}
+
 void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionStatistics &fine) {
     bool coarseIsValid = coarse.id != -1, fineIsValid = fine.id != -1;
     if (!coarseIsValid) {
@@ -655,10 +668,54 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
     ImGui::Text("Depth: %d", (int) coarse.depth);
 }
 
+void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
+    auto radiance = m_film.GetPixelRGB(rc.pixel);
+    float error = m_viewport->GetErrorAtPixel(rc.pixel);
+    m_rcHistory += StringPrintf(
+        "Pixel: (%d, %d)\n"
+        "Radiance: (%f, %f, %f)\n"
+        "Error: %f\n",
+        rc.pixel.x, rc.pixel.y,
+        radiance[0], radiance[1], radiance[2], error);
+    if (rc.valid) {
+        m_rcHistory += StringPrintf(
+            "Hit: (%f, %f, %f)\n"
+            "Normal: (%f, %f, %f)\n"
+            "UV: (%f, %f)\n",
+            rc.hit.x, rc.hit.y, rc.hit.z,
+            rc.normal.x, rc.normal.y, rc.normal.z,
+            rc.uv.x, rc.uv.y);
+        auto printCache = [](const PGLRegionStatistics &s) -> std::string {
+            if (s.id == -1) return "<invalid>\n";
+            return StringPrintf(
+                "ID: %u\n"
+                "Samples: %d\n"
+                "Zero Samples: %d\n"
+                "Depth: %d\n"
+                "Fluence: %f\n"
+                "CE: %f\n"
+                "Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
+                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.fluence, s.crossEntropy,
+                s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
+                s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
+        };
+        m_rcHistory += "Parent Cache:\n";
+        m_rcHistory += printCache(rc.coarse);
+        m_rcHistory += "Child Cache:\n";
+        m_rcHistory += printCache(rc.fine);
+    } else {
+        m_rcHistory += "<no intersection>\n";
+    }
+    m_rcHistory += "\n";
+}
+
 void Application::UpdateRayCastingAtMouse() {
     if (m_enableRayCastingAtMouse) {
         if (m_viewport->IsHovered()) {
             m_rcMouse = RayCast(m_viewport->GetMousePixel());
+            if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+                AppendToRayCastingHistory(m_rcMouse);
+            }
         } else {
             m_rcMouse.valid = false;
             m_rcMouse.coarse.id = m_rcMouse.fine.id = -1;
@@ -883,8 +940,16 @@ void Application::RadianceViewRenderStep() {
 
 void Application::MainMenu() {
     static std::string layoutNames[Layout_Count] = {"Default", "Compact", "Probe Views", "Cache Monitor", "Histograms"};
-    ImGuiIO &io = ImGui::GetIO();
     bool openChangeResolutionPopup = false;
+    auto openFileDialog = [&](bool write, const std::string &defaultPath, const std::string &title, const std::string &ext, const std::function<void(const std::string&, const std::string&)> &action) {
+        IGFD::FileDialogConfig config;
+        config.filePathName = defaultPath;
+        config.flags = ImGuiFileDialogFlags_Default;
+        if (!write) config.flags &= ~ImGuiFileDialogFlags_ConfirmOverwrite;
+        ImGuiFileDialog::Instance()->OpenDialog("fileDialog", title, ext.empty() ? nullptr : ext.c_str(), config);
+        m_enableShortcuts = false;  // Disable shortcuts when the modal dialog is open
+        m_fileDialogCallback = action;
+    };
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("Layout")) {
             for (int i = 0; i < Layout_Count; ++i) {
@@ -908,11 +973,7 @@ void Application::MainMenu() {
                 m_renderThread->SendCommand(RenderThread::Save);
             }
             if (ImGui::MenuItem("Save Image To...")) {
-                IGFD::FileDialogConfig config;
-                config.filePathName = m_film.GetFilename();
-                config.flags = ImGuiFileDialogFlags_Default;
-                ImGuiFileDialog::Instance()->OpenDialog("SaveImageTo", "Save Image To...", ".exr", config);
-                m_enableShortcuts = false;  // Disable shortcuts when the modal dialog is open
+                openFileDialog(true, m_film.GetFilename(), "Save Image To...", ".exr", [this](auto dir, auto path) { SaveRendering(path); });
             }
             ImGui::EndMenu();
         }
@@ -926,40 +987,33 @@ void Application::MainMenu() {
                 SaveField(m_guideSettings.guidingCacheFileName);
             }
             if (ImGui::MenuItem("Save Field To...")) {
-                IGFD::FileDialogConfig config;
-                config.filePathName = m_guideSettings.guidingCacheFileName.empty() ? "." : m_guideSettings.guidingCacheFileName;
-                config.flags = ImGuiFileDialogFlags_Default;
-                ImGuiFileDialog::Instance()->OpenDialog("SaveFieldTo", "Save Field To...", ".field,.*", config);
-                m_enableShortcuts = false;  // Disable shortcuts when the modal dialog is open
+                openFileDialog(true, m_guideSettings.guidingCacheFileName.empty() ? "." : m_guideSettings.guidingCacheFileName,
+                    "Save Field To...", ".field,.*", [this](auto dir, auto path) { SaveField(path); });
             }
             if (ImGui::MenuItem("Load Field", 0, nullptr, !m_guideSettings.guidingCacheFileName.empty())) {
                 LoadField(m_guideSettings.guidingCacheFileName);
             }
             if (ImGui::MenuItem("Load Field From...")) {
-                IGFD::FileDialogConfig config;
-                config.filePathName = m_guideSettings.guidingCacheFileName;
-                config.flags = ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_HideColumnType;
-                ImGuiFileDialog::Instance()->OpenDialog("LoadFieldFrom", "Load Field From...", ".field,.*", config);
-                m_enableShortcuts = false;
+                openFileDialog(false, m_guideSettings.guidingCacheFileName, "Load Field From...", ".field,.*", [this](auto dir, auto path) { LoadField(path); });
             }
             ImGui::Separator();
             if (ImGui::MenuItem("Reset Samples")) {
                 std::lock_guard lock(m_mtx.field);
                 m_sampleStorage.Clear();
             }
-            if (ImGui::MenuItem("Save Samples To...")) {
-                IGFD::FileDialogConfig config;
-                config.filePathName = ".";
-                config.flags = ImGuiFileDialogFlags_Default;
-                ImGuiFileDialog::Instance()->OpenDialog("SaveSamplesTo", "Save Samples To...", ".samples,.*", config);
-                m_enableShortcuts = false;
+            if (ImGui::MenuItem("Save Samples To...", 0, nullptr, m_sampleStorage.GetSizeSurface() > 0)) {
+                openFileDialog(true, ".", "Save Samples To...", ".samples,.*", [this](auto dir, auto path) { SaveSamples(path); });
             }
             if (ImGui::MenuItem("Load Samples From...")) {
-                IGFD::FileDialogConfig config;
-                config.filePathName = ".";
-                config.flags = ImGuiFileDialogFlags_Modal | ImGuiFileDialogFlags_HideColumnType;
-                ImGuiFileDialog::Instance()->OpenDialog("LoadSamplesFrom", "Load Samples From...", ".samples,.*", config);
-                m_enableShortcuts = false;
+                openFileDialog(false, ".", "Load Samples From...", ".samples,.*", [this](auto dir, auto path) { LoadSamples(path); });
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Record Samples", "F4", m_recordSamples)) {
+                m_recordSamples ^= true;
+            }
+            if (ImGui::MenuItem("Set Recording Directory...", 0, nullptr)) {
+                openFileDialog(true, m_recordSamplesDir, "Select directory to dump samples in NumPy format...", "",
+                               [this](auto dir, auto path) { m_recordSamplesDir = dir; });
             }
             ImGui::EndMenu();
         }
@@ -978,45 +1032,17 @@ void Application::MainMenu() {
         ImGui::EndMainMenuBar();
     }
     // Dialogs
-    if (ImGuiFileDialog::Instance()->Display("SaveImageTo")) {
+    if (ImGuiFileDialog::Instance()->Display("fileDialog")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             // action if OK
+            std::string dir = ImGuiFileDialog::Instance()->GetCurrentPath();
             std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
-            SaveRendering(path);
+            if (!m_fileDialogCallback)
+                ErrorExit("No file dialog callback");
+            m_fileDialogCallback(dir, path);
+            m_fileDialogCallback = nullptr;
         }
         // close
-        ImGuiFileDialog::Instance()->Close();
-        m_enableShortcuts = true;
-    }
-    if (ImGuiFileDialog::Instance()->Display("SaveFieldTo")) {
-        if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
-            SaveField(path);
-        }
-        ImGuiFileDialog::Instance()->Close();
-        m_enableShortcuts = true;
-    }
-    if (ImGuiFileDialog::Instance()->Display("LoadFieldFrom")) {
-        if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
-            LoadField(path);
-        }
-        ImGuiFileDialog::Instance()->Close();
-        m_enableShortcuts = true;
-    }
-    if (ImGuiFileDialog::Instance()->Display("SaveSamplesTo")) {
-        if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
-            SaveSamples(path);
-        }
-        ImGuiFileDialog::Instance()->Close();
-        m_enableShortcuts = true;
-    }
-    if (ImGuiFileDialog::Instance()->Display("LoadSamplesFrom")) {
-        if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string path = ImGuiFileDialog::Instance()->GetFilePathName();
-            LoadSamples(path);
-        }
         ImGuiFileDialog::Instance()->Close();
         m_enableShortcuts = true;
     }
@@ -1045,6 +1071,9 @@ void Application::MainMenu() {
             m_enableShortcuts = true;
         }
         ImGui::EndPopup();
+    }
+    if (IsKeyPressed(ImGuiKey_F4, false)) {
+        m_recordSamples ^= true;
     }
 }
 
@@ -1076,6 +1105,24 @@ void Application::RayCastingPanel() {
         } else {
             ImGui::Text("No intersection");
         }
+    }
+}
+
+void Application::RayCastingHistory() {
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_ReadOnly;
+    ImGui::InputTextMultiline("##Ray-Casting-History", m_rcHistory.data(), m_rcHistory.size(),
+        ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags);
+    ImGui::TextDisabled("(?)");
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::BulletText("Open the ray casting panel or press 'C'");
+        ImGui::BulletText("Hover the mouse over the viewport and left click to append result to the history");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Clear")) {
+        m_rcHistory.clear();
     }
 }
 
