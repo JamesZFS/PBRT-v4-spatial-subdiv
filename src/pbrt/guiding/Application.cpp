@@ -1226,7 +1226,8 @@ void Application::SpatialSubdivisionSettings() {
         ImGui::Checkbox("Enable CE", &m_subdivCfg.enableCE);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Single-side Promotion", &m_subdivCfg.singleSidePromotion);
-        ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.1f, 1.0f);
+        ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold);
+        ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         ImGui::Checkbox("Failure Decay", &m_subdivCfg.failureDecay);
         ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);

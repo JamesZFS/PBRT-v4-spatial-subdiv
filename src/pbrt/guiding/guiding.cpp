@@ -88,6 +88,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.singleSidePromotion = guideSettings.treesinglesidepromotion;
         guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treemomentum;
+        guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -643,6 +644,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treesinglesidepromotion = parameters.GetOneBool("treesinglesidepromotion", true);
     settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
     settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
+    settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", 1e8f);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
