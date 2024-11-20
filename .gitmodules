@@ -56,3 +56,6 @@
 [submodule "src/ext/ImGuiFileDialog"]
 	path = src/ext/ImGuiFileDialog
 	url = https://github.com/aiekick/ImGuiFileDialog
+[submodule "src/ext/libnpy"]
+	path = src/ext/libnpy
+	url = https://github.com/llohse/libnpy

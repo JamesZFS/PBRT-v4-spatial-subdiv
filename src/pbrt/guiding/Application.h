@@ -89,8 +89,10 @@ private:
     void LoadField(std::string path);
     void SaveSamples(std::string path);
     void LoadSamples(std::string path);
+    void SaveSamplesNpy(std::string dir);
 
     void CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionStatistics &fine);
+    void AppendToRayCastingHistory(const RayCastingData &rc);
 
     void UpdateRayCastingAtMouse();
     void SDRViewInteraction();
@@ -114,6 +116,7 @@ private:
     void MainMenu();
     void ErrorMetricSelector();
     void RayCastingPanel();
+    void RayCastingHistory();
 
     void ChannelSelector();
     void ToggleShowFine();
@@ -153,6 +156,7 @@ private:
     LayoutType m_layout = Layout_Default;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     RayCastingData m_rcSDRV;  // ray casting result at the sampling distribution / radiance view
+    std::string m_rcHistory;
     int m_maxMaxDepth = 15;
     SelectedChannel m_selectedChannel = Channel_Radiance;
     bool m_showFine = false;  // show the fine cache ID and CE
@@ -163,6 +167,7 @@ private:
     bool m_enableHistogram = false;
     bool m_enableSamplingDistributionView = false;
     bool m_enableRadianceView = false;
+    bool m_recordSamples = false;
     ErrorMetric m_errorMetric = Metric_MRAE;
 
     // Components and views
@@ -191,6 +196,9 @@ private:
         size_t trainingSamples = 0;
         size_t numRegions = 0;
     } m_waveStats;
+
+    std::string m_recordSamplesDir = "./samples";
+    std::function<void(const std::string&, const std::string&)> m_fileDialogCallback;
 };
 
 }
