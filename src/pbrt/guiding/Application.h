@@ -11,6 +11,7 @@
 #include "Viewport.h"
 #include "SamplingDistributionView.h"
 #include "RadianceView.h"
+#include "EmbeddingView.h"
 #include "ColormapPanel.h"
 #include "CacheMonitor.h"
 #include "CacheHistogram.h"
@@ -97,6 +98,7 @@ private:
     void UpdateRayCastingAtMouse();
     void SDRViewInteraction();
     void CacheProbesInteraction();
+    void UpdateEmbeddingView();
 
     // Callbacks from render thread
     void CheckIsRenderThread();
@@ -176,6 +178,7 @@ private:
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<RadianceView> m_radianceView;
     std::unique_ptr<SamplingDistributionView> m_samplingDistributionView;
+    std::unique_ptr<EmbeddingView> m_embeddingView;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;
