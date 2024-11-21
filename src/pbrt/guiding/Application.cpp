@@ -76,6 +76,7 @@ int Application::Run() {
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
     m_radianceView = std::make_unique<RadianceView>(this, m_scene, m_lights);
     m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field, *m_radianceView);
+    m_embeddingView = std::make_unique<EmbeddingView>(this);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
@@ -137,6 +138,7 @@ void Application::Draw() {
         ErrorMetricSelector();
         ToggleShowFine();
         m_colormapPanel->Draw();
+        m_embeddingView->Draw();
         RayCastingPanel();
         ImGui::End();
     }
@@ -685,17 +687,27 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             rc.hit.x, rc.hit.y, rc.hit.z,
             rc.normal.x, rc.normal.y, rc.normal.z,
             rc.uv.x, rc.uv.y);
-        auto printCache = [](const PGLRegionStatistics &s) -> std::string {
-            if (s.id == -1) return "<invalid>\n";
+        auto printDe = [](const PGLDirectionalEmbedding &de) -> std::string {
+            std::string s = StringPrintf("(%.4f", de.embedding[0]);
+            for (int i = 1; i < PGL_EMBEDDING_SIZE; ++i)
+                s += StringPrintf(", %.4f", de.embedding[i]);
+            s += ")";
+            return s;
+        };
+        auto printCache = [&](const PGLRegionStatistics &s) -> std::string {
+            if (s.id == -1) return "  <invalid>\n";
+            std::lock_guard lock(m_mtx.field);
+            auto de = m_field.GetDirectionalEmbedding(s.id);
             return StringPrintf(
-                "ID: %u\n"
-                "Samples: %d\n"
-                "Zero Samples: %d\n"
-                "Depth: %d\n"
-                "Fluence: %f\n"
-                "CE: %f\n"
-                "Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.fluence, s.crossEntropy,
+                "  ID: %u\n"
+                "  Samples: %d\n"
+                "  Zero Samples: %d\n"
+                "  Depth: %d\n"
+                "  Fluence: %f\n"
+                "  CE: %f\n"
+                "  Directional Embedding: %s\n"
+                "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
+                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.fluence, s.crossEntropy, printDe(de).c_str(),
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
                 s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
         };
@@ -724,8 +736,6 @@ void Application::UpdateRayCastingAtMouse() {
             // Tooltip next to the mouse
             if (ImGui::BeginTooltip()) {
                 CacheInfo(m_rcMouse.coarse, m_rcMouse.fine);
-                if (m_reference)
-                    ImGui::Text("Error: %f", m_viewport->GetErrorAtPixel(m_rcMouse.pixel));
                 ImGui::EndTooltip();
             }
         }
@@ -734,13 +744,14 @@ void Application::UpdateRayCastingAtMouse() {
 
 // Sampling distribution and radiance view
 void Application::SDRViewInteraction() {
-    if (!m_enableSamplingDistributionView && !m_enableRadianceView) return;
+    if (!m_enableSamplingDistributionView && !m_enableRadianceView && !m_embeddingView->IsActive()) return;
     // Left click to update the sampling distribution
     if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
         Point2i pixel = m_viewport->GetMousePixel();
         m_rcSDRV = RayCast(pixel);
         UpdateSamplingDistributionView();
         NewRadianceViewRendering();
+        UpdateEmbeddingView();
     }
 
     // Draw the view location
@@ -817,6 +828,18 @@ void Application::CacheProbesInteraction() {
             });
         }
         // Else: Data will be added when the wave ends
+    }
+}
+
+void Application::UpdateEmbeddingView() {
+    if (m_showFine && m_rcSDRV.fine.id != -1) {
+        m_embeddingView->Set(m_field.GetDirectionalEmbedding(m_rcSDRV.fine.id));
+    }
+    else if (!m_showFine && m_rcSDRV.coarse.id != -1) {
+        m_embeddingView->Set(m_field.GetDirectionalEmbedding(m_rcSDRV.coarse.id));
+    }
+    else {
+        m_embeddingView->Reset();
     }
 }
 
@@ -1101,6 +1124,8 @@ void Application::RayCastingPanel() {
             ImGui::Text("Hit: (%.2f, %.2f, %.2f)", m_rcMouse.hit.x, m_rcMouse.hit.y, m_rcMouse.hit.z);
             ImGui::Text("Normal: (%.2f, %.2f, %.2f)", m_rcMouse.normal.x, m_rcMouse.normal.y, m_rcMouse.normal.z);
             ImGui::Text("UV: (%.2f, %.2f)", m_rcMouse.uv.x, m_rcMouse.uv.y);
+            if (m_reference)
+                ImGui::Text("Error: %f", m_viewport->GetErrorAtPixel(m_rcMouse.pixel));
             CacheInfo(m_rcMouse.coarse, m_rcMouse.fine);
         } else {
             ImGui::Text("No intersection");
@@ -1166,6 +1191,7 @@ void Application::ToggleShowFine() {
     }
     if (m_showFine != showFineOld) {
         UpdateSamplingDistributionView();
+        UpdateEmbeddingView();
     }
 }
 
