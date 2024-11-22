@@ -76,7 +76,7 @@ int Application::Run() {
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
     m_radianceView = std::make_unique<RadianceView>(this, m_scene, m_lights);
     m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field, *m_radianceView);
-    m_embeddingView = std::make_unique<EmbeddingView>(this, m_field);
+    m_embeddingView = std::make_unique<EmbeddingView>(this, m_field, *m_radianceView);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);

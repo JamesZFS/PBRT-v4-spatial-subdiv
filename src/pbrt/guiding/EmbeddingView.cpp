@@ -6,8 +6,8 @@
 
 using namespace pbrt;
 
-EmbeddingView::EmbeddingView(pbrt::Application *parent, const openpgl::cpp::Field &field)
-    : View(parent), m_field(field),
+EmbeddingView::EmbeddingView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView)
+    : View(parent), m_field(field), m_radianceView(radianceView),
       m_framebuffer(PGL_EMBEDDING_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     glGenTextures(1, &m_renderingTex);
 }
@@ -56,9 +56,10 @@ void EmbeddingView::Draw() {
     UpdateFramebuffer();
 
     auto leftTop = ImGui::GetCursorScreenPos();
-    ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
+    ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), ImVec2(ImGui::GetColumnWidth(), 2 * ImGui::GetFrameHeight()));
 
     // Hovering: show value at the pixel
+    // Also highlight the associated pixels in the radiance view
     if (ImGui::IsItemHovered()) {
         auto pos = ImGui::GetMousePos();
         float x = (pos.x - leftTop.x) / ImGui::GetColumnWidth();
@@ -68,6 +69,14 @@ void EmbeddingView::Draw() {
             ImGui::Text("Value: %.4f", m_embedding.embedding[idx]);
             ImGui::EndTooltip();
         }
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            m_radianceView.SetSelectedBinIndex(idx);
+        } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            m_radianceView.ResetSelectedBinIndex();
+        }
+    }
+    if (m_radianceView.HasSelectedBinIndex()) {
+        ImGui::Text("Selected bin: %d", m_radianceView.GetSelectedBinIndex());
     }
 }
 

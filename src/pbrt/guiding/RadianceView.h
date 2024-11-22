@@ -35,10 +35,20 @@ public:
 
     void SetResolution(const pbrt::Point2i &resolution);
 
+    void SetSelectedBinIndex(uint8_t index) { m_selectedBinIndex = index; }
+
+    uint8_t GetSelectedBinIndex() const { return m_selectedBinIndex; }
+
+    void ResetSelectedBinIndex() { m_selectedBinIndex = PGL_EMBEDDING_SIZE; }
+
+    bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_EMBEDDING_SIZE; }
+
 private:
     void EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler, pbrt::ScratchBuffer &scratchBuffer);
 
     void RenderStart();
+
+    void UpdateBinIndexBuffer();
 
     pbrt::Primitive m_scene;
     const std::vector<pbrt::Light> &m_lights;
@@ -50,9 +60,11 @@ private:
     pbrt::Point2i m_resolution{640, 320};
 
     std::vector<pbrt::RGB> m_cpuBuffer;
+    std::vector<uint8_t> m_binIndexBuffer;  // buffer of indices into the embedding vector for each pixel
     double m_normalizer = 1;
     int m_numSamples = 0;
     int m_spp = 64;
+    uint8_t m_selectedBinIndex = PGL_EMBEDDING_SIZE;  // valid index is [0, PGL_EMBEDDING_SIZE)
     std::atomic_bool m_cpuBufferUpdated = false;
 
     struct {
@@ -72,8 +84,10 @@ private:
     float m_stepPhi;
     float m_stepTheta;
 
-    GLuint m_renderingTex = 0;  // stores the selected cpu buffer
+    GLuint m_renderingTex = 0;  // stores the cpu buffer
+    GLuint m_binIndexTex = 0;  // stores the bin index buffer
     Framebuffer m_framebuffer;
+    Framebuffer m_overlayFramebuffer;
 };
 
 #endif //RADIANCEVIEW_H

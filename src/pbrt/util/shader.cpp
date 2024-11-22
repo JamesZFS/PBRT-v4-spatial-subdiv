@@ -71,6 +71,10 @@ GLint Shader::getAttributeLocation(const std::string &name) const
     return loc;
 }
 
+void Shader::setUniform1ui(const char *name, uint32_t value) const {
+    glUniform1ui(getUniformLocation(name), value);
+}
+
 void Shader::setUniform1i(const char *name, int value) const {
     glUniform1i(getUniformLocation(name), value);
 }

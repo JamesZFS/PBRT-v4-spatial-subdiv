@@ -26,6 +26,7 @@ public:
     // Query an attribute location by its name in the shader
     GLint getAttributeLocation(const std::string &name) const;
 
+    void setUniform1ui(const char *name, uint32_t value) const;
     void setUniform1i(const char *name, int value) const;
     void setUniform1f(const char *name, float value) const;
     void setUniform2f(const char *name, float* value) const;

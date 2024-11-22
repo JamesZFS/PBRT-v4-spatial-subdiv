@@ -8,6 +8,7 @@
 
 
 #include "View.h"
+#include "RadianceView.h"
 #include <openpgl/cpp/OpenPGL.h>
 #include <pbrt/util/framebuffer.h>
 #include <atomic>
@@ -15,7 +16,7 @@
 
 class EmbeddingView : public View {
 public:
-    EmbeddingView(pbrt::Application *parent, const openpgl::cpp::Field &field);
+    EmbeddingView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView);
 
     ~EmbeddingView();
 
@@ -29,6 +30,7 @@ public:
 
 private:
     const openpgl::cpp::Field &m_field;
+    RadianceView &m_radianceView;
     PGLDirectionalEmbedding m_embedding{};
     std::atomic_bool m_embeddingUpdated = false;
 
