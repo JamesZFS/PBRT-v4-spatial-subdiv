@@ -14,11 +14,14 @@ RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &sce
                            const std::vector<pbrt::Light> &lights)
     : View(parent), m_localFrame(parent->sdrLocalFrame), m_exposure(parent->sdrExposure),
       m_scene(scene), m_lights(lights),
-      m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+      m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_overlayFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_bin_index.frag") {
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.resize(m_resolution.x * m_resolution.y);
+    m_binIndexBuffer.resize(m_resolution.x * m_resolution.y);
     glGenTextures(1, &m_renderingTex);
+    glGenTextures(1, &m_binIndexTex);
     FilmBaseParameters fp(m_resolution, Bounds2i({0, 0}, m_resolution), filter, 35., sensor,
                           "RadianceView-temp.exr");
     m_cbp.film = {new RGBFilm(fp, RGBColorSpace::sRGB)};
@@ -28,12 +31,13 @@ RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &sce
 
 RadianceView::~RadianceView() {
     glDeleteTextures(1, &m_renderingTex);
+    glDeleteTextures(1, &m_binIndexTex);
     auto film = m_cbp.film.Cast<RGBFilm>();
     delete film;
 }
 
 void RadianceView::RenderStart(const pbrt::Point3f &pos, const pbrt::Normal3f &normal) {
-    m_prev = {true, pos, normal};
+    m_prev = {true, pos, normal, m_localFrame};
     RenderStart();
 }
 
@@ -53,6 +57,27 @@ void RadianceView::RenderStart() {
     auto camera = Camera(m_camera.get());
     auto sampler = Sampler(m_sampler.get());
     m_integrator = std::make_unique<PathIntegrator>(m_maxDepth, camera, sampler, m_scene, m_lights);
+    UpdateBinIndexBuffer();
+}
+
+void RadianceView::UpdateBinIndexBuffer() {
+    Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
+    IndependentSampler sampler = *m_sampler;
+    auto frame = Frame::FromZ(m_prev.normal);
+    for (Point2i p: pixelBounds) {
+        float theta = m_stepTheta * (0.5f + float(p.y));
+        float phi = m_stepPhi * (0.5f + float(p.x));
+
+        Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+        if (m_localFrame)
+            dir = frame.FromLocal(dir);
+        pgl_vec3f pglDir{dir.x, dir.y, dir.z};
+
+        size_t index = p.y * m_resolution.x + p.x;
+        m_binIndexBuffer[index] = pgl_get_embedding_index(pglDir);
+    }
+
+    UpdateTextureFromUInt8Data((GLuint) (uintptr_t) m_binIndexTex, m_binIndexBuffer.data(), m_resolution.x, m_resolution.y, false);
 }
 
 thread_local double thread_normalizer = 0;
@@ -93,6 +118,7 @@ void RadianceView::SetResolution(const pbrt::Point2i &resolution) {
     m_resolution = resolution;
     m_framebuffer.rescale(resolution.x, resolution.y);
     m_cpuBuffer.resize(m_resolution.x * m_resolution.y);
+    m_binIndexBuffer.resize(m_resolution.x * m_resolution.y);
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     auto film = m_cbp.film.Cast<RGBFilm>();
@@ -200,6 +226,26 @@ void RadianceView::UpdateFramebuffer() {
     // Render!
     m_framebuffer.draw();
     m_framebuffer.unbind();
+
+    if (HasSelectedBinIndex()) {
+        // Second pass: overlay with the bin index map
+        m_overlayFramebuffer.bind();
+        m_overlayFramebuffer.clear();
+
+        Shader &overlayShader = m_overlayFramebuffer.getShader();
+        overlayShader.bind();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
+        overlayShader.setUniform1i("image_tex", 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, m_binIndexTex);
+        overlayShader.setUniform1i("index_map", 1);
+        overlayShader.setUniform1ui("selected_index", m_selectedBinIndex);
+
+        // Render!
+        m_overlayFramebuffer.draw();
+        m_overlayFramebuffer.unbind();
+    }
 }
 
 void RadianceView::Draw() {
@@ -241,7 +287,8 @@ void RadianceView::Draw() {
     ImVec2 current = ImGui::GetCursorScreenPos();
     ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
     auto leftTop = ImGui::GetCursorScreenPos();
-    ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size);
+    GLuint tex = HasSelectedBinIndex() ? m_overlayFramebuffer.getTexture() : m_framebuffer.getTexture();
+    ImGui::Image((ImTextureID) (uintptr_t) tex, size);
 
     // Hovering: show value at the pixel
     if (ImGui::IsItemHovered()) {

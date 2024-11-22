@@ -99,6 +99,9 @@ void UpdateTextureFromRGBData(GLuint image_texture, const pbrt::RGB *image_data,
 void UpdateTextureFromFloatData(GLuint image_texture, const float *image_data, int image_width, int image_height,
                                 bool interpolate);
 
+void UpdateTextureFromUInt8Data(GLuint image_texture, const uint8_t *image_data, int image_width, int image_height,
+                                bool interpolate);
+
 void InitializeTonemaps();
 
 void InitializeTonemappedImageContext();
