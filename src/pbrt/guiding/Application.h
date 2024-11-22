@@ -44,7 +44,7 @@ public:
     int GetSPP() const { return m_spp; }
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
-    double GetCrossEntropySDR() const { return m_samplingDistributionView->GetCrossEntropy(); }
+    double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
@@ -96,9 +96,8 @@ private:
     void AppendToRayCastingHistory(const RayCastingData &rc);
 
     void UpdateRayCastingAtMouse();
-    void SDRViewInteraction();
+    void SDREViewInteraction();
     void CacheProbesInteraction();
-    void UpdateEmbeddingView();
 
     // Callbacks from render thread
     void CheckIsRenderThread();
@@ -113,6 +112,7 @@ private:
     void UpdateSamplingDistributionView();
     void NewRadianceViewRendering();
     void RadianceViewRenderStep();
+    void UpdateEmbeddingView();
 
     // GUI components
     void MainMenu();
@@ -157,7 +157,7 @@ private:
     bool m_hasOpenedChangeResolutionPopup = false;
     LayoutType m_layout = Layout_Default;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
-    RayCastingData m_rcSDRV;  // ray casting result at the sampling distribution / radiance view
+    RayCastingData m_rcSDRE;  // ray casting result at the sampling distribution / radiance view
     std::string m_rcHistory;
     int m_maxMaxDepth = 15;
     SelectedChannel m_selectedChannel = Channel_Radiance;
@@ -165,10 +165,16 @@ private:
     bool m_showDiff = false;  // show the difference between fine and coarse
     bool m_enableShortcuts = true;
     bool m_enableRayCastingAtMouse = false;
-    bool m_enableProbes = false;
+
+    bool m_enableCurve = false;
     bool m_enableHistogram = false;
     bool m_enableSamplingDistributionView = false;
     bool m_enableRadianceView = false;
+    bool m_enableEmbeddingView = false;
+    bool m_enableRayCastingHistory = false;
+    bool m_enableImGuiDemo = false;
+    bool m_enableImPlotDemo = false;
+
     bool m_recordSamples = false;
     ErrorMetric m_errorMetric = Metric_MRAE;
 
