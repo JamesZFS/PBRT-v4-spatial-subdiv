@@ -51,7 +51,7 @@ private:
 
     std::vector<pbrt::RGB> m_cpuBuffer;
     double m_normalizer = 1;
-    int m_numSamples;
+    int m_numSamples = 0;
     int m_spp = 64;
     std::atomic_bool m_cpuBufferUpdated = false;
 

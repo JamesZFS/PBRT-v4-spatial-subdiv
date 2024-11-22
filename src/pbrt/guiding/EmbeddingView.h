@@ -8,33 +8,29 @@
 
 
 #include "View.h"
-#include <openpgl/regionstatistics.h>
+#include <openpgl/cpp/OpenPGL.h>
 #include <pbrt/util/framebuffer.h>
+#include <atomic>
 
 
 class EmbeddingView : public View {
 public:
-    EmbeddingView(pbrt::Application *parent);
+    EmbeddingView(pbrt::Application *parent, const openpgl::cpp::Field &field);
 
     ~EmbeddingView();
 
-    void Set(const PGLDirectionalEmbedding &embedding) { m_embedding = embedding; }
+    void Update(const pbrt::Point3f &pos, bool lookahead);
 
-    PGLDirectionalEmbedding Get() const { return m_embedding; }
-
-    void Reset() { m_embedding = {}; }
+    void Clear();
 
     void Draw() override;
 
     void UpdateFramebuffer();
 
-    bool IsActive() const { return m_isActive; }
-
 private:
-    // TODO: store the field here so that we can update the embedding per iteration automatically
+    const openpgl::cpp::Field &m_field;
     PGLDirectionalEmbedding m_embedding{};
-
-    bool m_isActive = false;
+    std::atomic_bool m_embeddingUpdated = false;
 
     float m_scale = 1.0f;
     Colormap m_cmap = CMap_Inferno;

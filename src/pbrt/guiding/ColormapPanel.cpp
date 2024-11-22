@@ -41,7 +41,7 @@ void ColormapPanel::Draw() {
             sd.offset = 0.5f / sd.scale;  // such that 0 is mapped to 0.5
         }
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
-        // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
             if (ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f"))
                 sd.offset = 0.5f / sd.scale;
@@ -84,7 +84,7 @@ void ColormapPanel::Draw() {
         }
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
         if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
-        // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
             ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f");
             ImGui::DragFloat("Offset", &sd.offset, 0.01f, 0, 0, "%.8f");

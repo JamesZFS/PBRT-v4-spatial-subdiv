@@ -76,7 +76,7 @@ int Application::Run() {
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
     m_radianceView = std::make_unique<RadianceView>(this, m_scene, m_lights);
     m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field, *m_radianceView);
-    m_embeddingView = std::make_unique<EmbeddingView>(this);
+    m_embeddingView = std::make_unique<EmbeddingView>(this, m_field);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
@@ -138,7 +138,6 @@ void Application::Draw() {
         ErrorMetricSelector();
         ToggleShowFine();
         m_colormapPanel->Draw();
-        m_embeddingView->Draw();
         RayCastingPanel();
         ImGui::End();
     }
@@ -148,7 +147,7 @@ void Application::Draw() {
         ChannelSelector();
         m_viewport->Draw();
         CacheProbesInteraction();
-        SDRViewInteraction();
+        SDREViewInteraction();
         ImGui::Separator();
         StatusBar();
     }
@@ -163,23 +162,34 @@ void Application::Draw() {
     ImGui::End();
 
 
-    // ImGui::ShowDemoWindow();
-    // ImPlot::ShowDemoWindow();
-    CacheMonitorViews();
-    CacheHistogramViews();
+    if (m_enableImGuiDemo) ImGui::ShowDemoWindow(&m_enableImGuiDemo);
+    if (m_enableImPlotDemo) ImPlot::ShowDemoWindow(&m_enableImPlotDemo);
 
-    if ((m_enableRadianceView = ImGui::Begin("Radiance View"))) {
-        m_radianceView->Draw();
+    if (m_enableCurve) CacheMonitorViews();
+    if (m_enableHistogram) CacheHistogramViews();
+
+    if (m_enableRadianceView) {
+        if (ImGui::Begin("Radiance View", &m_enableRadianceView))
+            m_radianceView->Draw();
+        ImGui::End();
     }
-    ImGui::End();
 
-    if ((m_enableSamplingDistributionView = ImGui::Begin("Sampling Distribution"))) {
-        m_samplingDistributionView->Draw();
+    if (m_enableSamplingDistributionView) {
+        if (ImGui::Begin("Sampling Distribution", &m_enableSamplingDistributionView))
+            m_samplingDistributionView->Draw();
+        ImGui::End();
     }
-    ImGui::End();
 
-    if (ImGui::Begin("Ray Casting History")) {
-        RayCastingHistory();
+    if (m_enableEmbeddingView) {
+        if (ImGui::Begin("Embedding View", &m_enableEmbeddingView))
+            m_embeddingView->Draw();
+        ImGui::End();
+    }
+
+    if (m_enableRayCastingHistory) {
+        if (ImGui::Begin("Ray Casting History", &m_enableRayCastingHistory))
+            RayCastingHistory();
+        ImGui::End();
     }
 }
 
@@ -218,6 +228,14 @@ void Application::SetupLayout() {
 
 void Application::SetupLayoutDefault() {
     if (!m_hasSetupLayout) {
+        m_enableCurve = false;
+        m_enableHistogram = false;
+        m_enableSamplingDistributionView = true;
+        m_enableRadianceView = true;
+        m_enableEmbeddingView = true;
+        m_enableRayCastingHistory = false;
+        m_enableImGuiDemo = false;
+        m_enableImPlotDemo = false;
         // Figure out proper window size
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
         m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::max(800, std::min(m_resolution.y + 120, mode->height)));
@@ -255,12 +273,12 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        for (auto s: {"Settings", "Ray Casting History", "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram"})
+        for (auto s: {"Settings", "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram"})
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightMidDock);
-        for (auto s: {"CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"})
+        for (auto s: {"CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Embedding View"})
             ImGui::DockBuilderDockWindow(s, rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
@@ -272,6 +290,14 @@ void Application::SetupLayoutDefault() {
 
 void Application::SetupLayoutCompact() {
     if (!m_hasSetupLayout) {
+        m_enableCurve = false;
+        m_enableHistogram = false;
+        m_enableSamplingDistributionView = false;
+        m_enableRadianceView = false;
+        m_enableEmbeddingView = true;
+        m_enableRayCastingHistory = false;
+        m_enableImGuiDemo = false;
+        m_enableImPlotDemo = false;
         // Figure out proper window size
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
         m_windowSize = ImVec2(std::min(m_resolution.x + 400, mode->width), std::min(m_resolution.y + 120, mode->height));
@@ -309,7 +335,6 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Viewport", leftDock);
         ImGui::DockBuilderDockWindow("Controls", rightTopDock);
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
-        ImGui::DockBuilderDockWindow("Ray Casting History", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
@@ -320,6 +345,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("CE Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Embedding View", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -330,6 +356,14 @@ void Application::SetupLayoutCompact() {
 
 void Application::SetupLayoutProbeViews() {
     if (!m_hasSetupLayout) {
+        m_enableCurve = false;
+        m_enableHistogram = false;
+        m_enableSamplingDistributionView = true;
+        m_enableRadianceView = true;
+        m_enableEmbeddingView = false;
+        m_enableRayCastingHistory = false;
+        m_enableImGuiDemo = false;
+        m_enableImPlotDemo = false;
         // Figure out proper window size
         auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
         m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::min(m_resolution.y + 120, mode->height));
@@ -366,7 +400,7 @@ void Application::SetupLayoutProbeViews() {
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        for (auto s: {"Settings", "Ray Casting History",
+        for (auto s: {"Settings",
             "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram",
             "CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
         })
@@ -383,8 +417,17 @@ void Application::SetupLayoutProbeViews() {
 }
 
 void Application::SetupLayoutCacheMonitor() {
-    if (!m_hasSetupLayout)
+    if (!m_hasSetupLayout) {
+        m_enableCurve = true;
+        m_enableHistogram = false;
+        m_enableSamplingDistributionView = false;
+        m_enableRadianceView = false;
+        m_enableEmbeddingView = false;
+        m_enableRayCastingHistory = false;
+        m_enableImGuiDemo = false;
+        m_enableImPlotDemo = false;
         SetFullScreen();
+    }
 
     ImGuiViewport *iviewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(iviewport->WorkPos);
@@ -422,7 +465,7 @@ void Application::SetupLayoutCacheMonitor() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
-        ImGui::DockBuilderDockWindow("Ray Casting History", leftMidDock);
+        ImGui::DockBuilderDockWindow("Embedding View", leftMidDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
@@ -443,8 +486,17 @@ void Application::SetupLayoutCacheMonitor() {
 }
 
 void Application::SetupLayoutHistograms() {
-    if (!m_hasSetupLayout)
+    if (!m_hasSetupLayout) {
+        m_enableCurve = false;
+        m_enableHistogram = true;
+        m_enableSamplingDistributionView = false;
+        m_enableRadianceView = false;
+        m_enableEmbeddingView = false;
+        m_enableRayCastingHistory = false;
+        m_enableImGuiDemo = false;
+        m_enableImPlotDemo = false;
         SetFullScreen();
+    }
 
     ImGuiViewport *iviewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(iviewport->WorkPos);
@@ -477,7 +529,7 @@ void Application::SetupLayoutHistograms() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
-        ImGui::DockBuilderDockWindow("Ray Casting History", leftMidDock);
+        ImGui::DockBuilderDockWindow("Embedding View", leftMidDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
@@ -512,6 +564,7 @@ void Application::SetupRenderThread() {
             UpdateCacheCurves();
             UpdateCacheHistograms();
             UpdateSamplingDistributionView();
+            UpdateEmbeddingView();
             RenderWave(waveStart);
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
@@ -743,40 +796,41 @@ void Application::UpdateRayCastingAtMouse() {
 }
 
 // Sampling distribution and radiance view
-void Application::SDRViewInteraction() {
-    if (!m_enableSamplingDistributionView && !m_enableRadianceView && !m_embeddingView->IsActive()) return;
+void Application::SDREViewInteraction() {
+    if (!m_enableSamplingDistributionView && !m_enableRadianceView && !m_enableEmbeddingView) return;
     // Left click to update the sampling distribution
     if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
         Point2i pixel = m_viewport->GetMousePixel();
-        m_rcSDRV = RayCast(pixel);
+        m_rcSDRE = RayCast(pixel);
         UpdateSamplingDistributionView();
         NewRadianceViewRendering();
         UpdateEmbeddingView();
     }
 
     // Draw the view location
-    if (m_rcSDRV.valid) {
+    if (m_rcSDRE.valid) {
         ImVec2 leftTop = m_viewport->GetLeftTop();
         float scale = m_viewport->GetScale();
-        ImVec2 center(leftTop.x + m_rcSDRV.pixel.x * scale, leftTop.y + m_rcSDRV.pixel.y * scale);
+        ImVec2 center(leftTop.x + m_rcSDRE.pixel.x * scale, leftTop.y + m_rcSDRE.pixel.y * scale);
         ImDrawList *draw_list = ImGui::GetWindowDrawList();
         float a = 4;
-        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), m_rcSDRV.pixel) < 2 * a;
+        bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), m_rcSDRE.pixel) < 2 * a;
         draw_list->AddTriangleFilled(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32(255, 0, 0, 255));
         if (isHovered)
             draw_list->AddTriangle(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32_WHITE, 2);
 
         // Right click to clear the views
         if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
-            m_rcSDRV.valid = false;
+            m_rcSDRE.valid = false;
             m_samplingDistributionView->Clear();
             m_radianceView->Clear();
+            m_embeddingView->Clear();
         }
     }
 }
 
 void Application::CacheProbesInteraction() {
-    if (!m_enableProbes) return;
+    if (!m_enableCurve) return;
     // Draw all probes
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     ImVec2 leftTop = m_viewport->GetLeftTop();
@@ -831,18 +885,6 @@ void Application::CacheProbesInteraction() {
     }
 }
 
-void Application::UpdateEmbeddingView() {
-    if (m_showFine && m_rcSDRV.fine.id != -1) {
-        m_embeddingView->Set(m_field.GetDirectionalEmbedding(m_rcSDRV.fine.id));
-    }
-    else if (!m_showFine && m_rcSDRV.coarse.id != -1) {
-        m_embeddingView->Set(m_field.GetDirectionalEmbedding(m_rcSDRV.coarse.id));
-    }
-    else {
-        m_embeddingView->Reset();
-    }
-}
-
 void Application::UpdateField(int waveEnd) {
     // CheckIsRenderThread();
     {
@@ -885,6 +927,7 @@ void Application::RestartRendering(bool resetCache) {
     m_cacheMonitor.object->Clear();
     m_cacheHistogram.object->Clear();
     m_samplingDistributionView->Clear();
+    m_embeddingView->Clear();
 }
 
 void Application::UpdateCPUBufferFromFilm() {
@@ -936,18 +979,18 @@ void Application::UpdateCacheHistograms() {
 }
 
 void Application::UpdateSamplingDistributionView() {
-    if (m_rcSDRV.valid) {
+    if (m_rcSDRE.valid) {
         std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
-        m_samplingDistributionView->UpdateCPUBuffer(m_rcSDRV.hit, m_rcSDRV.normal, m_showFine);
+        m_samplingDistributionView->UpdateCPUBuffer(m_rcSDRE.hit, m_rcSDRE.normal, m_showFine);
     } else {
         m_samplingDistributionView->Clear();
     }
 }
 
 void Application::NewRadianceViewRendering() {
-    if (m_rcSDRV.valid) {
+    if (m_rcSDRE.valid) {
         // Launch a new rendering task at the clicked point
-        m_radianceView->RenderStart(m_rcSDRV.hit, m_rcSDRV.normal);
+        m_radianceView->RenderStart(m_rcSDRE.hit, m_rcSDRE.normal);
         RadianceViewRenderStep();
         // Later rendering steps are performed in the main loop when the render thread is not busy
     } else {
@@ -958,6 +1001,15 @@ void Application::NewRadianceViewRendering() {
 void Application::RadianceViewRenderStep() {
     if (m_enableRadianceView && m_radianceView->IsRendering() && m_renderThread->GetState() != RenderThread::Rendering) {
         m_radianceView->RenderStep();
+    }
+}
+
+void Application::UpdateEmbeddingView() {
+    if (m_rcSDRE.valid) {
+        std::lock_guard lock(m_mtx.field);
+        m_embeddingView->Update(m_rcSDRE.hit, m_showFine);
+    } else {
+        m_embeddingView->Clear();
     }
 }
 
@@ -1040,16 +1092,30 @@ void Application::MainMenu() {
             }
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("SDR View", m_renderThread->GetState() != RenderThread::Rendering)) {
+        if (ImGui::BeginMenu("SDRE View", m_renderThread->GetState() != RenderThread::Rendering)) {
             if (ImGui::MenuItem("Clear")) {
-                m_rcSDRV.valid = false;
+                m_rcSDRE.valid = false;
                 m_samplingDistributionView->Clear();
                 m_radianceView->Clear();
+                m_embeddingView->Clear();
             }
             if (ImGui::MenuItem("Set Resolution")) {
                 openChangeResolutionPopup = true;
                 m_enableShortcuts = false;
             }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Tools")) {
+            if (ImGui::MenuItem("Cache Curves", 0, m_enableCurve)) m_enableCurve ^= true;
+            if (ImGui::MenuItem("Cache Histograms", 0, m_enableHistogram)) m_enableHistogram ^= true;
+            ImGui::Separator();
+            if (ImGui::MenuItem("Radiance View", 0, m_enableRadianceView)) m_enableRadianceView ^= true;
+            if (ImGui::MenuItem("Sampling Distribution", 0, m_enableSamplingDistributionView)) m_enableSamplingDistributionView ^= true;
+            if (ImGui::MenuItem("Embedding View", 0, m_enableEmbeddingView)) m_enableEmbeddingView ^= true;
+            if (ImGui::MenuItem("Ray Casting History", 0, m_enableRayCastingHistory)) m_enableRayCastingHistory ^= true;
+            ImGui::Separator();
+            if (ImGui::MenuItem("ImGui Demo", 0, m_enableImGuiDemo)) m_enableImGuiDemo ^= true;
+            if (ImGui::MenuItem("ImPlot Demo", 0, m_enableImPlotDemo)) m_enableImPlotDemo ^= true;
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
@@ -1315,29 +1381,27 @@ void Application::SpatialSubdivisionSettings() {
 }
 
 void Application::CacheMonitorViews() {
-    bool enableMonitor = false;
-    if (enableMonitor |= ImGui::Begin("CE Curve"))
+    if (ImGui::Begin("CE Curve"))
         m_cacheMonitor.ce->Draw();
     ImGui::End();
 
-    if (enableMonitor |= ImGui::Begin("Fluence Curve"))
+    if (ImGui::Begin("Fluence Curve"))
         m_cacheMonitor.fluence->Draw();
     ImGui::End();
 
-    if (enableMonitor |= ImGui::Begin("Depth Curve"))
+    if (ImGui::Begin("Depth Curve"))
         m_cacheMonitor.depth->Draw();
     ImGui::End();
 
-    if (enableMonitor |= ImGui::Begin("Samples Curve"))
+    if (ImGui::Begin("Samples Curve"))
         m_cacheMonitor.samples->Draw();
     ImGui::End();
-    m_enableProbes = enableMonitor;
 }
 
 void Application::CacheHistogramViews() {
     if (m_layout == Layout_Histograms) {
         // 2x2 Table
-        if ((m_enableHistogram = ImGui::Begin("Histograms"))) {
+        if (ImGui::Begin("Histograms")) {
             ImGuiTableFlags flags = ImGuiTableFlags_None;
             ImVec2 avail = ImGui::GetContentRegionAvail();
             ImVec2 padding = ImGui::GetStyle().CellPadding;
@@ -1356,16 +1420,13 @@ void Application::CacheHistogramViews() {
         ImGui::End();
     }
     else {
-        bool enableHistogram = false;
         for (auto *hist : {m_cacheHistogram.fluence, m_cacheHistogram.ce, m_cacheHistogram.depth, m_cacheHistogram.samples}) {
             if (ImGui::Begin(hist->title.c_str())) {
-                enableHistogram = true;
                 hist->enableTitle = false;
                 hist->Draw();
             }
             ImGui::End();
         }
-        m_enableHistogram = enableHistogram; // Atomic update
     }
 }
 
