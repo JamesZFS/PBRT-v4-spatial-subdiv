@@ -304,5 +304,12 @@ void RadianceView::Draw() {
             else ImGui::Text("Li: (%.4f, %.4f, %.4f)", rgb.r, rgb.g, rgb.b);
             ImGui::EndTooltip();
         }
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
+            // Show the selected bin index
+            SetSelectedBinIndex(m_binIndexBuffer[idx]);
+        }
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+            ResetSelectedBinIndex();
+        }
     }
 }

@@ -266,8 +266,8 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightDock);
         ImGui::DockBuilderSplitNode(leftDock, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Left, 0.5f, &midDock, &rightDock);
-        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.7f, &rightTopDock, &rightBottomDock);
-        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightMidDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.6f, &rightTopDock, &rightBottomDock);
+        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.67f, &rightTopDock, &rightMidDock);
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, iviewport->Size.y));
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
@@ -277,9 +277,9 @@ void Application::SetupLayoutDefault() {
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
-        ImGui::DockBuilderDockWindow("Sampling Distribution", rightMidDock);
+        ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         for (auto s: {"CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Embedding View"})
-            ImGui::DockBuilderDockWindow(s, rightBottomDock);
+            ImGui::DockBuilderDockWindow(s, rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
