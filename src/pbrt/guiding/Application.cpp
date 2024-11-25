@@ -1374,6 +1374,10 @@ void Application::SpatialSubdivisionSettings() {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearCEStatistics();
         }
+        if (ImGui::Button("Clear Embeddings")) {
+            std::lock_guard lock_(m_mtx.field);
+            m_field.ClearEmbeddings();
+        }
     }
     ImGui::EndDisabled();
     ImGui::PopID();

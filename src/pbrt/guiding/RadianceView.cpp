@@ -45,6 +45,7 @@ void RadianceView::RenderStart() {
     auto pos = m_prev.pos;
     auto normal = Vector3f(m_prev.normal);
     std::fill(m_cpuBuffer.begin(), m_cpuBuffer.end(), RGB(0, 0, 0));
+    integratedEmbedding = {};
     m_cpuBufferUpdated = true;
     m_numSamples = 0;
     // Setup sampler, camera and integrator
@@ -62,7 +63,6 @@ void RadianceView::RenderStart() {
 
 void RadianceView::UpdateBinIndexBuffer() {
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
-    IndependentSampler sampler = *m_sampler;
     auto frame = Frame::FromZ(m_prev.normal);
     for (Point2i p: pixelBounds) {
         float theta = m_stepTheta * (0.5f + float(p.y));
@@ -216,6 +216,7 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
 void RadianceView::Clear() {
     m_prev.valid = false;
     std::fill(m_cpuBuffer.begin(), m_cpuBuffer.end(), RGB(0, 0, 0));
+    integratedEmbedding = {};
     m_normalizer = 1;
     m_cpuBufferUpdated = true;
 }
