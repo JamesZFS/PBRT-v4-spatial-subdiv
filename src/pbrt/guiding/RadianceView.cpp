@@ -81,12 +81,14 @@ void RadianceView::UpdateBinIndexBuffer() {
 }
 
 thread_local double thread_normalizer = 0;
+thread_local PGLDirectionalEmbedding thread_embedding;
 
 void RadianceView::RenderStep() {
     // Render one sample per pixel
     CHECK_LT(m_numSamples, m_spp);
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     double normalizer = 0;
+    PGLDirectionalEmbedding embedding{};
     std::mutex mutex;
     ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
         // Render image tile given by _tileBounds_
@@ -94,6 +96,7 @@ void RadianceView::RenderStep() {
         IndependentSampler _sampler = *m_sampler;
         Sampler sampler(&_sampler);
         thread_normalizer = 0;
+        thread_embedding = {};
         for (Point2i pPixel : tileBounds) {
             // Render samples in pixel _pPixel_
             sampler.StartPixelSample(pPixel, m_numSamples);
@@ -103,15 +106,24 @@ void RadianceView::RenderStep() {
         {
             std::lock_guard lock(mutex);
             normalizer += thread_normalizer;
+            for (size_t i = 0; i < PGL_EMBEDDING_SIZE; i++) {
+                embedding.embedding[i] += thread_embedding.embedding[i];
+            }
         }
     });
     m_normalizer = normalizer;
+    integratedEmbedding = embedding;
     m_numSamples++;
     m_cpuBufferUpdated = true;
 }
 
+static inline float RGBToScalar(const RGB &rgb) {
+    return std::max(std::max(rgb.r, rgb.g), rgb.b);  // consistent with OpenPGL
+    // return Luminance(rgb);
+}
+
 double RadianceView::GetPDF(const pbrt::Point2i &p) const {
-    return Luminance(m_cpuBuffer[p.y * m_resolution.x + p.x]) / m_normalizer;
+    return RGBToScalar(m_cpuBuffer[p.y * m_resolution.x + p.x]) / m_normalizer;
 }
 
 void RadianceView::SetResolution(const pbrt::Point2i &resolution) {
@@ -189,12 +201,14 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
         if (Dot(d, m_prev.normal) < 0) {
             m_cpuBuffer[index] = RGB(0, 0, 0);
         } else {
-            float val = Luminance(m_cpuBuffer[index]);
+            float val = RGBToScalar(m_cpuBuffer[index]);
             float cosTheta;
             if (m_localFrame) cosTheta = Clamp(Dot(d, m_prev.normal), -1, 1);
             else cosTheta = d.z;
             float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
             thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
+            uint8_t binIdx = m_binIndexBuffer[index];
+            thread_embedding.embedding[binIdx] += val * sinTheta * m_stepPhi * m_stepTheta;
         }
     }
 }
@@ -300,7 +314,7 @@ void RadianceView::Draw() {
             float phi = m_stepPhi * (0.5f + float(pixel.x));
             ImGui::Text("Omega: (%.1f, %.1f) deg", Degrees(theta), Degrees(phi));
             RGB rgb = m_cpuBuffer[idx];
-            if (m_pdf) ImGui::Text("PDF: %.6lf", Luminance(rgb) / m_normalizer);
+            if (m_pdf) ImGui::Text("PDF: %.6lf", RGBToScalar(rgb) / m_normalizer);
             else ImGui::Text("Li: (%.4f, %.4f, %.4f)", rgb.r, rgb.g, rgb.b);
             ImGui::EndTooltip();
         }
