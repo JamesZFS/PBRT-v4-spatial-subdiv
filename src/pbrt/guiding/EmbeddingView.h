@@ -32,13 +32,17 @@ private:
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
     PGLDirectionalEmbedding m_embedding{};
+    pbrt::RGB m_selectionBuffer[PGL_EMBEDDING_SIZE];
     std::atomic_bool m_embeddingUpdated = false;
 
     float m_scale = 1.0f;
     Colormap m_cmap = CMap_Inferno;
 
-    GLuint m_renderingTex = 0;  // stores the selected cpu buffer
-    Framebuffer m_framebuffer;
+    GLuint m_embeddingTex = 0;  // stores the embedding entry rendering
+    Framebuffer m_embeddingFramebuffer;
+
+    GLuint m_selectionTex = 0;
+    Framebuffer m_selectionFramebuffer;
 };
 
 

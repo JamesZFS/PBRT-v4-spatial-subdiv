@@ -63,7 +63,7 @@ private:
     std::vector<uint8_t> m_binIndexBuffer;  // buffer of indices into the embedding vector for each pixel
     double m_normalizer = 1;
     int m_numSamples = 0;
-    int m_spp = 64;
+    int m_spp = 16;
     uint8_t m_selectedBinIndex = PGL_EMBEDDING_SIZE;  // valid index is [0, PGL_EMBEDDING_SIZE)
     std::atomic_bool m_cpuBufferUpdated = false;
 
