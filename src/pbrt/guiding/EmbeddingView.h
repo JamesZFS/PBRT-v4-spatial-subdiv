@@ -11,7 +11,6 @@
 #include "RadianceView.h"
 #include <openpgl/cpp/OpenPGL.h>
 #include <pbrt/util/framebuffer.h>
-#include <atomic>
 
 
 class EmbeddingView : public View {
@@ -31,15 +30,19 @@ public:
 private:
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
-    PGLDirectionalEmbedding m_embedding{};
+    PGLDirectionalEmbedding m_cachedEmbedding{};
+    PGLDirectionalEmbedding &m_integratedEmbedding;
     pbrt::RGB m_selectionBuffer[PGL_EMBEDDING_SIZE];
-    std::atomic_bool m_embeddingUpdated = false;
 
     float m_scale = 1.0f;
     Colormap m_cmap = CMap_Inferno;
+    bool m_showIntegratedEmbedding = false;
 
-    GLuint m_embeddingTex = 0;  // stores the embedding entry rendering
-    Framebuffer m_embeddingFramebuffer;
+    GLuint m_cachedEmbeddingTex = 0;  // stores the cache embedding vector
+    Framebuffer m_cachedEmbeddingFramebuffer;
+
+    GLuint m_integratedEmbeddingTex = 0;  // stores the integrated embedding vector
+    Framebuffer m_integratedEmbeddingFramebuffer;
 
     GLuint m_selectionTex = 0;
     Framebuffer m_selectionFramebuffer;

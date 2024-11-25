@@ -43,6 +43,8 @@ public:
 
     bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_EMBEDDING_SIZE; }
 
+    PGLDirectionalEmbedding integratedEmbedding{};  // integrated embedding vector with the radiance map
+
 private:
     void EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler, pbrt::ScratchBuffer &scratchBuffer);
 
