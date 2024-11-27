@@ -80,11 +80,13 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             std::cout<< "\t regularize = " << regularize << std::endl;
         guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
         guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, guideSettings.dtype, true,
-            guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth);
+            guideSettings.treesamplecountthreshold, guideSettings.treeminsamplescandidatesplit, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
+        guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
+        guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
         guiding_fieldSubdivConfig.embeddingDistanceThreshold = guideSettings.treeadaptivethreshold;
-        guiding_fieldSubdivConfig.ceDecay = guideSettings.treemomentum;
+        guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
 
         if (guideSettings.loadGuidingCache) {
@@ -632,12 +634,13 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
     else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
     else throw std::runtime_error("Unknown dtype: " + dtype);
-    settings.treemaxsamplesperleaf = parameters.GetOneInt("treemaxsamplesperleaf", PGL_TREE_MAX_SAMPLE_PER_LEAF);
-    settings.treeminsamplesperleaf = parameters.GetOneInt("treeminsamplesperleaf", 100);
-    settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
-    settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", 32);
-    settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", 1.0f);
-    settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
+    settings.treesamplecountthreshold = parameters.GetOneInt("treesamplecountthreshold", PGL_TREE_MAX_SAMPLE_PER_LEAF);
+    settings.treeminsamplescandidatesplit = parameters.GetOneInt("treeminsamplescandidatesplit", settings.treeminsamplescandidatesplit);
+    settings.treeminsamplespromotion = parameters.GetOneInt("treeminsamplespromotion", settings.treeminsamplespromotion);
+    settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", settings.treemaxdepth);
+    settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", settings.treemaxdepthwithsamplecount);
+    settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
+    settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", 1e8f);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
