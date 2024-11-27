@@ -750,7 +750,8 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
         auto printCache = [&](const PGLRegionStatistics &s) -> std::string {
             if (s.id == -1) return "  <invalid>\n";
             std::lock_guard lock(m_mtx.field);
-            auto de = m_field.GetDirectionalEmbedding(s.id);
+            pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
+            auto de = m_field.GetDirectionalEmbedding(pglP);
             return StringPrintf(
                 "  ID: %u\n"
                 "  Samples: %d\n"
@@ -876,7 +877,7 @@ void Application::CacheProbesInteraction() {
                         fineValid ? rc.fine.crossEntropy : nan,
                         coarseValid && fineValid ? 0 : nan,
                         coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
-                        coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
+                        coarseValid ? rc.coarse.crossEntropy/* - m_subdivCfg.ceThreshold*/ : nan,
                     });
                 }
             });
@@ -952,7 +953,7 @@ void Application::UpdateCacheCurves() {
                 fineValid ? rc.fine.crossEntropy : nan,
                 coarseValid && fineValid ? 0 : nan,
                 coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
-                coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
+                coarseValid ? rc.coarse.crossEntropy/* - m_subdivCfg.ceThreshold*/ : nan,
             });
         }
     });
@@ -1362,12 +1363,9 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.maxDepthWithSampleCount = std::max(1, std::min(32, maxDepthWithSampleCount));
         m_subdivCfg.maxSamples = std::max(0, maxSamples);
         m_subdivCfg.minSamples = std::max(0, minSamples);
-        ImGui::Checkbox("Enable CE", &m_subdivCfg.enableCE);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
-        ImGui::Checkbox("Single-side Promotion", &m_subdivCfg.singleSidePromotion);
-        ImGui::InputFloat("CE Threshold", &m_subdivCfg.ceThreshold);
+        ImGui::InputFloat("Embedding Distance Threshold", &m_subdivCfg.embeddingDistanceThreshold);
         ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
-        ImGui::Checkbox("Failure Decay", &m_subdivCfg.failureDecay);
         ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         if (ImGui::Button("Clear CE Statistics")) {
