@@ -83,10 +83,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             guideSettings.treemaxsamplesperleaf, guideSettings.treeminsamplesperleaf, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
-        guiding_fieldSubdivConfig.enableCE = guideSettings.treeenablece;
-        guiding_fieldSubdivConfig.failureDecay = guideSettings.treefailuredecay;
-        guiding_fieldSubdivConfig.singleSidePromotion = guideSettings.treesinglesidepromotion;
-        guiding_fieldSubdivConfig.ceThreshold = guideSettings.treecethreshold;
+        guiding_fieldSubdivConfig.embeddingDistanceThreshold = guideSettings.treeadaptivethreshold;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treemomentum;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
 
@@ -639,10 +636,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treeminsamplesperleaf = parameters.GetOneInt("treeminsamplesperleaf", 100);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
     settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", 32);
-    settings.treeenablece = parameters.GetOneBool("treeenablece", true);
-    settings.treefailuredecay = parameters.GetOneBool("treefailuredecay", true);
-    settings.treesinglesidepromotion = parameters.GetOneBool("treesinglesidepromotion", true);
-    settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
+    settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", 1.0f);
     settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", 1e8f);
 

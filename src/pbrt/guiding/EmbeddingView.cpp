@@ -25,14 +25,7 @@ EmbeddingView::~EmbeddingView() {
 
 void EmbeddingView::Update(const pbrt::Point3f &pos, bool lookahead) {
     pgl_point3f pglP = {pos.x, pos.y, pos.z};
-    auto [coarse, fine] = m_field.GetCoarseFineRegionStatisticsSurface(pglP);
-    if (lookahead && fine.id != -1) {
-        m_cachedEmbedding = m_field.GetDirectionalEmbedding(fine.id);
-    } else if (!lookahead && coarse.id != -1) {
-        m_cachedEmbedding = m_field.GetDirectionalEmbedding(coarse.id);
-    } else {
-        m_cachedEmbedding = {};
-    }
+    m_cachedEmbedding = m_field.GetDirectionalEmbedding(pglP);
 }
 
 void EmbeddingView::Clear() {
