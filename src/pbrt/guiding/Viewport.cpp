@@ -21,6 +21,7 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.ce.coarse.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.ce.fine.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.ce.diff.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.embeddingDist.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
@@ -72,8 +73,9 @@ void Viewport::UpdateCPUBufferFromFilm() {
             }
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
             m_cpuBuffer.ce.coarse[index] = pixel.guidingData.ce;
-            m_cpuBuffer.ce.fine[index] = pixel.guidingData.fineCE;
-            m_cpuBuffer.ce.diff[index] = pixel.guidingData.fineId != -1 ? pixel.guidingData.ce - pixel.guidingData.fineCE : 0;
+            m_cpuBuffer.ce.fine[index] = pixel.guidingData.ce;  // deprecated
+            m_cpuBuffer.ce.diff[index] = pixel.guidingData.fineId != -1 ? pixel.guidingData.ce - pixel.guidingData.ce : 0;  // deprecated
+            m_cpuBuffer.embeddingDist[index] = pixel.guidingData.embeddingDist;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
             m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;
@@ -136,6 +138,10 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromRGBData((GLuint) (uintptr_t) m_renderingTex, showDiff ? m_cpuBuffer.cacheID.diff.data() : showFine ? m_cpuBuffer.cacheID.fine.data() : m_cpuBuffer.cacheID.coarse.data(), m_resolution.x, m_resolution.y, false);
                 break;
+            case Channel_EmbeddingDist:
+                CHECK(m_isMultiChannel);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.embeddingDist.data(), m_resolution.x, m_resolution.y, false);
+                break;
             case Channel_Fluence:
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.fluence.data(), m_resolution.x, m_resolution.y, false);
@@ -148,10 +154,10 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.samples.data(), m_resolution.x, m_resolution.y, false);
                 break;
-            case Channel_ZeroSamples:
-                CHECK(m_isMultiChannel);
-                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.zeroSamples.data(), m_resolution.x, m_resolution.y, false);
-                break;
+            // case Channel_ZeroSamples:
+            //     CHECK(m_isMultiChannel);
+            //     UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.zeroSamples.data(), m_resolution.x, m_resolution.y, false);
+            //     break;
             case Channel_Depth:
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.depth.data(), m_resolution.x, m_resolution.y, false);

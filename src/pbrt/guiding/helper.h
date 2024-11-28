@@ -14,10 +14,11 @@
 enum SelectedChannel {
     Channel_Radiance = 0,
     Channel_CacheID,
+    Channel_EmbeddingDist,
     Channel_Fluence,
     Channel_CE,
     Channel_Samples,
-    Channel_ZeroSamples,
+    // Channel_ZeroSamples,
     Channel_Depth,
     Channel_Reference,
     Channel_Error,

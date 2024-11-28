@@ -21,10 +21,11 @@
 static std::vector<const char *> channelNames = {
     "Radiance (1)",
     "Cache ID (2)",
-    "Fluence (3)",
-    "CE (4)",
-    "Samples (5)",
-    "Zero Samples (6)",
+    "Embedding Dist (3)",
+    "Fluence (4)",
+    "CE (5)",
+    "Samples (6)",
+    // "Zero Samples (6)",
     "Depth (7)",
     "Reference (8)",
     "Error (9)",
@@ -713,12 +714,9 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Cache ID Parent/Child: %u/%u", coarse.id, fine.id);
     else
         ImGui::Text("Cache ID: %u", coarse.id);
+    ImGui::Text("Embedding Distance: %f", coarse.embeddingDistance);
     ImGui::Text("Fluence: %f", coarse.fluence);
-    if (fineIsValid)
-        ImGui::Text("CE Parent/Child: %f/%f %s", coarse.crossEntropy, fine.crossEntropy,
-            coarse.crossEntropy == fine.crossEntropy ? "" : coarse.crossEntropy > fine.crossEntropy ? "(+)" : "(-)");
-    else
-        ImGui::Text("CE: %f", coarse.crossEntropy);
+    ImGui::Text("CE: %f", coarse.crossEntropy);
     ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(coarse.numSamples).c_str(), FormatInteger(coarse.numZeroValueSamples).c_str());
     ImGui::Text("Depth: %d", (int) coarse.depth);
 }
@@ -757,11 +755,12 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
                 "  Samples: %d\n"
                 "  Zero Samples: %d\n"
                 "  Depth: %d\n"
+                "  Embedding Distance: %f\n"
                 "  Fluence: %f\n"
                 "  CE: %f\n"
                 "  Directional Embedding: %s\n"
                 "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.fluence, s.crossEntropy, printDe(de).c_str(),
+                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.embeddingDistance, s.fluence, s.crossEntropy, printDe(de).c_str(),
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
                 s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
         };

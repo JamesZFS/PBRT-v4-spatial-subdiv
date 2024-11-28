@@ -62,6 +62,7 @@ private:
             std::vector<float> fine;
             std::vector<float> diff;
         } ce;
+        std::vector<float> embeddingDist;
         std::vector<float> samples;
         std::vector<float> zeroSamples;
         std::vector<float> depth;

@@ -39,7 +39,7 @@ void ConfigureTonemapShader(Shader &shader, GLuint sourceTex, bool singleChannel
 }
 
 bool IsSingleChannel(SelectedChannel channel) {
-    return Channel_Fluence <= channel && channel <= Channel_Depth || channel == Channel_Error;
+    return Channel_CacheID < channel && channel <= Channel_Depth || channel == Channel_Error;
 }
 
 template<>

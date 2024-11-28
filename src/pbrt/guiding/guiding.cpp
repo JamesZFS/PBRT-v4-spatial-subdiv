@@ -463,10 +463,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 visibleSurf->guidingData.numZeroValueSamples = coarse.numZeroValueSamples;
                 visibleSurf->guidingData.depth = coarse.depth;
                 visibleSurf->guidingData.fluence = coarse.fluence;
-                visibleSurf->guidingData.ce = coarse.crossEntropy;
-            }
-            if (fine.id != -1) {
-                visibleSurf->guidingData.fineCE = fine.crossEntropy;
+                visibleSurf->guidingData.embeddingDist = coarse.embeddingDistance;
             }
         }
 
