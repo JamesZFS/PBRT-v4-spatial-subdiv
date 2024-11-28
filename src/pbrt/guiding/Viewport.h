@@ -78,6 +78,7 @@ private:
     Framebuffer m_framebuffer;
     Framebuffer m_overlayFineFramebuffer;
     Framebuffer m_overlayCoarseFramebuffer;
+    Framebuffer *m_selectedFramebuffer = nullptr;
 
     ImVec2 m_leftTop;
     float m_scale = 1.0f;
