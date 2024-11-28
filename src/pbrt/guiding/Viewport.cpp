@@ -10,7 +10,9 @@ using namespace pbrt;
 Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference)
     : View(parent), m_film(film), m_isMultiChannel(film.Is<GuidedGBufferFilm>()),
       m_resolution(film.PixelBounds().Diagonal()),
-      m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+      m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_overlayCoarseFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_cache_id.frag"),
+      m_overlayFineFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_lookahead_id.frag") {
     m_cpuBuffer.radiance.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.cacheID.coarse.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.cacheID.fine.resize(m_resolution.x * m_resolution.y);
@@ -24,6 +26,7 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.reference.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.error.resize(m_resolution.x * m_resolution.y);
+    m_selectedFramebuffer = &m_framebuffer;
     if (reference) {
         m_hasReference = true;
         CHECK_EQ(reference->Resolution(), m_resolution);
@@ -38,10 +41,14 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     }
 
     glGenTextures(1, &m_renderingTex);
+    glGenTextures(1, &m_cacheIDTex);
+    glGenTextures(1, &m_fineIDTex);
 }
 
 Viewport::~Viewport() {
     glDeleteTextures(1, &m_renderingTex);
+    glDeleteTextures(1, &m_cacheIDTex);
+    glDeleteTextures(1, &m_fineIDTex);
 }
 
 void Viewport::UpdateCPUBufferFromFilm() {
@@ -84,7 +91,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
             m_cpuBuffer.radiance[index] = m_film.GetPixelRGB(p);
         });
     }
-    m_cpuBufferUpdated = true;
+    m_cpuBufferUpdated = true;  // asynchronous update
 }
 
 double Viewport::UpdateMeanError() {
@@ -115,11 +122,8 @@ void Viewport::UpdateErrorImage() {
     }
 }
 
-void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
+void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms, SelectedChannel channel, bool showFine, bool showDiff, bool showBoundaries) {
     // Render to the tonemapped framebuffer if the CPU buffer has been updated
-    auto channel = m_parent->GetSelectedChannel();
-    bool showFine = m_parent->IsShowingFine();
-    bool showDiff = m_parent->IsShowingDiff();
     if (m_cpuBufferUpdated.exchange(false)) {
         // Update the rendering texture
         switch (channel) {
@@ -162,18 +166,60 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
                 Error("Unknown channel %d", (int) channel);
                 break;
         }
+        UpdateTextureFromRGBData((GLuint) (uintptr_t) m_cacheIDTex, m_cpuBuffer.cacheID.coarse.data(), m_resolution.x, m_resolution.y, false);
+        UpdateTextureFromRGBData((GLuint) (uintptr_t) m_fineIDTex, m_cpuBuffer.cacheID.fine.data(), m_resolution.x, m_resolution.y, false);
     }
-    // glEnable(GL_FRAMEBUFFER_SRGB);
     m_framebuffer.bind();
     m_framebuffer.clear();
 
-    Shader &shader = m_framebuffer.getShader();
-    shader.bind();
-    ConfigureTonemapShader(shader, m_renderingTex, IsSingleChannel(channel), uniforms);
+    {
+        Shader &shader = m_framebuffer.getShader();
+        shader.bind();
+        ConfigureTonemapShader(shader, m_renderingTex, IsSingleChannel(channel), uniforms);
+    }
 
     // Render!
     m_framebuffer.draw();
     m_framebuffer.unbind();
+
+    if (showBoundaries) {
+        if (showFine) {
+            // Second pass: overlay the fine cache ID on top of the tonemapped image
+            m_overlayFineFramebuffer.bind();
+            m_overlayFineFramebuffer.clear();
+
+            Shader &shader = m_overlayFineFramebuffer.getShader();
+            shader.bind();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
+            shader.setUniform1i("image_tex", 0);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, m_fineIDTex);
+            shader.setUniform1i("id_tex", 1);
+
+            m_overlayFineFramebuffer.draw();
+            m_overlayFineFramebuffer.unbind();
+        }
+
+        // Second or third pass: overlay the cache ID on top of the previous image
+        m_overlayCoarseFramebuffer.bind();
+        m_overlayCoarseFramebuffer.clear();
+
+        Shader &shader = m_overlayCoarseFramebuffer.getShader();
+        shader.bind();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, showFine ? m_overlayFineFramebuffer.getTexture() : m_framebuffer.getTexture());
+        shader.setUniform1i("image_tex", 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, m_cacheIDTex);
+        shader.setUniform1i("id_tex", 1);
+
+        m_overlayCoarseFramebuffer.draw();
+        m_overlayCoarseFramebuffer.unbind();
+        m_selectedFramebuffer = &m_overlayCoarseFramebuffer;
+    } else {
+        m_selectedFramebuffer = &m_framebuffer;
+    }
 }
 
 void Viewport::Draw() {
@@ -188,8 +234,7 @@ void Viewport::Draw() {
     ImVec2 current = ImGui::GetCursorScreenPos();
     ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
     m_leftTop = ImGui::GetCursorScreenPos();
-    ImGui::Image((ImTextureID) (uintptr_t) m_framebuffer.getTexture(), size);
-    // ImGui::Image((ImTextureID) (uintptr_t) cmap_tex_ids[1], size)
+    ImGui::Image((ImTextureID) (uintptr_t) m_selectedFramebuffer->getTexture(), size);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + offset.y);
 
     if ((m_isHovered = ImGui::IsItemHovered())) {

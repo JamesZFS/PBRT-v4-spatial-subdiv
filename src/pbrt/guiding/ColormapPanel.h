@@ -23,7 +23,8 @@ struct ColormapPanel : public View {
         float scale = 1.0f;
         float offset = 0.0f;
         Colormap cmap = CMap_None;
-        bool firstNormalized = false;
+        bool boundary = false;   // whether to show the cache boundaries
+        bool firstNormalized = false;  // whether to trigger normalize when switching to this channel
     };
     ShaderData shaderData[Channel_Count];
     ShaderData shaderDataDiffCE {1.0f, 0.5f, CMap_RdYlGn, true};

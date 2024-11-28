@@ -111,6 +111,7 @@ private:
     void UpdateSamplingDistributionView();
     void NewRadianceViewRendering();
     void RadianceViewRenderStep();
+    void UpdateEmbeddingView();
 
     // GUI components
     void MainMenu();
@@ -119,7 +120,7 @@ private:
     void RayCastingHistory();
 
     void ChannelSelector();
-    void ToggleShowFine();
+    void ViewportOptions();
     void StatusBar();
     void IntegratorSettings();
     void GuideSettings();

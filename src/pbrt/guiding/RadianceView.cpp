@@ -33,7 +33,7 @@ RadianceView::~RadianceView() {
 }
 
 void RadianceView::RenderStart(const pbrt::Point3f &pos, const pbrt::Normal3f &normal) {
-    m_prev = {true, pos, normal};
+    m_prev = {true, pos, normal, m_localFrame};
     RenderStart();
 }
 
@@ -85,8 +85,13 @@ void RadianceView::RenderStep() {
     m_cpuBufferUpdated = true;
 }
 
+static inline float RGBToScalar(const RGB &rgb) {
+    return std::max(std::max(rgb.r, rgb.g), rgb.b);  // consistent with OpenPGL
+    // return Luminance(rgb);
+}
+
 double RadianceView::GetPDF(const pbrt::Point2i &p) const {
-    return Luminance(m_cpuBuffer[p.y * m_resolution.x + p.x]) / m_normalizer;
+    return RGBToScalar(m_cpuBuffer[p.y * m_resolution.x + p.x]) / m_normalizer;
 }
 
 void RadianceView::SetResolution(const pbrt::Point2i &resolution) {
@@ -163,7 +168,7 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
         if (Dot(d, m_prev.normal) < 0) {
             m_cpuBuffer[index] = RGB(0, 0, 0);
         } else {
-            float val = Luminance(m_cpuBuffer[index]);
+            float val = RGBToScalar(m_cpuBuffer[index]);
             float cosTheta;
             if (m_localFrame) cosTheta = Clamp(Dot(d, m_prev.normal), -1, 1);
             else cosTheta = d.z;
@@ -189,13 +194,15 @@ void RadianceView::UpdateFramebuffer() {
     m_framebuffer.bind();
     m_framebuffer.clear();
 
-    Shader &shader = m_framebuffer.getShader();
-    shader.bind();
-    Colormap cmap = m_pdf ? CMap_Viridis : CMap_None;
-    ConfigureTonemapShader(shader, m_renderingTex, false, {
-                               m_pdf ? (float) (m_exposure / m_normalizer) : m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
-                               cmap_tex_ids[cmap]
-                           });
+    {
+        Shader &shader = m_framebuffer.getShader();
+        shader.bind();
+        Colormap cmap = m_pdf ? CMap_Viridis : CMap_None;
+        ConfigureTonemapShader(shader, m_renderingTex, false, {
+                                   m_pdf ? (float) (m_exposure / m_normalizer) : m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
+                                   cmap_tex_ids[cmap]
+                               });
+    }
 
     // Render!
     m_framebuffer.draw();
@@ -253,7 +260,7 @@ void RadianceView::Draw() {
             float phi = m_stepPhi * (0.5f + float(pixel.x));
             ImGui::Text("Omega: (%.1f, %.1f) deg", Degrees(theta), Degrees(phi));
             RGB rgb = m_cpuBuffer[idx];
-            if (m_pdf) ImGui::Text("PDF: %.6lf", Luminance(rgb) / m_normalizer);
+            if (m_pdf) ImGui::Text("PDF: %.6lf", RGBToScalar(rgb) / m_normalizer);
             else ImGui::Text("Li: (%.4f, %.4f, %.4f)", rgb.r, rgb.g, rgb.b);
             ImGui::EndTooltip();
         }

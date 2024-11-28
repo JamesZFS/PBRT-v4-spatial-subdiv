@@ -19,7 +19,7 @@ public:
 
     void UpdateCPUBufferFromFilm();
 
-    void UpdateFramebuffer(const TonemapShaderUniforms &uniforms);
+    void UpdateFramebuffer(const TonemapShaderUniforms &uniforms, SelectedChannel channel, bool showFine, bool showDiff, bool showBoundaries);
 
     void Draw() override;
 
@@ -72,7 +72,12 @@ private:
     double m_meanError = 0.0;
 
     GLuint m_renderingTex = 0;  // stores the selected cpu buffer
+    GLuint m_cacheIDTex = 0;
+    GLuint m_fineIDTex = 0;
     Framebuffer m_framebuffer;
+    Framebuffer m_overlayFineFramebuffer;
+    Framebuffer m_overlayCoarseFramebuffer;
+    Framebuffer *m_selectedFramebuffer;
 
     ImVec2 m_leftTop;
     float m_scale = 1.0f;
