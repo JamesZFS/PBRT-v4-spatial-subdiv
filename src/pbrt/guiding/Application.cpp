@@ -21,7 +21,7 @@
 static std::vector<const char *> channelNames = {
     "Radiance (1)",
     "Cache ID (2)",
-    "Embedding Dist (3)",
+    "Energy (3)",
     "Fluence (4)",
     "CE (5)",
     "Samples (6)",
@@ -714,7 +714,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Cache ID Parent/Child: %u/%u", coarse.id, fine.id);
     else
         ImGui::Text("Cache ID: %u", coarse.id);
-    ImGui::Text("Embedding Distance: %f", coarse.embeddingDistance);
+    ImGui::Text("Energy: %f", coarse.energy);
     ImGui::Text("Fluence: %f", coarse.fluence);
     ImGui::Text("CE: %f", coarse.crossEntropy);
     ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(coarse.numSamples).c_str(), FormatInteger(coarse.numZeroValueSamples).c_str());
@@ -723,8 +723,8 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Candidate Split Dim: %d", coarse.splitDim);
         ImGui::Text("Candidate Split Pos: %f", coarse.splitPos);
     }
-    ImGui::Text("Sample Mean: (%.4f, %.4f, %.4f)", coarse.sampleMean[0], coarse.sampleMean[1], coarse.sampleMean[2]);
-    ImGui::Text("Sample Variance: (%.4f, %.4f, %.4f)", coarse.sampleVariance[0], coarse.sampleVariance[1], coarse.sampleVariance[2]);
+    // ImGui::Text("Sample Mean: (%.4f, %.4f, %.4f)", coarse.sampleMean[0], coarse.sampleMean[1], coarse.sampleMean[2]);
+    // ImGui::Text("Sample Variance: (%.4f, %.4f, %.4f)", coarse.sampleVariance[0], coarse.sampleVariance[1], coarse.sampleVariance[2]);
 }
 
 void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
@@ -761,12 +761,12 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
                 "  Samples: %d\n"
                 "  Zero Samples: %d\n"
                 "  Depth: %d\n"
-                "  Embedding Distance: %f\n"
+                "  Energy: %f\n"
                 "  Fluence: %f\n"
                 "  CE: %f\n"
                 "  Directional Embedding: %s\n"
                 "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.embeddingDistance, s.fluence, s.crossEntropy, printDe(de).c_str(),
+                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, s.crossEntropy, printDe(de).c_str(),
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
                 s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
         };
@@ -1375,7 +1375,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamplesCandidateSplit = std::max(0, minSamplesCandidateSplit);
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("Embedding Distance Threshold", &m_subdivCfg.embeddingDistanceThreshold);
+        ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.embeddingDistanceThreshold);
         ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         ImGui::SetNextItemWidth(inputWidth), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SetNextItemWidth(inputWidth), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);

@@ -26,7 +26,7 @@ RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &sce
                           "RadianceView-temp.exr");
     m_cbp.film = {new RGBFilm(fp, RGBColorSpace::sRGB)};
     auto &settings = m_parent->GetIntegratorSettings();
-    m_maxDepth = settings.maxDepth;
+    m_maxDepth = settings.maxDepth - 1;
 }
 
 RadianceView::~RadianceView() {
