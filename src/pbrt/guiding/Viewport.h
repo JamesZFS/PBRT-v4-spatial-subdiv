@@ -73,8 +73,10 @@ private:
 
     GLuint m_renderingTex = 0;  // stores the selected cpu buffer
     GLuint m_cacheIDTex = 0;
+    GLuint m_fineIDTex = 0;
     Framebuffer m_framebuffer;
-    Framebuffer m_overlayFramebuffer;
+    Framebuffer m_overlayFineFramebuffer;
+    Framebuffer m_overlayCoarseFramebuffer;
 
     ImVec2 m_leftTop;
     float m_scale = 1.0f;
