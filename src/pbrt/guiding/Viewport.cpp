@@ -11,7 +11,8 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     : View(parent), m_film(film), m_isMultiChannel(film.Is<GuidedGBufferFilm>()),
       m_resolution(film.PixelBounds().Diagonal()),
       m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_overlayFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_cache_id.frag") {
+      m_overlayCoarseFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_cache_id.frag"),
+      m_overlayFineFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_lookahead_id.frag") {
     m_cpuBuffer.radiance.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.cacheID.coarse.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.cacheID.fine.resize(m_resolution.x * m_resolution.y);
@@ -40,11 +41,13 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
 
     glGenTextures(1, &m_renderingTex);
     glGenTextures(1, &m_cacheIDTex);
+    glGenTextures(1, &m_fineIDTex);
 }
 
 Viewport::~Viewport() {
     glDeleteTextures(1, &m_renderingTex);
     glDeleteTextures(1, &m_cacheIDTex);
+    glDeleteTextures(1, &m_fineIDTex);
 }
 
 void Viewport::UpdateCPUBufferFromFilm() {
@@ -166,6 +169,7 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
                 break;
         }
         UpdateTextureFromRGBData((GLuint) (uintptr_t) m_cacheIDTex, m_cpuBuffer.cacheID.coarse.data(), m_resolution.x, m_resolution.y, false);
+        UpdateTextureFromRGBData((GLuint) (uintptr_t) m_fineIDTex, m_cpuBuffer.cacheID.fine.data(), m_resolution.x, m_resolution.y, false);
     }
     m_framebuffer.bind();
     m_framebuffer.clear();
@@ -181,21 +185,39 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
     m_framebuffer.unbind();
 
     if (m_parent->IsOverlayEnabled()) {
-        // Second pass: overlay the cache ID on top of the tonemapped image
-        m_overlayFramebuffer.bind();
-        m_overlayFramebuffer.clear();
+        if (m_parent->IsShowingFine()) {
+            // Second pass: overlay the fine cache ID on top of the tonemapped image
+            m_overlayFineFramebuffer.bind();
+            m_overlayFineFramebuffer.clear();
 
-        Shader &shader = m_overlayFramebuffer.getShader();
+            Shader &shader = m_overlayFineFramebuffer.getShader();
+            shader.bind();
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
+            shader.setUniform1i("image_tex", 0);
+            glActiveTexture(GL_TEXTURE1);
+            glBindTexture(GL_TEXTURE_2D, m_fineIDTex);
+            shader.setUniform1i("id_tex", 1);
+
+            m_overlayFineFramebuffer.draw();
+            m_overlayFineFramebuffer.unbind();
+        }
+
+        // Second or third pass: overlay the cache ID on top of the previous image
+        m_overlayCoarseFramebuffer.bind();
+        m_overlayCoarseFramebuffer.clear();
+
+        Shader &shader = m_overlayCoarseFramebuffer.getShader();
         shader.bind();
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
+        glBindTexture(GL_TEXTURE_2D, m_parent->IsShowingFine() ? m_overlayFineFramebuffer.getTexture() : m_framebuffer.getTexture());
         shader.setUniform1i("image_tex", 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, m_cacheIDTex);
         shader.setUniform1i("id_tex", 1);
 
-        m_overlayFramebuffer.draw();
-        m_overlayFramebuffer.unbind();
+        m_overlayCoarseFramebuffer.draw();
+        m_overlayCoarseFramebuffer.unbind();
     }
 }
 
@@ -211,7 +233,7 @@ void Viewport::Draw() {
     ImVec2 current = ImGui::GetCursorScreenPos();
     ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
     m_leftTop = ImGui::GetCursorScreenPos();
-    GLuint tex = m_parent->IsOverlayEnabled() ? m_overlayFramebuffer.getTexture() : m_framebuffer.getTexture();
+    GLuint tex = m_parent->IsOverlayEnabled() ? m_overlayCoarseFramebuffer.getTexture() : m_framebuffer.getTexture();
     ImGui::Image((ImTextureID) (uintptr_t) tex, size);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + offset.y);
 
