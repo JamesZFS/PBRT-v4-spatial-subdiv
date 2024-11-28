@@ -72,7 +72,9 @@ private:
     double m_meanError = 0.0;
 
     GLuint m_renderingTex = 0;  // stores the selected cpu buffer
+    GLuint m_cacheIDTex = 0;
     Framebuffer m_framebuffer;
+    Framebuffer m_overlayFramebuffer;
 
     ImVec2 m_leftTop;
     float m_scale = 1.0f;
