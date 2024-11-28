@@ -230,13 +230,15 @@ void RadianceView::UpdateFramebuffer() {
     m_framebuffer.bind();
     m_framebuffer.clear();
 
-    Shader &shader = m_framebuffer.getShader();
-    shader.bind();
-    Colormap cmap = m_pdf ? CMap_Viridis : CMap_None;
-    ConfigureTonemapShader(shader, m_renderingTex, false, {
-                               m_pdf ? (float) (m_exposure / m_normalizer) : m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
-                               cmap_tex_ids[cmap]
-                           });
+    {
+        Shader &shader = m_framebuffer.getShader();
+        shader.bind();
+        Colormap cmap = m_pdf ? CMap_Viridis : CMap_None;
+        ConfigureTonemapShader(shader, m_renderingTex, false, {
+                                   m_pdf ? (float) (m_exposure / m_normalizer) : m_exposure, 0.0f, std::numeric_limits<float>::infinity(),
+                                   cmap_tex_ids[cmap]
+                               });
+    }
 
     // Render!
     m_framebuffer.draw();
@@ -247,15 +249,15 @@ void RadianceView::UpdateFramebuffer() {
         m_overlayFramebuffer.bind();
         m_overlayFramebuffer.clear();
 
-        Shader &overlayShader = m_overlayFramebuffer.getShader();
-        overlayShader.bind();
+        Shader &shader = m_overlayFramebuffer.getShader();
+        shader.bind();
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
-        overlayShader.setUniform1i("image_tex", 0);
+        shader.setUniform1i("image_tex", 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, m_binIndexTex);
-        overlayShader.setUniform1i("index_map", 1);
-        overlayShader.setUniform1ui("selected_index", m_selectedBinIndex);
+        shader.setUniform1i("index_map", 1);
+        shader.setUniform1ui("selected_index", m_selectedBinIndex);
 
         // Render!
         m_overlayFramebuffer.draw();
