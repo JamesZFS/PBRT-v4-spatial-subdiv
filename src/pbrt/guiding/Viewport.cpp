@@ -27,6 +27,7 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.reference.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.error.resize(m_resolution.x * m_resolution.y);
+    m_selectedFramebuffer = &m_framebuffer;
     if (reference) {
         m_hasReference = true;
         CHECK_EQ(reference->Resolution(), m_resolution);
@@ -224,6 +225,9 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
 
         m_overlayCoarseFramebuffer.draw();
         m_overlayCoarseFramebuffer.unbind();
+        m_selectedFramebuffer = &m_overlayCoarseFramebuffer;
+    } else {
+        m_selectedFramebuffer = &m_framebuffer;
     }
 }
 
@@ -239,8 +243,7 @@ void Viewport::Draw() {
     ImVec2 current = ImGui::GetCursorScreenPos();
     ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
     m_leftTop = ImGui::GetCursorScreenPos();
-    GLuint tex = m_parent->IsOverlayEnabled() ? m_overlayCoarseFramebuffer.getTexture() : m_framebuffer.getTexture();
-    ImGui::Image((ImTextureID) (uintptr_t) tex, size);
+    ImGui::Image((ImTextureID) (uintptr_t) m_selectedFramebuffer->getTexture(), size);
     ImGui::SetCursorPosY(ImGui::GetCursorPosY() + offset.y);
 
     if ((m_isHovered = ImGui::IsItemHovered())) {
