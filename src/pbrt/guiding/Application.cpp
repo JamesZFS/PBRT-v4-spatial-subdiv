@@ -719,6 +719,12 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
     ImGui::Text("CE: %f", coarse.crossEntropy);
     ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(coarse.numSamples).c_str(), FormatInteger(coarse.numZeroValueSamples).c_str());
     ImGui::Text("Depth: %d", (int) coarse.depth);
+    if (coarse.hasCandidateSplit) {
+        ImGui::Text("Candidate Split Dim: %d", coarse.splitDim);
+        ImGui::Text("Candidate Split Pos: %f", coarse.splitPos);
+    }
+    ImGui::Text("Sample Mean: (%.4f, %.4f, %.4f)", coarse.sampleMean[0], coarse.sampleMean[1], coarse.sampleMean[2]);
+    ImGui::Text("Sample Variance: (%.4f, %.4f, %.4f)", coarse.sampleVariance[0], coarse.sampleVariance[1], coarse.sampleVariance[2]);
 }
 
 void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
