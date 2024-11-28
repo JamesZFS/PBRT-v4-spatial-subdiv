@@ -9,10 +9,10 @@ using namespace pbrt;
 
 ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference)
     : View(parent), film(film), reference(reference) {
-    for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Reference, Channel_Error}) {
+    for (auto c: {Channel_Radiance, Channel_CacheID, Channel_EmbeddingDist, Channel_Reference, Channel_Error}) {
         shaderData[c].firstNormalized = true;
     }
-    for (auto c: {Channel_Fluence, Channel_CE, Channel_Samples, Channel_ZeroSamples, Channel_Depth}) {
+    for (auto c: {Channel_EmbeddingDist, Channel_Fluence, Channel_CE, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
         shaderData[c].cmap = CMap_Viridis;
     }
     shaderData[Channel_Error].cmap = CMap_Inferno;
@@ -130,18 +130,21 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c, bool
                     case Channel_Radiance:
                         val = gFilm->GetPixelRGB(Point2i(x, y)).Average();
                         break;
+                    case Channel_EmbeddingDist:
+                        val = pixel.guidingData.embeddingDist;
+                        break;
                     case Channel_Fluence:
                         val = pixel.guidingData.fluence;
                         break;
                     case Channel_CE:
-                        val = showFine ? pixel.guidingData.fineCE : pixel.guidingData.ce;
+                        val = pixel.guidingData.ce;
                         break;
                     case Channel_Samples:
                         val = (float) pixel.guidingData.numSamples;
                         break;
-                    case Channel_ZeroSamples:
-                        val = (float) pixel.guidingData.numZeroValueSamples;
-                        break;
+                    // case Channel_ZeroSamples:
+                    //     val = (float) pixel.guidingData.numZeroValueSamples;
+                    //     break;
                     case Channel_Depth:
                         val = (float) pixel.guidingData.depth;
                         break;

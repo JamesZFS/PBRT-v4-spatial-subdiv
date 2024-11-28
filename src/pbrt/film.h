@@ -169,7 +169,7 @@ class VisibleSurface {
         uint32_t depth = 0;
         float fluence = 0;
         float ce = 0;
-        float fineCE = 0;
+        float embeddingDist = 0;
     } guidingData;
 
 };
