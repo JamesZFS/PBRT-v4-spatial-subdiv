@@ -653,7 +653,7 @@ void Application::UpdateFramebuffer() {
     } else if (c == Channel_Samples && m_cacheHistogram.samples->isHovered) {
         clipValue = m_cacheHistogram.samples->hoveringValue;
     }
-    m_viewport->UpdateFramebuffer({sd.scale, sd.offset, clipValue, cmap_tex_ids[sd.cmap]});
+    m_viewport->UpdateFramebuffer({sd.scale, sd.offset, clipValue, cmap_tex_ids[sd.cmap]}, m_selectedChannel, m_showFine, m_showDiff, sd.boundary);
 }
 
 void Application::SaveRendering(std::string path) {
@@ -1254,13 +1254,10 @@ void Application::ViewportOptions() {
     bool showFineOld = m_showFine, showDiffOld = m_showDiff;
     if (IsKeyPressed(ImGuiKey_F, false)) m_showFine ^= true;
     if (IsKeyPressed(ImGuiKey_D, false)) m_showDiff ^= true;
-    if (IsKeyPressed(ImGuiKey_O, false)) m_enableOverlay ^= true;
     ImGui::Checkbox("Show Lookaheads", &m_showFine);
     ImGui::SetItemTooltip("(F) Works for Cache ID, CE channels, and sampling distribution view.");
     ImGui::Checkbox("Show Difference", &m_showDiff);
     ImGui::SetItemTooltip("(D) Only works for Cache ID and CE channels.");
-    ImGui::Checkbox("Overlay Cache Boundaries", &m_enableOverlay);
-    ImGui::SetItemTooltip("(O) Overlay the current view with cache ID boundaries.");
     if (m_showFine != showFineOld || m_showDiff != showDiffOld) {
         m_viewport->RequestUpdate();
     }
