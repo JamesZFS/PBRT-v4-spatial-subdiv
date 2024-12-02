@@ -273,6 +273,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         float treeadaptivethreshold {0.1f};
         float treecedecay {0.0f};
         float treececlampvalue {1e8f};
+        bool treeenablethreesplits {true};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};
