@@ -45,6 +45,7 @@ public:
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
     double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
+    float GetEnergyThreshold() const { return m_subdivCfg.embeddingDistanceThreshold; }
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
@@ -188,7 +189,7 @@ private:
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;
-        CacheMonitor::Plot *ce, *fluence, *depth, *samples;
+        CacheMonitor::Plot *ce, *energy, *fluence, *depth, *samples;
     } m_cacheMonitor;
     struct {
         std::unique_ptr<CacheHistogram> object;
