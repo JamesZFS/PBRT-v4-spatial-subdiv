@@ -82,6 +82,7 @@ int Application::Run() {
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
     m_cacheMonitor.ce = &m_cacheMonitor.object->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
+    m_cacheMonitor.energy = &m_cacheMonitor.object->AddPlot("Energy vs. Iter", CacheMonitor::PlotType_Energy, true);
     m_cacheMonitor.fluence = &m_cacheMonitor.object->AddPlot("Fluence vs. Iter", CacheMonitor::PlotType_Fluence, false);
     m_cacheMonitor.depth = &m_cacheMonitor.object->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
     m_cacheMonitor.samples = &m_cacheMonitor.object->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
@@ -279,7 +280,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
-        for (auto s: {"CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Embedding View"})
+        for (auto s: {"CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Embedding View"})
             ImGui::DockBuilderDockWindow(s, rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
@@ -339,6 +340,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Energy Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
@@ -403,7 +405,7 @@ void Application::SetupLayoutProbeViews() {
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         for (auto s: {"Settings",
             "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram",
-            "CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
+            "CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
         })
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
@@ -474,6 +476,7 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
+        ImGui::DockBuilderDockWindow("Energy Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightMidDock);
@@ -532,6 +535,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
         ImGui::DockBuilderDockWindow("Embedding View", leftMidDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Energy Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
@@ -880,7 +884,7 @@ void Application::CacheProbesInteraction() {
                         coarseValid ? (float) rc.coarse.numSamples : nan,
                         coarseValid ? rc.coarse.fluence : nan,
                         coarseValid ? rc.coarse.crossEntropy : nan,
-                        fineValid ? rc.fine.crossEntropy : nan,
+                        coarseValid ? rc.coarse.energy : nan,
                         coarseValid && fineValid ? 0 : nan,
                         coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
                         coarseValid ? rc.coarse.crossEntropy/* - m_subdivCfg.ceThreshold*/ : nan,
@@ -956,7 +960,7 @@ void Application::UpdateCacheCurves() {
                 coarseValid ? (float) rc.coarse.numSamples : nan,
                 coarseValid ? rc.coarse.fluence : nan,
                 coarseValid ? rc.coarse.crossEntropy : nan,
-                fineValid ? rc.fine.crossEntropy : nan,
+                coarseValid ? rc.coarse.energy : nan,
                 coarseValid && fineValid ? 0 : nan,
                 coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
                 coarseValid ? rc.coarse.crossEntropy/* - m_subdivCfg.ceThreshold*/ : nan,
@@ -1395,6 +1399,10 @@ void Application::SpatialSubdivisionSettings() {
 void Application::CacheMonitorViews() {
     if (ImGui::Begin("CE Curve"))
         m_cacheMonitor.ce->Draw();
+    ImGui::End();
+
+    if (ImGui::Begin("Energy Curve"))
+        m_cacheMonitor.energy->Draw();
     ImGui::End();
 
     if (ImGui::Begin("Fluence Curve"))

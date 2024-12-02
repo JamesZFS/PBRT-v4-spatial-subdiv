@@ -20,7 +20,7 @@ public:
         float samples;
         float fluence;
         float coarseCE;
-        float fineCE;
+        float energy;
         float negerr;   // 0
         float poserr;   // fineCE - coarseCE
         float splitCE;  // coarseCE - threshold
@@ -38,6 +38,7 @@ public:
         PlotType_Samples,
         PlotType_Fluence,
         PlotType_CE,
+        PlotType_Energy,
     };
 
     /// A window that plots a data field of the probes
@@ -103,7 +104,7 @@ private:
     bool m_displayProbeID = false;
     bool m_autoFitAxes = true;
     bool m_plotLookahead = true;
-    bool m_showIntegratedCE = false;
+    bool m_showHorizontal = false;
 };
 
 

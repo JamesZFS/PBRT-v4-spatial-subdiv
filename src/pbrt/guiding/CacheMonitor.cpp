@@ -27,7 +27,7 @@ void CacheMonitor::Plot::Draw() {
         ImGui::SameLine();
         ImGui::Checkbox("Lookaheads", &m_monitor.m_plotLookahead);
         ImGui::SameLine();
-        ImGui::Checkbox("Integrated CE", &m_monitor.m_showIntegratedCE);
+        ImGui::Checkbox("Horizontal Line", &m_monitor.m_showHorizontal);
         ImGui::SameLine();
         ImGui::Checkbox("Probe ID", &m_monitor.m_displayProbeID);
     }
@@ -78,17 +78,20 @@ void CacheMonitor::Plot::Draw() {
                 float barSize = 2 * m_monitor.m_markerSize;
                 ImPlot::SetNextErrorBarStyle(barColor, barSize);
                 ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].negerr, &probe.data[0].poserr, probe.data.size(), 0, 0, sizeof(PlotEntry));
-                // ImPlot::SetNextLineStyle(ImVec4(lineColor.x, lineColor.y, lineColor.z, m_monitor.m_alpha));
-                // ImPlot::PlotLine(label.c_str(), x, &probe.data[0].splitCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
                 ImPlot::PlotShaded(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].splitCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
             }
             ImPlot::SetNextLineStyle(lineColor);
             ImPlot::PlotLine(label.c_str(), x, x + yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
-            if (m_type == PlotType_CE && m_monitor.m_showIntegratedCE) {  // Plot a horizontal line
-                double ce = m_parent->GetCrossEntropySDRE();
-                ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
-                ImPlot::Annotation(0, ce, ImVec4(0, 0, 0, 0), ImVec2(0, -5), true, m_parent->IsShowingFine() ? "Lookahead" : "Parent");
-            }
+        }
+        if (m_type == PlotType_CE && m_monitor.m_showHorizontal) {  // Plot CE convergence line
+            double ce = m_parent->GetCrossEntropySDRE();
+            ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+            ImPlot::Annotation(0, ce, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, m_parent->IsShowingFine() ? "Lookahead" : "Parent");
+        }
+        if (m_type == PlotType_Energy && m_monitor.m_showHorizontal) {  // Plot energy threshold
+            double ths = m_parent->GetEnergyThreshold();
+            ImPlot::DragLineY(0, &ths, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+            ImPlot::Annotation(0, ths, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, "Threshold");
         }
         ImPlot::EndPlot();
     }
