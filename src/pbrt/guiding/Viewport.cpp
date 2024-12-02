@@ -124,11 +124,8 @@ void Viewport::UpdateErrorImage() {
     }
 }
 
-void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
+void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms, SelectedChannel channel, bool showFine, bool showDiff, bool showBoundaries) {
     // Render to the tonemapped framebuffer if the CPU buffer has been updated
-    auto channel = m_parent->GetSelectedChannel();
-    bool showFine = m_parent->IsShowingFine();
-    bool showDiff = m_parent->IsShowingDiff();
     if (m_cpuBufferUpdated.exchange(false)) {
         // Update the rendering texture
         switch (channel) {
@@ -191,8 +188,8 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
     m_framebuffer.draw();
     m_framebuffer.unbind();
 
-    if (m_parent->IsOverlayEnabled()) {
-        if (m_parent->IsShowingFine()) {
+    if (showBoundaries) {
+        if (showFine) {
             // Second pass: overlay the fine cache ID on top of the tonemapped image
             m_overlayFineFramebuffer.bind();
             m_overlayFineFramebuffer.clear();
@@ -217,7 +214,7 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms) {
         Shader &shader = m_overlayCoarseFramebuffer.getShader();
         shader.bind();
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m_parent->IsShowingFine() ? m_overlayFineFramebuffer.getTexture() : m_framebuffer.getTexture());
+        glBindTexture(GL_TEXTURE_2D, showFine ? m_overlayFineFramebuffer.getTexture() : m_framebuffer.getTexture());
         shader.setUniform1i("image_tex", 0);
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, m_cacheIDTex);

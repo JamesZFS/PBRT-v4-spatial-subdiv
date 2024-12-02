@@ -44,7 +44,6 @@ public:
     int GetSPP() const { return m_spp; }
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
-    bool IsOverlayEnabled() const { return m_enableOverlay; }
     double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
@@ -164,7 +163,6 @@ private:
     SelectedChannel m_selectedChannel = Channel_Radiance;
     bool m_showFine = false;  // show the fine cache ID and CE
     bool m_showDiff = false;  // show the difference between fine and coarse
-    bool m_enableOverlay = true;   // whether to overlay the current view with the cache boundaries
     bool m_enableShortcuts = true;
     bool m_enableRayCastingAtMouse = false;
 

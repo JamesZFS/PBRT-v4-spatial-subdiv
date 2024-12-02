@@ -19,7 +19,7 @@ public:
 
     void UpdateCPUBufferFromFilm();
 
-    void UpdateFramebuffer(const TonemapShaderUniforms &uniforms);
+    void UpdateFramebuffer(const TonemapShaderUniforms &uniforms, SelectedChannel channel, bool showFine, bool showDiff, bool showBoundaries);
 
     void Draw() override;
 

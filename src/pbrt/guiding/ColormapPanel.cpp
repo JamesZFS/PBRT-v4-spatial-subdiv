@@ -15,6 +15,9 @@ ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const p
     for (auto c: {Channel_Energy, Channel_Fluence, Channel_CE, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
         shaderData[c].cmap = CMap_Viridis;
     }
+    for (auto c: {Channel_Radiance, Channel_Reference}) {
+        shaderData[c].boundary = true;
+    }
     shaderData[Channel_Error].cmap = CMap_Inferno;
 }
 
@@ -41,11 +44,13 @@ void ColormapPanel::Draw() {
             sd.offset = 0.5f / sd.scale;  // such that 0 is mapped to 0.5
         }
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
+        if (IsKeyPressed(ImGuiKey_B, false)) sd.boundary ^= true;
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
             if (ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f"))
                 sd.offset = 0.5f / sd.scale;
             if (ImGui::Button("Reset")) reset();
+            ImGui::Checkbox("Boundaries", &sd.boundary);
             ImGui::SameLine();
             ImGui::SetNextItemWidth(90);
             ImGui::Combo("Tonemap", reinterpret_cast<int *>(&sd.cmap), cmap_names, CMap_Count);
@@ -84,6 +89,7 @@ void ColormapPanel::Draw() {
         }
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
         if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
+        if (IsKeyPressed(ImGuiKey_B, false)) sd.boundary ^= true;
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
             ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f");
@@ -91,6 +97,7 @@ void ColormapPanel::Draw() {
             if (ImGui::Button("Reset")) reset();
             ImGui::SameLine();
             if (ImGui::Button("Normalize")) normalize();
+            ImGui::Checkbox("Boundaries", &sd.boundary);
             ImGui::SameLine();
             ImGui::SetNextItemWidth(90);
             ImGui::Combo("Tonemap", reinterpret_cast<int *>(&sd.cmap), cmap_names, CMap_Count);
