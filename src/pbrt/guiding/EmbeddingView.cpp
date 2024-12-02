@@ -71,6 +71,7 @@ void EmbeddingView::Draw() {
             if (ImGui::BeginTooltip()) {
                 ImGui::Text("Bin index: %d", idx);
                 ImGui::Text("%s value: %.4f", label, embedding.embedding[idx]);
+                ImGui::Text("Variance: %.4f", embedding.variance[idx]);
                 ImGui::EndTooltip();
             }
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
