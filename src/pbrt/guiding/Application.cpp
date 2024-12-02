@@ -679,6 +679,7 @@ void Application::LoadField(std::string path) {
         std::cout << "Load field from " << path << " with " << m_field.GetRegionCountSurface(false) << " regions" << std::endl;
     else
         Error("Failed to load field from %s", path);
+    m_field.LoadSubdivConfig(m_subdivCfg);
 }
 
 void Application::SaveSamples(std::string path) {
@@ -1375,6 +1376,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamplesCandidateSplit = std::max(0, minSamplesCandidateSplit);
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
+        ImGui::Checkbox("Enable Three Splits", &m_subdivCfg.enableThreeSplits);
         ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.embeddingDistanceThreshold);
         ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         ImGui::SetNextItemWidth(inputWidth), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
