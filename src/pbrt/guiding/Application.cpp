@@ -77,7 +77,7 @@ int Application::Run() {
     m_viewport = std::make_unique<Viewport>(this, m_film, m_reference);
     m_radianceView = std::make_unique<RadianceView>(this, m_scene, m_lights);
     m_samplingDistributionView = std::make_unique<SamplingDistributionView>(this, m_field, *m_radianceView);
-    m_embeddingView = std::make_unique<EmbeddingView>(this, m_field, *m_radianceView);
+    m_signatureView = std::make_unique<SignatureView>(this, m_field, *m_radianceView);
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
@@ -182,9 +182,9 @@ void Application::Draw() {
         ImGui::End();
     }
 
-    if (m_enableEmbeddingView) {
-        if (ImGui::Begin("Embedding View", &m_enableEmbeddingView))
-            m_embeddingView->Draw();
+    if (m_enableSignatureView) {
+        if (ImGui::Begin("Signature View", &m_enableSignatureView))
+            m_signatureView->Draw();
         ImGui::End();
     }
 
@@ -234,7 +234,7 @@ void Application::SetupLayoutDefault() {
         m_enableHistogram = false;
         m_enableSamplingDistributionView = true;
         m_enableRadianceView = true;
-        m_enableEmbeddingView = true;
+        m_enableSignatureView = true;
         m_enableRayCastingHistory = false;
         m_enableImGuiDemo = false;
         m_enableImPlotDemo = false;
@@ -280,7 +280,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
-        for (auto s: {"CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Embedding View"})
+        for (auto s: {"CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View"})
             ImGui::DockBuilderDockWindow(s, rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
@@ -296,7 +296,7 @@ void Application::SetupLayoutCompact() {
         m_enableHistogram = false;
         m_enableSamplingDistributionView = false;
         m_enableRadianceView = false;
-        m_enableEmbeddingView = true;
+        m_enableSignatureView = true;
         m_enableRayCastingHistory = false;
         m_enableImGuiDemo = false;
         m_enableImPlotDemo = false;
@@ -348,7 +348,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("CE Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Embedding View", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Signature View", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -363,7 +363,7 @@ void Application::SetupLayoutProbeViews() {
         m_enableHistogram = false;
         m_enableSamplingDistributionView = true;
         m_enableRadianceView = true;
-        m_enableEmbeddingView = false;
+        m_enableSignatureView = false;
         m_enableRayCastingHistory = false;
         m_enableImGuiDemo = false;
         m_enableImPlotDemo = false;
@@ -425,7 +425,7 @@ void Application::SetupLayoutCacheMonitor() {
         m_enableHistogram = false;
         m_enableSamplingDistributionView = false;
         m_enableRadianceView = false;
-        m_enableEmbeddingView = false;
+        m_enableSignatureView = false;
         m_enableRayCastingHistory = false;
         m_enableImGuiDemo = false;
         m_enableImPlotDemo = false;
@@ -468,7 +468,7 @@ void Application::SetupLayoutCacheMonitor() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
-        ImGui::DockBuilderDockWindow("Embedding View", leftMidDock);
+        ImGui::DockBuilderDockWindow("Signature View", leftMidDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
@@ -495,7 +495,7 @@ void Application::SetupLayoutHistograms() {
         m_enableHistogram = true;
         m_enableSamplingDistributionView = false;
         m_enableRadianceView = false;
-        m_enableEmbeddingView = false;
+        m_enableSignatureView = false;
         m_enableRayCastingHistory = false;
         m_enableImGuiDemo = false;
         m_enableImPlotDemo = false;
@@ -533,7 +533,7 @@ void Application::SetupLayoutHistograms() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
-        ImGui::DockBuilderDockWindow("Embedding View", leftMidDock);
+        ImGui::DockBuilderDockWindow("Signature View", leftMidDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Energy Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
@@ -569,7 +569,7 @@ void Application::SetupRenderThread() {
             UpdateCacheCurves();
             UpdateCacheHistograms();
             UpdateSamplingDistributionView();
-            UpdateEmbeddingView();
+            UpdateSignatureView();
             RenderWave(waveStart);
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
@@ -749,10 +749,10 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             rc.hit.x, rc.hit.y, rc.hit.z,
             rc.normal.x, rc.normal.y, rc.normal.z,
             rc.uv.x, rc.uv.y);
-        auto printDe = [](const PGLDirectionalEmbedding &de) -> std::string {
-            std::string s = StringPrintf("(%.4f", de.embedding[0]);
-            for (int i = 1; i < PGL_EMBEDDING_SIZE; ++i)
-                s += StringPrintf(", %.4f", de.embedding[i]);
+        auto printDe = [](const PGLDirectionalSignature &de) -> std::string {
+            std::string s = StringPrintf("(%.4f", de.signature[0]);
+            for (int i = 1; i < PGL_SIGNATURE_SIZE; ++i)
+                s += StringPrintf(", %.4f", de.signature[i]);
             s += ")";
             return s;
         };
@@ -760,7 +760,7 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             if (s.id == -1) return "  <invalid>\n";
             std::lock_guard lock(m_mtx.field);
             pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
-            auto de = m_field.GetDirectionalEmbedding(pglP);
+            auto de = m_field.GetDirectionalSignature(pglP);
             return StringPrintf(
                 "  ID: %u\n"
                 "  Samples: %d\n"
@@ -769,7 +769,7 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
                 "  Energy: %f\n"
                 "  Fluence: %f\n"
                 "  CE: %f\n"
-                "  Directional Embedding: %s\n"
+                "  Directional Signature: %s\n"
                 "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
                 s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, s.crossEntropy, printDe(de).c_str(),
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
@@ -808,14 +808,14 @@ void Application::UpdateRayCastingAtMouse() {
 
 // Sampling distribution and radiance view
 void Application::SDREViewInteraction() {
-    if (!m_enableSamplingDistributionView && !m_enableRadianceView && !m_enableEmbeddingView) return;
+    if (!m_enableSamplingDistributionView && !m_enableRadianceView && !m_enableSignatureView) return;
     // Left click to update the sampling distribution
     if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
         Point2i pixel = m_viewport->GetMousePixel();
         m_rcSDRE = RayCast(pixel);
         UpdateSamplingDistributionView();
         NewRadianceViewRendering();
-        UpdateEmbeddingView();
+        UpdateSignatureView();
     }
 
     // Draw the view location
@@ -835,7 +835,7 @@ void Application::SDREViewInteraction() {
             m_rcSDRE.valid = false;
             m_samplingDistributionView->Clear();
             m_radianceView->Clear();
-            m_embeddingView->Clear();
+            m_signatureView->Clear();
         }
     }
 }
@@ -938,7 +938,7 @@ void Application::RestartRendering(bool resetCache) {
     m_cacheMonitor.object->Clear();
     m_cacheHistogram.object->Clear();
     m_samplingDistributionView->Clear();
-    m_embeddingView->Clear();
+    m_signatureView->Clear();
 }
 
 void Application::UpdateCPUBufferFromFilm() {
@@ -1015,12 +1015,12 @@ void Application::RadianceViewRenderStep() {
     }
 }
 
-void Application::UpdateEmbeddingView() {
+void Application::UpdateSignatureView() {
     if (m_rcSDRE.valid) {
         std::lock_guard lock(m_mtx.field);
-        m_embeddingView->Update(m_rcSDRE.hit, m_showFine);
+        m_signatureView->Update(m_rcSDRE.hit, m_showFine);
     } else {
-        m_embeddingView->Clear();
+        m_signatureView->Clear();
     }
 }
 
@@ -1108,7 +1108,7 @@ void Application::MainMenu() {
                 m_rcSDRE.valid = false;
                 m_samplingDistributionView->Clear();
                 m_radianceView->Clear();
-                m_embeddingView->Clear();
+                m_signatureView->Clear();
             }
             if (ImGui::MenuItem("Set Resolution")) {
                 openChangeResolutionPopup = true;
@@ -1122,7 +1122,7 @@ void Application::MainMenu() {
             ImGui::Separator();
             if (ImGui::MenuItem("Radiance View", 0, m_enableRadianceView)) m_enableRadianceView ^= true;
             if (ImGui::MenuItem("Sampling Distribution", 0, m_enableSamplingDistributionView)) m_enableSamplingDistributionView ^= true;
-            if (ImGui::MenuItem("Embedding View", 0, m_enableEmbeddingView)) m_enableEmbeddingView ^= true;
+            if (ImGui::MenuItem("Signature View", 0, m_enableSignatureView)) m_enableSignatureView ^= true;
             if (ImGui::MenuItem("Ray Casting History", 0, m_enableRayCastingHistory)) m_enableRayCastingHistory ^= true;
             ImGui::Separator();
             if (ImGui::MenuItem("ImGui Demo", 0, m_enableImGuiDemo)) m_enableImGuiDemo ^= true;
@@ -1267,7 +1267,7 @@ void Application::ViewportOptions() {
     }
     if (m_showFine != showFineOld) {
         UpdateSamplingDistributionView();
-        UpdateEmbeddingView();
+        UpdateSignatureView();
     }
 }
 
@@ -1378,7 +1378,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Enable Three Splits", &m_subdivCfg.enableThreeSplits);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.embeddingDistanceThreshold);
+        ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
         ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         ImGui::SetNextItemWidth(inputWidth), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SetNextItemWidth(inputWidth), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
@@ -1386,9 +1386,9 @@ void Application::SpatialSubdivisionSettings() {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearCEStatistics();
         }
-        if (ImGui::Button("Clear Embeddings")) {
+        if (ImGui::Button("Clear Signatures")) {
             std::lock_guard lock_(m_mtx.field);
-            m_field.ClearEmbeddings();
+            m_field.ClearSignatures();
         }
     }
     ImGui::EndDisabled();

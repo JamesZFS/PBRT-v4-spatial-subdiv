@@ -21,7 +21,7 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.ce.coarse.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.ce.fine.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.ce.diff.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.embeddingDist.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.signatureDist.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
@@ -76,7 +76,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
             m_cpuBuffer.ce.coarse[index] = pixel.guidingData.ce;
             m_cpuBuffer.ce.fine[index] = pixel.guidingData.ce;  // deprecated
             m_cpuBuffer.ce.diff[index] = pixel.guidingData.fineId != -1 ? pixel.guidingData.ce - pixel.guidingData.ce : 0;  // deprecated
-            m_cpuBuffer.embeddingDist[index] = pixel.guidingData.energy;
+            m_cpuBuffer.signatureDist[index] = pixel.guidingData.energy;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
             m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;
@@ -138,7 +138,7 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms, Selected
                 break;
             case Channel_Energy:
                 CHECK(m_isMultiChannel);
-                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.embeddingDist.data(), m_resolution.x, m_resolution.y, false);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.signatureDist.data(), m_resolution.x, m_resolution.y, false);
                 break;
             case Channel_Fluence:
                 CHECK(m_isMultiChannel);

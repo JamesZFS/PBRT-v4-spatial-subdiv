@@ -39,11 +39,11 @@ public:
 
     uint8_t GetSelectedBinIndex() const { return m_selectedBinIndex; }
 
-    void ResetSelectedBinIndex() { m_selectedBinIndex = PGL_EMBEDDING_SIZE; }
+    void ResetSelectedBinIndex() { m_selectedBinIndex = PGL_SIGNATURE_SIZE; }
 
-    bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_EMBEDDING_SIZE; }
+    bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_SIGNATURE_SIZE; }
 
-    PGLDirectionalEmbedding integratedEmbedding{};  // integrated embedding vector with the radiance map
+    PGLDirectionalSignature integratedSignature{};  // integrated signature vector with the radiance map
 
 private:
     void EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler, pbrt::ScratchBuffer &scratchBuffer);
@@ -62,11 +62,11 @@ private:
     pbrt::Point2i m_resolution{640, 320};
 
     std::vector<pbrt::RGB> m_cpuBuffer;
-    std::vector<uint8_t> m_binIndexBuffer;  // buffer of indices into the embedding vector for each pixel
+    std::vector<uint8_t> m_binIndexBuffer;  // buffer of indices into the signature vector for each pixel
     double m_normalizer = 1;
     int m_numSamples = 0;
     int m_spp = 16;
-    uint8_t m_selectedBinIndex = PGL_EMBEDDING_SIZE;  // valid index is [0, PGL_EMBEDDING_SIZE)
+    uint8_t m_selectedBinIndex = PGL_SIGNATURE_SIZE;  // valid index is [0, PGL_SIGNATURE_SIZE)
     std::atomic_bool m_cpuBufferUpdated = false;
 
     struct {

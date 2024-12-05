@@ -11,7 +11,7 @@
 #include "Viewport.h"
 #include "SamplingDistributionView.h"
 #include "RadianceView.h"
-#include "EmbeddingView.h"
+#include "SignatureView.h"
 #include "ColormapPanel.h"
 #include "CacheMonitor.h"
 #include "CacheHistogram.h"
@@ -45,7 +45,7 @@ public:
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
     double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
-    float GetEnergyThreshold() const { return m_subdivCfg.embeddingDistanceThreshold; }
+    float GetEnergyThreshold() const { return m_subdivCfg.signatureDistanceThreshold; }
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
@@ -113,7 +113,7 @@ private:
     void UpdateSamplingDistributionView();
     void NewRadianceViewRendering();
     void RadianceViewRenderStep();
-    void UpdateEmbeddingView();
+    void UpdateSignatureView();
 
     // GUI components
     void MainMenu();
@@ -171,7 +171,7 @@ private:
     bool m_enableHistogram = false;
     bool m_enableSamplingDistributionView = false;
     bool m_enableRadianceView = false;
-    bool m_enableEmbeddingView = false;
+    bool m_enableSignatureView = false;
     bool m_enableRayCastingHistory = false;
     bool m_enableImGuiDemo = false;
     bool m_enableImPlotDemo = false;
@@ -185,7 +185,7 @@ private:
     std::unique_ptr<Viewport> m_viewport;
     std::unique_ptr<RadianceView> m_radianceView;
     std::unique_ptr<SamplingDistributionView> m_samplingDistributionView;
-    std::unique_ptr<EmbeddingView> m_embeddingView;
+    std::unique_ptr<SignatureView> m_signatureView;
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;
