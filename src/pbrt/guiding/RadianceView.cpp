@@ -45,7 +45,7 @@ void RadianceView::RenderStart() {
     auto pos = m_prev.pos;
     auto normal = Vector3f(m_prev.normal);
     std::fill(m_cpuBuffer.begin(), m_cpuBuffer.end(), RGB(0, 0, 0));
-    integratedEmbedding = {};
+    integratedSignature = {};
     m_cpuBufferUpdated = true;
     m_numSamples = 0;
     // Setup sampler, camera and integrator
@@ -74,21 +74,21 @@ void RadianceView::UpdateBinIndexBuffer() {
         pgl_vec3f pglDir{dir.x, dir.y, dir.z};
 
         size_t index = p.y * m_resolution.x + p.x;
-        m_binIndexBuffer[index] = pgl_get_embedding_index(pglDir);
+        m_binIndexBuffer[index] = pgl_get_signature_index(pglDir);
     }
 
     UpdateTextureFromUInt8Data((GLuint) (uintptr_t) m_binIndexTex, m_binIndexBuffer.data(), m_resolution.x, m_resolution.y, false);
 }
 
 thread_local double thread_normalizer = 0;
-thread_local PGLDirectionalEmbedding thread_embedding;
+thread_local PGLDirectionalSignature thread_signature;
 
 void RadianceView::RenderStep() {
     // Render one sample per pixel
     CHECK_LT(m_numSamples, m_spp);
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     double normalizer = 0;
-    PGLDirectionalEmbedding embedding{};
+    PGLDirectionalSignature signature{};
     std::mutex mutex;
     ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
         // Render image tile given by _tileBounds_
@@ -96,7 +96,7 @@ void RadianceView::RenderStep() {
         IndependentSampler _sampler = *m_sampler;
         Sampler sampler(&_sampler);
         thread_normalizer = 0;
-        thread_embedding = {};
+        thread_signature = {};
         for (Point2i pPixel : tileBounds) {
             // Render samples in pixel _pPixel_
             sampler.StartPixelSample(pPixel, m_numSamples);
@@ -106,13 +106,13 @@ void RadianceView::RenderStep() {
         {
             std::lock_guard lock(mutex);
             normalizer += thread_normalizer;
-            for (size_t i = 0; i < PGL_EMBEDDING_SIZE; i++) {
-                embedding.embedding[i] += thread_embedding.embedding[i];
+            for (size_t i = 0; i < PGL_SIGNATURE_SIZE; i++) {
+                signature.signature[i] += thread_signature.signature[i];
             }
         }
     });
     m_normalizer = normalizer;
-    integratedEmbedding = embedding;
+    integratedSignature = signature;
     m_numSamples++;
     m_cpuBufferUpdated = true;
 }
@@ -208,7 +208,7 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
             float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
             thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
             uint8_t binIdx = m_binIndexBuffer[index];
-            thread_embedding.embedding[binIdx] += val * sinTheta * m_stepPhi * m_stepTheta;
+            thread_signature.signature[binIdx] += val * sinTheta * m_stepPhi * m_stepTheta;
         }
     }
 }
@@ -216,7 +216,7 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
 void RadianceView::Clear() {
     m_prev.valid = false;
     std::fill(m_cpuBuffer.begin(), m_cpuBuffer.end(), RGB(0, 0, 0));
-    integratedEmbedding = {};
+    integratedSignature = {};
     m_normalizer = 1;
     m_cpuBufferUpdated = true;
 }

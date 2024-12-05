@@ -85,7 +85,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
         guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
-        guiding_fieldSubdivConfig.embeddingDistanceThreshold = guideSettings.treeadaptivethreshold;
+        guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
         guiding_fieldSubdivConfig.enableThreeSplits = guideSettings.treeenablethreesplits;

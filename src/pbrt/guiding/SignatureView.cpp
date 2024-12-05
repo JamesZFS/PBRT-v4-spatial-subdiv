@@ -2,44 +2,44 @@
 // Created by fengshi on 11/21/24.
 //
 
-#include "EmbeddingView.h"
+#include "SignatureView.h"
 
 using namespace pbrt;
 
-EmbeddingView::EmbeddingView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView)
-    : View(parent), m_field(field), m_radianceView(radianceView), m_integratedEmbedding(radianceView.integratedEmbedding),
-      m_cachedEmbeddingFramebuffer(PGL_EMBEDDING_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_integratedEmbeddingFramebuffer(PGL_EMBEDDING_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_selectionFramebuffer(PGL_EMBEDDING_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
-    glGenTextures(1, &m_cachedEmbeddingTex);
-    glGenTextures(1, &m_integratedEmbeddingTex);
+SignatureView::SignatureView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView)
+    : View(parent), m_field(field), m_radianceView(radianceView), m_integratedSignature(radianceView.integratedSignature),
+      m_cachedSignatureFramebuffer(PGL_SIGNATURE_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_integratedSignatureFramebuffer(PGL_SIGNATURE_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_selectionFramebuffer(PGL_SIGNATURE_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+    glGenTextures(1, &m_cachedSignatureTex);
+    glGenTextures(1, &m_integratedSignatureTex);
     glGenTextures(1, &m_selectionTex);
     memset(m_selectionBuffer, 0, sizeof(m_selectionBuffer));
 }
 
-EmbeddingView::~EmbeddingView() {
-    glDeleteTextures(1, &m_cachedEmbeddingTex);
-    glDeleteTextures(1, &m_integratedEmbeddingTex);
+SignatureView::~SignatureView() {
+    glDeleteTextures(1, &m_cachedSignatureTex);
+    glDeleteTextures(1, &m_integratedSignatureTex);
     glDeleteTextures(1, &m_selectionTex);
 }
 
-void EmbeddingView::Update(const pbrt::Point3f &pos, bool lookahead) {
+void SignatureView::Update(const pbrt::Point3f &pos, bool lookahead) {
     pgl_point3f pglP = {pos.x, pos.y, pos.z};
-    m_cachedEmbedding = m_field.GetDirectionalEmbedding(pglP);
+    m_cachedSignature = m_field.GetDirectionalSignature(pglP);
 }
 
-void EmbeddingView::Clear() {
-    m_cachedEmbedding = {};
+void SignatureView::Clear() {
+    m_cachedSignature = {};
 }
 
-void EmbeddingView::Draw() {
+void SignatureView::Draw() {
     if (ImGui::Button("Reset")) {
         m_scale = 1.0f;
     }
     ImGui::SameLine();
     if (ImGui::Button("Normalize")) {
         float emax = -std::numeric_limits<float>::infinity();
-        for (const auto &e : m_cachedEmbedding.embedding) {
+        for (const auto &e : m_cachedSignature.signature) {
             emax = std::max(emax, e);
         }
         m_scale = 1.0f / std::max(1e-6f, emax);
@@ -48,7 +48,7 @@ void EmbeddingView::Draw() {
     ImGui::SetNextItemWidth(90);
     ImGui::DragFloat("Scale", &m_scale, 0.005f, 0, 0, "%.8f");
     ImGui::SameLine();
-    ImGui::Checkbox("Integrated Embedding", &m_showIntegratedEmbedding);
+    ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
     // ImGui::SameLine();
     // ImGui::SetNextItemWidth(90);
     // ImGui::Combo("Tonemap", reinterpret_cast<int *>(&m_cmap), cmap_names, CMap_Count);
@@ -58,7 +58,7 @@ void EmbeddingView::Draw() {
     // Selection indicator
     ImGui::Image((ImTextureID) (uintptr_t) m_selectionFramebuffer.getTexture(), ImVec2(ImGui::GetColumnWidth(), 0.25f * ImGui::GetFrameHeight()));
 
-    auto drawEmbedding = [&](const char *label, Framebuffer &fb, const PGLDirectionalEmbedding &embedding) {
+    auto drawSignature = [&](const char *label, Framebuffer &fb, const PGLDirectionalSignature &signature) {
         auto leftTop = ImGui::GetCursorScreenPos();
         ImGui::Image((ImTextureID) (uintptr_t) fb.getTexture(), ImVec2(ImGui::GetColumnWidth(), 2 * ImGui::GetFrameHeight()));
 
@@ -67,11 +67,11 @@ void EmbeddingView::Draw() {
         if (ImGui::IsItemHovered()) {
             auto pos = ImGui::GetMousePos();
             float x = (pos.x - leftTop.x) / ImGui::GetColumnWidth();
-            uint8_t idx = std::min((uint8_t) (x * PGL_EMBEDDING_SIZE), (uint8_t) (PGL_EMBEDDING_SIZE - 1));
+            uint8_t idx = std::min((uint8_t) (x * PGL_SIGNATURE_SIZE), (uint8_t) (PGL_SIGNATURE_SIZE - 1));
             if (ImGui::BeginTooltip()) {
                 ImGui::Text("Bin index: %d", idx);
-                ImGui::Text("%s value: %.4f", label, embedding.embedding[idx]);
-                ImGui::Text("Variance: %.4f", embedding.variance[idx]);
+                ImGui::Text("%s value: %.4f", label, signature.signature[idx]);
+                ImGui::Text("Variance: %.4f", signature.variance[idx]);
                 ImGui::EndTooltip();
             }
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
@@ -83,22 +83,22 @@ void EmbeddingView::Draw() {
         }
     };
 
-    // Cached Embedding
-    drawEmbedding("Cached", m_cachedEmbeddingFramebuffer, m_cachedEmbedding);
+    // Cached Signature
+    drawSignature("Cached", m_cachedSignatureFramebuffer, m_cachedSignature);
 
-    // Integrated Embedding
-    if (m_showIntegratedEmbedding)
-        drawEmbedding("Integrated", m_integratedEmbeddingFramebuffer, m_integratedEmbedding);
+    // Integrated Signature
+    if (m_showIntegratedSignature)
+        drawSignature("Integrated", m_integratedSignatureFramebuffer, m_integratedSignature);
 
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Selected bin: %d  Cached value: %.4f  Integrated value: %.4f", idx, m_cachedEmbedding.embedding[idx], m_integratedEmbedding.embedding[idx]);
+        ImGui::Text("Selected bin: %d  Cached value: %.4f  Integrated value: %.4f", idx, m_cachedSignature.signature[idx], m_integratedSignature.signature[idx]);
     }
 }
 
-void EmbeddingView::UpdateFramebuffer() {
-    auto render = [&](Framebuffer &fb, GLuint tex, const PGLDirectionalEmbedding &embedding) {
-        UpdateTextureFromFloatData(tex, embedding.embedding, PGL_EMBEDDING_SIZE, 1, false);
+void SignatureView::UpdateFramebuffer() {
+    auto render = [&](Framebuffer &fb, GLuint tex, const PGLDirectionalSignature &signature) {
+        UpdateTextureFromFloatData(tex, signature.signature, PGL_SIGNATURE_SIZE, 1, false);
         fb.bind();
         fb.clear();
         Shader &shader = fb.getShader();
@@ -111,22 +111,22 @@ void EmbeddingView::UpdateFramebuffer() {
         fb.unbind();
     };
 
-    // Cached embedding buffer
-    render(m_cachedEmbeddingFramebuffer, m_cachedEmbeddingTex, m_cachedEmbedding);
+    // Cached signature buffer
+    render(m_cachedSignatureFramebuffer, m_cachedSignatureTex, m_cachedSignature);
 
-    // Integrated embedding buffer
-    if (m_showIntegratedEmbedding)
-        render(m_integratedEmbeddingFramebuffer, m_integratedEmbeddingTex, m_integratedEmbedding);
+    // Integrated signature buffer
+    if (m_showIntegratedSignature)
+        render(m_integratedSignatureFramebuffer, m_integratedSignatureTex, m_integratedSignature);
 
     // Selection buffer
-    for (int i = 0; i < PGL_EMBEDDING_SIZE; ++i) {
+    for (int i = 0; i < PGL_SIGNATURE_SIZE; ++i) {
         if (m_radianceView.GetSelectedBinIndex() == i) {
             m_selectionBuffer[i] = RGB(1, 0, 0);
         } else {
             m_selectionBuffer[i] = RGB(0, 0, 0);
         }
     }
-    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, PGL_EMBEDDING_SIZE, 1, false);
+    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, PGL_SIGNATURE_SIZE, 1, false);
 
     m_selectionFramebuffer.bind();
     m_selectionFramebuffer.clear();
