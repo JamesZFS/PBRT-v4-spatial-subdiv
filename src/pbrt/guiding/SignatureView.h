@@ -23,6 +23,10 @@ public:
 
     void Draw() override;
 
+    void DrawColored();
+
+    void DrawBars();
+
     void UpdateFramebuffer();
 
 private:
@@ -35,6 +39,7 @@ private:
     float m_scale = 1.0f;
     Colormap m_cmap = CMap_Inferno;
     bool m_showIntegratedSignature = false;
+    bool m_showVariance = true;
 
     GLuint m_cachedSignatureTex = 0;  // stores the cache signature vector
     Framebuffer m_cachedSignatureFramebuffer;
@@ -44,8 +49,8 @@ private:
 
     GLuint m_selectionTex = 0;
     Framebuffer m_selectionFramebuffer;
+
+    float m_barXs[PGL_SIGNATURE_SIZE];
 };
-
-
 
 #endif //SIGNATUREVIEW_H

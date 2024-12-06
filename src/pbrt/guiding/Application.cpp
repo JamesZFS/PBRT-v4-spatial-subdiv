@@ -264,12 +264,11 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderAddNode(dockSpaceID, dockFlags | ImGuiDockNodeFlags_DockSpace);
         ImGui::DockBuilderSetNodeSize(dockSpaceID, iviewport->Size);
 
-        ImGuiID leftDock, leftTopDock, leftBottomDock, midDock, rightDock, rightTopDock, rightMidDock, rightBottomDock;
+        ImGuiID leftDock, leftTopDock, leftBottomDock, midDock, rightDock, rightTopDock, rightBottomDock;
         ImGui::DockBuilderSplitNode(dockSpaceID, ImGuiDir_Left, 0.5f, &leftDock, &rightDock);
         ImGui::DockBuilderSplitNode(leftDock, ImGuiDir_Up, 0.5f, &leftTopDock, &leftBottomDock);
         ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Left, 0.5f, &midDock, &rightDock);
-        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.6f, &rightTopDock, &rightBottomDock);
-        ImGui::DockBuilderSplitNode(rightTopDock, ImGuiDir_Up, 0.67f, &rightTopDock, &rightMidDock);
+        ImGui::DockBuilderSplitNode(rightDock, ImGuiDir_Up, 0.5f, &rightTopDock, &rightBottomDock);
         ImGui::DockBuilderSetNodeSize(leftDock, ImVec2(239, iviewport->Size.y));
         float padding = ImGui::GetStyle().WindowPadding.x;
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
@@ -281,7 +280,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         for (auto s: {"CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View"})
-            ImGui::DockBuilderDockWindow(s, rightMidDock);
+            ImGui::DockBuilderDockWindow(s, rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -749,29 +748,33 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             rc.hit.x, rc.hit.y, rc.hit.z,
             rc.normal.x, rc.normal.y, rc.normal.z,
             rc.uv.x, rc.uv.y);
-        auto printDe = [](const PGLDirectionalSignature &de) -> std::string {
-            std::string s = StringPrintf("(%.4f", de.signature[0]);
+        auto printDS = [](const PGLDirectionalSignature &ds) -> std::string {
+            std::string s = StringPrintf("(%.4f", ds.signature[0]);
             for (int i = 1; i < PGL_SIGNATURE_SIZE; ++i)
-                s += StringPrintf(", %.4f", de.signature[i]);
+                s += StringPrintf(", %.4f", ds.signature[i]);
+            s += ")";
+            return s;
+        };
+        auto printDSV = [](const PGLDirectionalSignature &ds) -> std::string {
+            std::string s = StringPrintf("(%.4f", ds.variance[0]);
+            for (int i = 1; i < PGL_SIGNATURE_SIZE; ++i)
+                s += StringPrintf(", %.4f", ds.variance[i]);
             s += ")";
             return s;
         };
         auto printCache = [&](const PGLRegionStatistics &s) -> std::string {
             if (s.id == -1) return "  <invalid>\n";
             std::lock_guard lock(m_mtx.field);
-            pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
-            auto de = m_field.GetDirectionalSignature(pglP);
             return StringPrintf(
                 "  ID: %u\n"
                 "  Samples: %d\n"
                 "  Zero Samples: %d\n"
                 "  Depth: %d\n"
-                "  Energy: %f\n"
+                "  Energy:  %f\n"
                 "  Fluence: %f\n"
-                "  CE: %f\n"
-                "  Directional Signature: %s\n"
+                "  CE:      %f\n"
                 "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, s.crossEntropy, printDe(de).c_str(),
+                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, s.crossEntropy,
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
                 s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
         };
@@ -779,6 +782,11 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
         m_rcHistory += printCache(rc.coarse);
         m_rcHistory += "Child Cache:\n";
         m_rcHistory += printCache(rc.fine);
+        pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
+        auto ds = m_field.GetDirectionalSignature(pglP);
+        m_rcHistory += "Directional Signature:\n"
+            "  Mean:     " + printDSV(ds) + "\n"
+            "  Variance: " + printDSV(ds) + "\n";
     } else {
         m_rcHistory += "<no intersection>\n";
     }
