@@ -3,6 +3,7 @@
 //
 
 #include "SignatureView.h"
+#include <implot.h>
 
 using namespace pbrt;
 
@@ -15,6 +16,7 @@ SignatureView::SignatureView(pbrt::Application *parent, const openpgl::cpp::Fiel
     glGenTextures(1, &m_integratedSignatureTex);
     glGenTextures(1, &m_selectionTex);
     memset(m_selectionBuffer, 0, sizeof(m_selectionBuffer));
+    std::iota(m_barXs, m_barXs + PGL_SIGNATURE_SIZE, 0);
 }
 
 SignatureView::~SignatureView() {
@@ -33,6 +35,20 @@ void SignatureView::Clear() {
 }
 
 void SignatureView::Draw() {
+    if (ImGui::BeginTabBar("ViewMode")) {
+        if (ImGui::BeginTabItem("Bars")) {
+            DrawBars();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Colored")) {
+            DrawColored();
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
+    }
+}
+
+void SignatureView::DrawColored() {
     if (ImGui::Button("Reset")) {
         m_scale = 1.0f;
     }
@@ -47,7 +63,6 @@ void SignatureView::Draw() {
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90);
     ImGui::DragFloat("Scale", &m_scale, 0.005f, 0, 0, "%.8f");
-    ImGui::SameLine();
     ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
     // ImGui::SameLine();
     // ImGui::SetNextItemWidth(90);
@@ -92,7 +107,56 @@ void SignatureView::Draw() {
 
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Selected bin: %d  Cached value: %.4f  Integrated value: %.4f", idx, m_cachedSignature.signature[idx], m_integratedSignature.signature[idx]);
+        ImGui::Text("Cached: %.4f  Variance: %.4f  Integrated: %.4f", m_cachedSignature.signature[idx], m_cachedSignature.variance[idx], m_integratedSignature.signature[idx]);
+    }
+}
+
+void SignatureView::DrawBars() {
+    ImGui::Checkbox("Variance", &m_showVariance);
+    ImGui::SameLine();
+    ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
+    auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+    if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
+        ImPlot::SetupAxisLimits(ImAxis_X1,-0.25, PGL_SIGNATURE_SIZE - 0.25, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
+        ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
+        ImPlot::SetupAxis(ImAxis_Y1, "Mean");
+        if (m_showVariance) {
+            ImPlot::SetupAxis(ImAxis_Y2, "Variance", ImPlotAxisFlags_AuxDefault);
+            ImPlot::SetupAxisLimitsConstraints(ImAxis_Y2, 0, INFINITY);
+            ImPlot::SetupAxisLimits(ImAxis_Y2, 0, 10.0);
+        }
+
+        ImPlot::SetAxis(ImAxis_Y1);
+        ImPlot::PlotBars("Cached", m_cachedSignature.signature, PGL_SIGNATURE_SIZE, 0.5);
+        if (m_showVariance) {
+            ImPlot::SetAxis(ImAxis_Y2);
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 2.0f);
+            ImPlot::PlotStems("Variance", m_barXs, m_cachedSignature.variance, PGL_SIGNATURE_SIZE);
+            // ImPlot::PlotErrorBars("Variance", m_barXs, m_cachedSignature.signature, m_cachedSignature.variance, PGL_SIGNATURE_SIZE);
+            ImPlot::PopStyleVar();
+        }
+        if (m_showIntegratedSignature) {
+            ImPlot::SetAxis(ImAxis_Y1);
+            ImPlot::PlotBars("Integrated", m_integratedSignature.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
+        }
+
+        // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            double x = ImPlot::GetPlotMousePos().x + 0.25;
+            if (x >= 0 && x < PGL_SIGNATURE_SIZE) {
+                m_radianceView.SetSelectedBinIndex((uint8_t) x);
+            }
+        }
+        if (m_radianceView.HasSelectedBinIndex()) {
+            double x = m_radianceView.GetSelectedBinIndex();
+            ImPlot::TagX(x, ImVec4(1, 0, 0, 0.5));
+        }
+        ImPlot::EndPlot();
+    }
+    if (m_radianceView.HasSelectedBinIndex()) {
+        uint8_t idx = m_radianceView.GetSelectedBinIndex();
+        ImGui::Text("Cached: %.4f  Variance: %.4f  Integrated: %.4f", m_cachedSignature.signature[idx], m_cachedSignature.variance[idx], m_integratedSignature.signature[idx]);
     }
 }
 
