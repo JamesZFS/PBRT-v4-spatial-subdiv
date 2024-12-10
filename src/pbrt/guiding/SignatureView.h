@@ -27,12 +27,15 @@ public:
 
     void DrawBars();
 
+    void DrawLR();
+
     void UpdateFramebuffer();
 
 private:
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
     PGLDirectionalSignature m_cachedSignature{};
+    std::pair<PGLDirectionalSignature, PGLDirectionalSignature> m_cachedSignaturesLR{};
     PGLDirectionalSignature &m_integratedSignature;
     pbrt::RGB m_selectionBuffer[PGL_SIGNATURE_SIZE];
 
@@ -51,6 +54,7 @@ private:
     Framebuffer m_selectionFramebuffer;
 
     float m_barXs[PGL_SIGNATURE_SIZE];
+    float m_barRXs[PGL_SIGNATURE_SIZE];
 };
 
 #endif //SIGNATUREVIEW_H

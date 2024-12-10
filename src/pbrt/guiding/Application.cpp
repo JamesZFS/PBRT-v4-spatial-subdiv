@@ -758,7 +758,7 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
         auto printDSV = [](const PGLDirectionalSignature &ds) -> std::string {
             std::string s = StringPrintf("(%.4f", ds.variance[0]);
             for (int i = 1; i < PGL_SIGNATURE_SIZE; ++i)
-                s += StringPrintf(", %.4f", ds.variance[i]);
+                s += StringPrintf(", %.3e", ds.variance[i]);
             s += ")";
             return s;
         };
@@ -785,7 +785,7 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
         pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
         auto ds = m_field.GetDirectionalSignature(pglP);
         m_rcHistory += "Directional Signature:\n"
-            "  Mean:     " + printDSV(ds) + "\n"
+            "  Mean:     " + printDS(ds) + "\n"
             "  Variance: " + printDSV(ds) + "\n";
     } else {
         m_rcHistory += "<no intersection>\n";
