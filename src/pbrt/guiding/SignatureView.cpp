@@ -99,7 +99,7 @@ void SignatureView::DrawColored() {
             if (ImGui::BeginTooltip()) {
                 ImGui::Text("Bin index: %d", idx);
                 ImGui::Text("%s value: %.4f", label, signature.signature[idx]);
-                ImGui::Text("Variance: %.4f", signature.variance[idx]);
+                ImGui::Text("Std: %.2e", signature.std[idx]);
                 ImGui::EndTooltip();
             }
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
@@ -120,7 +120,7 @@ void SignatureView::DrawColored() {
 
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Cached: %.4f  Std: %.3e  Integrated: %.4f", m_cachedSignature.signature[idx], std::sqrt(m_cachedSignature.variance[idx]), m_integratedSignature.signature[idx]);
+        ImGui::Text("Cached: %.4f  Std: %.2e  Integrated: %.4f", m_cachedSignature.signature[idx], m_cachedSignature.std[idx], m_integratedSignature.signature[idx]);
     }
 }
 
@@ -129,7 +129,6 @@ void SignatureView::DrawBars() {
     ImGui::SameLine();
     ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
-    static float stds[PGL_SIGNATURE_SIZE] = {};
     if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
         ImPlot::SetupAxisLimits(ImAxis_X1,-0.25, PGL_SIGNATURE_SIZE - 0.25, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
@@ -137,9 +136,7 @@ void SignatureView::DrawBars() {
 
         ImPlot::PlotBars("Cached", m_cachedSignature.signature, PGL_SIGNATURE_SIZE, 0.5);
         if (m_showVariance) {
-            for (int i = 0; i < PGL_SIGNATURE_SIZE; ++i)
-                stds[i] = std::sqrt(m_cachedSignature.variance[i]);
-            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, stds, PGL_SIGNATURE_SIZE);
+            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, PGL_SIGNATURE_SIZE);
         }
         if (m_showIntegratedSignature)
             ImPlot::PlotBars("Integrated", m_integratedSignature.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
@@ -159,7 +156,7 @@ void SignatureView::DrawBars() {
     }
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Cached: %.4f  Std: %.3e  Integrated: %.4f", m_cachedSignature.signature[idx], std::sqrt(m_cachedSignature.variance[idx]), m_integratedSignature.signature[idx]);
+        ImGui::Text("Cached: %.4f  Std: %.2e  Integrated: %.4f", m_cachedSignature.signature[idx], m_cachedSignature.std[idx], m_integratedSignature.signature[idx]);
     }
 }
 
@@ -172,7 +169,6 @@ void SignatureView::DrawLR() {
     }
 
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
-    static float left_stds[PGL_SIGNATURE_SIZE] = {}, right_stds[PGL_SIGNATURE_SIZE] = {};
     if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
         ImPlot::SetupAxisLimits(ImAxis_X1,-0.25, PGL_SIGNATURE_SIZE - 0.25, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
@@ -181,12 +177,8 @@ void SignatureView::DrawLR() {
         ImPlot::PlotBars("Left", m_cachedSignaturesLR.first.signature, PGL_SIGNATURE_SIZE, 0.5);
         ImPlot::PlotBars("Right", m_cachedSignaturesLR.second.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
         if (m_showVariance) {
-            for (int i = 0; i < PGL_SIGNATURE_SIZE; ++i) {
-                left_stds[i] = std::sqrt(m_cachedSignaturesLR.first.variance[i]);
-                right_stds[i] = std::sqrt(m_cachedSignaturesLR.second.variance[i]);
-            }
-            ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, left_stds, PGL_SIGNATURE_SIZE);
-            ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, left_stds, PGL_SIGNATURE_SIZE);
+            ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, m_cachedSignaturesLR.first.std, PGL_SIGNATURE_SIZE);
+            ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, m_cachedSignaturesLR.second.std, PGL_SIGNATURE_SIZE);
         }
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
@@ -207,9 +199,9 @@ void SignatureView::DrawLR() {
         FormatInteger((int) m_cachedSignaturesLR.second.numSamples).c_str());
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Left / std: %.4f / %.3e, right / std: %.4f / %.3e",
-            m_cachedSignaturesLR.first.signature[idx], std::sqrt(m_cachedSignaturesLR.first.variance[idx]),
-            m_cachedSignaturesLR.second.signature[idx], std::sqrt(m_cachedSignaturesLR.second.variance[idx]));
+        ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.3e",
+            m_cachedSignaturesLR.first.signature[idx], m_cachedSignaturesLR.first.std[idx],
+            m_cachedSignaturesLR.second.signature[idx], m_cachedSignaturesLR.second.std[idx]);
     }
 }
 
