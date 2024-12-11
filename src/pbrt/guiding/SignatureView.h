@@ -17,7 +17,7 @@ public:
 
     ~SignatureView();
 
-    void Update(const pbrt::Point3f &pos, bool lookahead);
+    void Update(const pbrt::Point3f &pos);
 
     void Clear();
 
@@ -32,6 +32,8 @@ public:
     void UpdateFramebuffer();
 
 private:
+    void Update();
+
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
     PGLDirectionalSignature m_cachedSignature{};
@@ -43,6 +45,12 @@ private:
     Colormap m_cmap = CMap_Inferno;
     bool m_showIntegratedSignature = false;
     bool m_showVariance = true;
+    int m_splitDimension = 3;
+
+    struct {
+        bool valid = false;
+        pbrt::Point3f pos;
+    } m_prev;
 
     GLuint m_cachedSignatureTex = 0;  // stores the cache signature vector
     Framebuffer m_cachedSignatureFramebuffer;

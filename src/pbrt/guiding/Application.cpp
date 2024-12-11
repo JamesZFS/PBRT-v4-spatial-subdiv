@@ -1026,7 +1026,7 @@ void Application::RadianceViewRenderStep() {
 void Application::UpdateSignatureView() {
     if (m_rcSDRE.valid) {
         std::lock_guard lock(m_mtx.field);
-        m_signatureView->Update(m_rcSDRE.hit, m_showFine);
+        m_signatureView->Update(m_rcSDRE.hit);
     } else {
         m_signatureView->Clear();
     }

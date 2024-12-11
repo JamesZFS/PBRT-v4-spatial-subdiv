@@ -26,13 +26,19 @@ SignatureView::~SignatureView() {
     glDeleteTextures(1, &m_selectionTex);
 }
 
-void SignatureView::Update(const pbrt::Point3f &pos, bool lookahead) {
-    pgl_point3f pglP = {pos.x, pos.y, pos.z};
+void SignatureView::Update(const pbrt::Point3f &pos) {
+    m_prev = {true, pos};
+    Update();
+}
+
+void SignatureView::Update() {
+    pgl_point3f pglP = {m_prev.pos.x, m_prev.pos.y, m_prev.pos.z};
     m_cachedSignature = m_field.GetDirectionalSignature(pglP);
-    m_cachedSignaturesLR = m_field.GetLRDirectionalSignatures(pglP);
+    m_cachedSignaturesLR = m_field.GetLRDirectionalSignatures(pglP, m_splitDimension);
 }
 
 void SignatureView::Clear() {
+    m_prev.valid = false;
     m_cachedSignature = {};
     m_cachedSignaturesLR = {};
 }
@@ -139,7 +145,7 @@ void SignatureView::DrawBars() {
             ImPlot::PlotBars("Integrated", m_integratedSignature.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (ImPlot::IsPlotHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             double x = ImPlot::GetPlotMousePos().x + 0.25;
             if (x >= 0 && x < PGL_SIGNATURE_SIZE) {
                 m_radianceView.SetSelectedBinIndex((uint8_t) x);
@@ -159,6 +165,12 @@ void SignatureView::DrawBars() {
 
 void SignatureView::DrawLR() {
     ImGui::Checkbox("Variance", &m_showVariance);
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(90);
+    if (ImGui::Combo("Dimension", &m_splitDimension, "x\0y\0z\0best")) {
+        if (m_prev.valid) Update();
+    }
+
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
     static float left_stds[PGL_SIGNATURE_SIZE] = {}, right_stds[PGL_SIGNATURE_SIZE] = {};
     if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
@@ -178,7 +190,7 @@ void SignatureView::DrawLR() {
         }
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (ImPlot::IsPlotHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             double x = ImPlot::GetPlotMousePos().x + 0.25;
             if (x >= 0 && x < PGL_SIGNATURE_SIZE) {
                 m_radianceView.SetSelectedBinIndex((uint8_t) x);
@@ -241,4 +253,3 @@ void SignatureView::UpdateFramebuffer() {
     m_selectionFramebuffer.draw();
     m_selectionFramebuffer.unbind();
 }
-
