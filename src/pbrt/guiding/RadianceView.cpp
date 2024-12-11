@@ -74,7 +74,7 @@ void RadianceView::UpdateBinIndexBuffer() {
         pgl_vec3f pglDir{dir.x, dir.y, dir.z};
 
         size_t index = p.y * m_resolution.x + p.x;
-        m_binIndexBuffer[index] = pgl_get_signature_index(pglDir);
+        m_binIndexBuffer[index] = pglGetSignatureIndex(pglDir);
     }
 
     UpdateTextureFromUInt8Data((GLuint) (uintptr_t) m_binIndexTex, m_binIndexBuffer.data(), m_resolution.x, m_resolution.y, false);

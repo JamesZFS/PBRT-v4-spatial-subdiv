@@ -5,6 +5,8 @@
 #include "SignatureView.h"
 #include <implot.h>
 
+#include "Application.h"
+
 using namespace pbrt;
 
 SignatureView::SignatureView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView)
@@ -125,7 +127,7 @@ void SignatureView::DrawColored() {
 }
 
 void SignatureView::DrawBars() {
-    ImGui::Checkbox("Variance", &m_showVariance);
+    ImGui::Checkbox("Std", &m_showStd);
     ImGui::SameLine();
     ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
@@ -135,7 +137,7 @@ void SignatureView::DrawBars() {
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
         ImPlot::PlotBars("Cached", m_cachedSignature.signature, PGL_SIGNATURE_SIZE, 0.5);
-        if (m_showVariance) {
+        if (m_showStd) {
             ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, PGL_SIGNATURE_SIZE);
         }
         if (m_showIntegratedSignature)
@@ -161,13 +163,16 @@ void SignatureView::DrawBars() {
 }
 
 void SignatureView::DrawLR() {
-    ImGui::Checkbox("Variance", &m_showVariance);
+    ImGui::Checkbox("Std", &m_showStd);
+    ImGui::SameLine();
+    ImGui::Checkbox("Multiplied Std", &m_showMultipliedStd);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(90);
     if (ImGui::Combo("Dimension", &m_splitDimension, "x\0y\0z\0best")) {
         if (m_prev.valid) Update();
     }
 
+    static float left_std[PGL_SIGNATURE_SIZE], right_std[PGL_SIGNATURE_SIZE];
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
     if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
         ImPlot::SetupAxisLimits(ImAxis_X1,-0.25, PGL_SIGNATURE_SIZE - 0.25, ImGuiCond_Always);
@@ -176,9 +181,22 @@ void SignatureView::DrawLR() {
 
         ImPlot::PlotBars("Left", m_cachedSignaturesLR.first.signature, PGL_SIGNATURE_SIZE, 0.5);
         ImPlot::PlotBars("Right", m_cachedSignaturesLR.second.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
-        if (m_showVariance) {
+        if (m_showStd) {
             ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, m_cachedSignaturesLR.first.std, PGL_SIGNATURE_SIZE);
             ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, m_cachedSignaturesLR.second.std, PGL_SIGNATURE_SIZE);
+        }
+        if (m_showMultipliedStd) {
+            float multiplier = m_parent->GetSignatureStdMultiplier();
+            for (int i = 0; i < PGL_SIGNATURE_SIZE; ++i) {
+                left_std[i] = m_cachedSignaturesLR.first.std[i] * multiplier;
+                right_std[i] = m_cachedSignaturesLR.second.std[i] * multiplier;
+            }
+            ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
+            ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
+            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignaturesLR.first.signature, left_std, PGL_SIGNATURE_SIZE);
+            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignaturesLR.second.signature, right_std, PGL_SIGNATURE_SIZE);
+            ImPlot::PopStyleColor();
+            ImPlot::PopStyleVar();
         }
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view

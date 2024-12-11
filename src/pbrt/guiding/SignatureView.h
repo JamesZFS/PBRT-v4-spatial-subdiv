@@ -44,7 +44,8 @@ private:
     float m_scale = 1.0f;
     Colormap m_cmap = CMap_Inferno;
     bool m_showIntegratedSignature = false;
-    bool m_showVariance = true;
+    bool m_showStd = true;
+    bool m_showMultipliedStd = true;
     int m_splitDimension = 3;
 
     struct {
