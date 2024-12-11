@@ -145,7 +145,7 @@ void SignatureView::DrawBars() {
             ImPlot::PlotBars("Integrated", m_integratedSignature.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
-        if (ImPlot::IsPlotHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             double x = ImPlot::GetPlotMousePos().x + 0.25;
             if (x >= 0 && x < PGL_SIGNATURE_SIZE) {
                 m_radianceView.SetSelectedBinIndex((uint8_t) x);
@@ -173,7 +173,7 @@ void SignatureView::DrawLR() {
 
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
     static float left_stds[PGL_SIGNATURE_SIZE] = {}, right_stds[PGL_SIGNATURE_SIZE] = {};
-    if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
+    if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
         ImPlot::SetupAxisLimits(ImAxis_X1,-0.25, PGL_SIGNATURE_SIZE - 0.25, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
@@ -190,7 +190,7 @@ void SignatureView::DrawLR() {
         }
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
-        if (ImPlot::IsPlotHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             double x = ImPlot::GetPlotMousePos().x + 0.25;
             if (x >= 0 && x < PGL_SIGNATURE_SIZE) {
                 m_radianceView.SetSelectedBinIndex((uint8_t) x);
@@ -202,6 +202,9 @@ void SignatureView::DrawLR() {
         }
         ImPlot::EndPlot();
     }
+    ImGui::Text("Number of samples left / right: %s / %s",
+        FormatInteger((int) m_cachedSignaturesLR.first.numSamples).c_str(),
+        FormatInteger((int) m_cachedSignaturesLR.second.numSamples).c_str());
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
         ImGui::Text("Left / std: %.4f / %.3e, right / std: %.4f / %.3e",
