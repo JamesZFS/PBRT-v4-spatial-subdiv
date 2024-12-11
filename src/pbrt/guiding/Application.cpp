@@ -1390,6 +1390,7 @@ void Application::SpatialSubdivisionSettings() {
         _(), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
+        _(), ImGui::SliderFloat("Signature Decay", &m_subdivCfg.signatureDecay, 0.0f, 1.0f);
         _();
         int octahedralRes = (int) pglGetOctahedralResolution();
         if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
