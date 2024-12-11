@@ -1275,7 +1275,6 @@ void Application::ViewportOptions() {
     }
     if (m_showFine != showFineOld) {
         UpdateSamplingDistributionView();
-        UpdateSignatureView();
     }
 }
 
@@ -1367,6 +1366,7 @@ void Application::SpatialSubdivisionSettings() {
     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);
     const float inputWidth = std::max(80.0f, ImGui::GetColumnWidth() * 0.5f);
+    auto _ = [inputWidth] { ImGui::SetNextItemWidth(inputWidth); };
     if (ImGui::CollapsingHeader("Spatial Subdivision")) {
         std::lock_guard lock(m_mtx.subdivCfg);
         int maxDepth = (int) m_subdivCfg.maxDepth;
@@ -1374,11 +1374,11 @@ void Application::SpatialSubdivisionSettings() {
         int sampleCountThreshold = (int) m_subdivCfg.sampleCountThreshold;
         int minSamplesCandidateSplit = (int) m_subdivCfg.minSamplesCandidateSplit;
         int minSamplesPromotion = (int) m_subdivCfg.minSamplesPromotion;
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputInt("Max Depth with Sample Count", &maxDepthWithSampleCount, 1, 10);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputInt("Samples Count Threshold", &sampleCountThreshold, 0, 0);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputInt("Min Samples Candidate Split", &minSamplesCandidateSplit, 0, 0);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputInt("Min Samples Promotion", &minSamplesPromotion, 0, 0);
+        _(), ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
+        _(), ImGui::InputInt("Max Depth with Sample Count", &maxDepthWithSampleCount, 1, 10);
+        _(), ImGui::InputInt("Samples Count Threshold", &sampleCountThreshold, 0, 0);
+        _(), ImGui::InputInt("Min Samples Candidate Split", &minSamplesCandidateSplit, 0, 0);
+        _(), ImGui::InputInt("Min Samples Promotion", &minSamplesPromotion, 0, 0);
         m_subdivCfg.maxDepth = std::max(1, std::min(32, maxDepth));
         m_subdivCfg.maxDepthWithSampleCount = std::max(1, std::min(32, maxDepthWithSampleCount));
         m_subdivCfg.sampleCountThreshold = std::max(0, sampleCountThreshold);
@@ -1386,10 +1386,19 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Enable Three Splits", &m_subdivCfg.enableThreeSplits);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
-        ImGui::SetNextItemWidth(inputWidth), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
-        ImGui::SetNextItemWidth(inputWidth), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
+        _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
+        _(), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
+        _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
+        _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
+        _();
+        int octahedralRes = (int) pglGetOctahedralResolution();
+        if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
+            pglSetOctahedralResolution(octahedralRes);
+            if (m_enableRadianceView && m_radianceView->HasStarted()) {
+                m_radianceView->UpdateBinIndexBuffer();
+            }
+        }
+        _(), ImGui::DragFloat("Std Multiplier", &m_subdivCfg.stdMultiplier, 0.2f, 0, 10);
         if (ImGui::Button("Clear CE Statistics")) {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearCEStatistics();

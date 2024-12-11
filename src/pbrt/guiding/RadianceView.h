@@ -21,6 +21,8 @@ public:
 
     void RenderStep();
 
+    void UpdateBinIndexBuffer();
+
     void UpdateFramebuffer();
 
     void Clear();
@@ -28,6 +30,8 @@ public:
     void Draw() override;
 
     bool IsRendering() const { return m_prev.valid && m_numSamples < m_spp; }
+
+    bool HasStarted() const { return m_prev.valid; }
 
     double GetPDF(const pbrt::Point2i &p) const;
 
@@ -49,8 +53,6 @@ private:
     void EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler, pbrt::ScratchBuffer &scratchBuffer);
 
     void RenderStart();
-
-    void UpdateBinIndexBuffer();
 
     pbrt::Primitive m_scene;
     const std::vector<pbrt::Light> &m_lights;
