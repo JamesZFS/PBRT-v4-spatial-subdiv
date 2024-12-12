@@ -4,6 +4,9 @@
 
 #include "SignatureView.h"
 #include <implot.h>
+#define PBRT_SCOPE
+#include <openpgl/openpgl/data/Signature.h>
+#undef PBRT_SCOPE
 
 #include "Application.h"
 
@@ -212,6 +215,7 @@ void SignatureView::DrawLR() {
         }
         ImPlot::EndPlot();
     }
+    // Compute distance
     ImGui::Text("Number of samples left / right: %s / %s",
         FormatInteger((int) m_cachedSignaturesLR.first.numSamples).c_str(),
         FormatInteger((int) m_cachedSignaturesLR.second.numSamples).c_str());
@@ -220,6 +224,10 @@ void SignatureView::DrawLR() {
         ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.3e",
             m_cachedSignaturesLR.first.signature[idx], m_cachedSignaturesLR.first.std[idx],
             m_cachedSignaturesLR.second.signature[idx], m_cachedSignaturesLR.second.std[idx]);
+    } else {
+        openpgl::Signature signatureLeft(m_cachedSignaturesLR.first), signatureRight(m_cachedSignaturesLR.second);
+        float energy = openpgl::Signature::getDistance(signatureLeft, signatureRight, m_parent->GetSignatureStdMultiplier());
+        ImGui::Text("Energy: %.4f", energy);
     }
 }
 
