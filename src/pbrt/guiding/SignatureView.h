@@ -19,6 +19,8 @@ public:
 
     void Update(const pbrt::Point3f &pos);
 
+    void Rescale();
+
     void Clear();
 
     void Draw() override;
@@ -39,7 +41,7 @@ private:
     PGLDirectionalSignature m_cachedSignature{};
     std::pair<PGLDirectionalSignature, PGLDirectionalSignature> m_cachedSignaturesLR{};
     PGLDirectionalSignature &m_integratedSignature;
-    pbrt::RGB m_selectionBuffer[PGL_SIGNATURE_SIZE];
+    pbrt::RGB m_selectionBuffer[PGL_SIGNATURE_MAX_SIZE];
 
     float m_scale = 1.0f;
     Colormap m_cmap = CMap_Inferno;
@@ -62,8 +64,8 @@ private:
     GLuint m_selectionTex = 0;
     Framebuffer m_selectionFramebuffer;
 
-    float m_barXs[PGL_SIGNATURE_SIZE];
-    float m_barRXs[PGL_SIGNATURE_SIZE];
+    float m_barXs[PGL_SIGNATURE_MAX_SIZE];
+    float m_barRXs[PGL_SIGNATURE_MAX_SIZE];
 };
 
 #endif //SIGNATUREVIEW_H

@@ -43,9 +43,9 @@ public:
 
     uint8_t GetSelectedBinIndex() const { return m_selectedBinIndex; }
 
-    void ResetSelectedBinIndex() { m_selectedBinIndex = PGL_SIGNATURE_SIZE; }
+    void ResetSelectedBinIndex() { m_selectedBinIndex = PGL_SIGNATURE_MAX_SIZE; }
 
-    bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_SIGNATURE_SIZE; }
+    bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_SIGNATURE_MAX_SIZE; }
 
     PGLDirectionalSignature integratedSignature{};  // integrated signature vector with the radiance map
 
@@ -68,7 +68,7 @@ private:
     double m_normalizer = 1;
     int m_numSamples = 0;
     int m_spp = 16;
-    uint8_t m_selectedBinIndex = PGL_SIGNATURE_SIZE;  // valid index is [0, PGL_SIGNATURE_SIZE)
+    uint8_t m_selectedBinIndex = PGL_SIGNATURE_MAX_SIZE;  // valid index is [0, PGL_SIGNATURE_SIZE)
     std::atomic_bool m_cpuBufferUpdated = false;
 
     struct {

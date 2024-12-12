@@ -750,14 +750,14 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             rc.uv.x, rc.uv.y);
         auto printDS = [](const PGLDirectionalSignature &ds) -> std::string {
             std::string s = StringPrintf("(%.4f", ds.signature[0]);
-            for (int i = 1; i < PGL_SIGNATURE_SIZE; ++i)
+            for (int i = 1; i < (int) pglGetSignatureSize(); ++i)
                 s += StringPrintf(", %.4f", ds.signature[i]);
             s += ")";
             return s;
         };
         auto printDSV = [](const PGLDirectionalSignature &ds) -> std::string {
             std::string s = StringPrintf("(%.2e", ds.std[0]);
-            for (int i = 1; i < PGL_SIGNATURE_SIZE; ++i)
+            for (int i = 1; i < (int) pglGetSignatureSize(); ++i)
                 s += StringPrintf(", %.2e", ds.std[i]);
             s += ")";
             return s;
@@ -1395,6 +1395,15 @@ void Application::SpatialSubdivisionSettings() {
         int octahedralRes = (int) pglGetOctahedralResolution();
         if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
             pglSetOctahedralResolution(octahedralRes);
+            if (m_enableRadianceView && m_radianceView->HasStarted()) {
+                m_radianceView->UpdateBinIndexBuffer();
+            }
+        }
+        _();
+        int signatureSize = (int) pglGetSignatureSize();
+        if (ImGui::SliderInt("Signature Size", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
+            pglSetSignatureSize(signatureSize);
+            m_signatureView->Rescale();
             if (m_enableRadianceView && m_radianceView->HasStarted()) {
                 m_radianceView->UpdateBinIndexBuffer();
             }

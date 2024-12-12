@@ -4,25 +4,24 @@
 
 #include "SignatureView.h"
 #include <implot.h>
-#define PBRT_SCOPE
-#include <openpgl/openpgl/data/Signature.h>
-#undef PBRT_SCOPE
 
 #include "Application.h"
 
 using namespace pbrt;
 
+constexpr float barSize = 0.4;
+
 SignatureView::SignatureView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView)
     : View(parent), m_field(field), m_radianceView(radianceView), m_integratedSignature(radianceView.integratedSignature),
-      m_cachedSignatureFramebuffer(PGL_SIGNATURE_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_integratedSignatureFramebuffer(PGL_SIGNATURE_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_selectionFramebuffer(PGL_SIGNATURE_SIZE, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+      m_cachedSignatureFramebuffer(pglGetSignatureSize(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_integratedSignatureFramebuffer(pglGetSignatureSize(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_selectionFramebuffer(pglGetSignatureSize(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     glGenTextures(1, &m_cachedSignatureTex);
     glGenTextures(1, &m_integratedSignatureTex);
     glGenTextures(1, &m_selectionTex);
     memset(m_selectionBuffer, 0, sizeof(m_selectionBuffer));
-    std::iota(m_barXs, m_barXs + PGL_SIGNATURE_SIZE, 0);
-    std::iota(m_barRXs, m_barRXs + PGL_SIGNATURE_SIZE, 0.5f);
+    std::iota(m_barXs, m_barXs + PGL_SIGNATURE_MAX_SIZE, 0);
+    std::iota(m_barRXs, m_barRXs + PGL_SIGNATURE_MAX_SIZE, barSize);
 }
 
 SignatureView::~SignatureView() {
@@ -34,6 +33,12 @@ SignatureView::~SignatureView() {
 void SignatureView::Update(const pbrt::Point3f &pos) {
     m_prev = {true, pos};
     Update();
+}
+
+void SignatureView::Rescale() {
+    m_cachedSignatureFramebuffer.rescale(pglGetSignatureSize(), 1);
+    m_integratedSignatureFramebuffer.rescale(pglGetSignatureSize(), 1);
+    m_selectionFramebuffer.rescale(pglGetSignatureSize(), 1);
 }
 
 void SignatureView::Update() {
@@ -64,6 +69,21 @@ void SignatureView::Draw() {
         }
         ImGui::EndTabBar();
     }
+}
+
+// Needs to align with Signature.h
+static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier) {
+    float sum = 0;
+    for (uint8_t i = 0; i < pglGetSignatureSize(); i++) {
+        float ai = a.signature[i], bi = b.signature[i];
+        float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
+        // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
+        if (ai - a_std > bi + b_std)
+            sum += 2.0f * (ai - bi - a_std - b_std) / (ai + bi);
+        else if (ai + a_std < bi - b_std)
+            sum += 2.0f * (bi - ai - a_std - b_std) / (ai + bi);
+    }
+    return sum / (float) pglGetSignatureSize();
 }
 
 void SignatureView::DrawColored() {
@@ -100,7 +120,7 @@ void SignatureView::DrawColored() {
         if (ImGui::IsItemHovered()) {
             auto pos = ImGui::GetMousePos();
             float x = (pos.x - leftTop.x) / ImGui::GetColumnWidth();
-            uint8_t idx = std::min((uint8_t) (x * PGL_SIGNATURE_SIZE), (uint8_t) (PGL_SIGNATURE_SIZE - 1));
+            uint8_t idx = std::min((uint8_t) (x * pglGetSignatureSize()), (uint8_t) (pglGetSignatureSize() - 1));
             if (ImGui::BeginTooltip()) {
                 ImGui::Text("Bin index: %d", idx);
                 ImGui::Text("%s value: %.4f", label, signature.signature[idx]);
@@ -135,21 +155,21 @@ void SignatureView::DrawBars() {
     ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
     if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-0.25, PGL_SIGNATURE_SIZE - 0.25, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
-        ImPlot::PlotBars("Cached", m_cachedSignature.signature, PGL_SIGNATURE_SIZE, 0.5);
+        ImPlot::PlotBars("Cached", m_cachedSignature.signature, pglGetSignatureSize(), barSize);
         if (m_showStd) {
-            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, PGL_SIGNATURE_SIZE);
+            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, pglGetSignatureSize());
         }
         if (m_showIntegratedSignature)
-            ImPlot::PlotBars("Integrated", m_integratedSignature.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
+            ImPlot::PlotBars("Integrated", m_integratedSignature.signature, pglGetSignatureSize(), barSize, barSize);
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
         if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            double x = ImPlot::GetPlotMousePos().x + 0.25;
-            if (x >= 0 && x < PGL_SIGNATURE_SIZE) {
+            double x = ImPlot::GetPlotMousePos().x + barSize / 2;
+            if (x >= 0 && x < pglGetSignatureSize()) {
                 m_radianceView.SetSelectedBinIndex((uint8_t) x);
             }
         }
@@ -175,37 +195,37 @@ void SignatureView::DrawLR() {
         if (m_prev.valid) Update();
     }
 
-    static float left_std[PGL_SIGNATURE_SIZE], right_std[PGL_SIGNATURE_SIZE];
+    static float left_std[PGL_SIGNATURE_MAX_SIZE], right_std[PGL_SIGNATURE_MAX_SIZE];
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
     if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-0.25, PGL_SIGNATURE_SIZE - 0.25, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
-        ImPlot::PlotBars("Left", m_cachedSignaturesLR.first.signature, PGL_SIGNATURE_SIZE, 0.5);
-        ImPlot::PlotBars("Right", m_cachedSignaturesLR.second.signature, PGL_SIGNATURE_SIZE, 0.5, 0.5);
+        ImPlot::PlotBars("Left", m_cachedSignaturesLR.first.signature, pglGetSignatureSize(), barSize);
+        ImPlot::PlotBars("Right", m_cachedSignaturesLR.second.signature, pglGetSignatureSize(), barSize, barSize);
         if (m_showStd) {
-            ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, m_cachedSignaturesLR.first.std, PGL_SIGNATURE_SIZE);
-            ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, m_cachedSignaturesLR.second.std, PGL_SIGNATURE_SIZE);
+            ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, m_cachedSignaturesLR.first.std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, m_cachedSignaturesLR.second.std, pglGetSignatureSize());
         }
         if (m_showMultipliedStd) {
             float multiplier = m_parent->GetSignatureStdMultiplier();
-            for (int i = 0; i < PGL_SIGNATURE_SIZE; ++i) {
+            for (int i = 0; i < pglGetSignatureSize(); ++i) {
                 left_std[i] = m_cachedSignaturesLR.first.std[i] * multiplier;
                 right_std[i] = m_cachedSignaturesLR.second.std[i] * multiplier;
             }
             ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
             ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
-            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignaturesLR.first.signature, left_std, PGL_SIGNATURE_SIZE);
-            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignaturesLR.second.signature, right_std, PGL_SIGNATURE_SIZE);
+            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignaturesLR.first.signature, left_std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignaturesLR.second.signature, right_std, pglGetSignatureSize());
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar();
         }
 
         // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
         if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            double x = ImPlot::GetPlotMousePos().x + 0.25;
-            if (x >= 0 && x < PGL_SIGNATURE_SIZE) {
+            double x = ImPlot::GetPlotMousePos().x + barSize / 2;
+            if (x >= 0 && x < pglGetSignatureSize()) {
                 m_radianceView.SetSelectedBinIndex((uint8_t) x);
             }
         }
@@ -225,15 +245,14 @@ void SignatureView::DrawLR() {
             m_cachedSignaturesLR.first.signature[idx], m_cachedSignaturesLR.first.std[idx],
             m_cachedSignaturesLR.second.signature[idx], m_cachedSignaturesLR.second.std[idx]);
     } else {
-        openpgl::Signature signatureLeft(m_cachedSignaturesLR.first), signatureRight(m_cachedSignaturesLR.second);
-        float energy = openpgl::Signature::getDistance(signatureLeft, signatureRight, m_parent->GetSignatureStdMultiplier());
+        float energy = getDistanceSMAPE(m_cachedSignaturesLR.first, m_cachedSignaturesLR.second, m_parent->GetSignatureStdMultiplier());
         ImGui::Text("Energy: %.4f", energy);
     }
 }
 
 void SignatureView::UpdateFramebuffer() {
     auto render = [&](Framebuffer &fb, GLuint tex, const PGLDirectionalSignature &signature) {
-        UpdateTextureFromFloatData(tex, signature.signature, PGL_SIGNATURE_SIZE, 1, false);
+        UpdateTextureFromFloatData(tex, signature.signature, pglGetSignatureSize(), 1, false);
         fb.bind();
         fb.clear();
         Shader &shader = fb.getShader();
@@ -254,14 +273,14 @@ void SignatureView::UpdateFramebuffer() {
         render(m_integratedSignatureFramebuffer, m_integratedSignatureTex, m_integratedSignature);
 
     // Selection buffer
-    for (int i = 0; i < PGL_SIGNATURE_SIZE; ++i) {
+    for (int i = 0; i < pglGetSignatureSize(); ++i) {
         if (m_radianceView.GetSelectedBinIndex() == i) {
             m_selectionBuffer[i] = RGB(1, 0, 0);
         } else {
             m_selectionBuffer[i] = RGB(0, 0, 0);
         }
     }
-    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, PGL_SIGNATURE_SIZE, 1, false);
+    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, pglGetSignatureSize(), 1, false);
 
     m_selectionFramebuffer.bind();
     m_selectionFramebuffer.clear();

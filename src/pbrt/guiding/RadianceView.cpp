@@ -106,7 +106,7 @@ void RadianceView::RenderStep() {
         {
             std::lock_guard lock(mutex);
             normalizer += thread_normalizer;
-            for (size_t i = 0; i < PGL_SIGNATURE_SIZE; i++) {
+            for (size_t i = 0; i < pglGetSignatureSize(); i++) {
                 signature.signature[i] += thread_signature.signature[i];
             }
         }
