@@ -33,7 +33,7 @@ void CacheHistogram::Hist::Draw() {
         ImPlot::SetNextAxesToFit();
 
     // Use an eccentric color when the selected channel is same as the current histogram
-    static const SelectedChannel histType2Channel[] = {Channel_Fluence, Channel_CE, Channel_Depth, Channel_Samples};
+    static const SelectedChannel histType2Channel[] = {Channel_Fluence, Channel_CE, Channel_Energy, Channel_Depth, Channel_Samples};
     static const ImU32 unselectedCol = ImGui::GetColorU32({0.2f, 0.4f, 0.6f, 1.f});
     static const ImU32 selectedCol = ImGui::GetColorU32({0.6f, 0.4f, 0.2f, 1.f});
     ImU32 col = m_parent->GetSelectedChannel() == histType2Channel[m_type] ? selectedCol : unselectedCol;
@@ -68,6 +68,9 @@ void CacheHistogram::Hist::Draw() {
                 break;
             case PlotType_CE:
                 ImPlot::PlotHistogram(title.c_str(), m_object.m_data.ce.data(), m_object.m_data.ce.size(), m_object.m_bins, 1, {}, hist_flags);
+                break;
+            case PlotType_Energy:
+                ImPlot::PlotHistogram(title.c_str(), m_object.m_data.energy.data(), m_object.m_data.energy.size(), m_object.m_bins, 1, {}, hist_flags);
                 break;
             case PlotType_Depth:
                 ImPlot::PlotHistogram(title.c_str(), m_object.m_data.depth.data(), m_object.m_data.depth.size(), m_object.m_bins, 1, {}, hist_flags);

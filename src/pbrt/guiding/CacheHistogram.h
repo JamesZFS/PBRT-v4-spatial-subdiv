@@ -16,6 +16,7 @@ public:
     struct Data {
         std::vector<float> fluence;
         std::vector<float> ce;
+        std::vector<float> energy;
         std::vector<int> depth;
         std::vector<int> samples;
     };
@@ -23,6 +24,7 @@ public:
     enum PlotType {
         PlotType_Fluence,
         PlotType_CE,
+        PlotType_Energy,
         PlotType_Depth,
         PlotType_Samples,
     };
