@@ -89,7 +89,8 @@ int Application::Run() {
 
     m_cacheHistogram.object = std::make_unique<CacheHistogram>(this);
     m_cacheHistogram.fluence = &m_cacheHistogram.object->AddPlot("Fluence Histogram", CacheHistogram::PlotType_Fluence, true);
-    m_cacheHistogram.ce = &m_cacheHistogram.object->AddPlot("CE Histogram", CacheHistogram::PlotType_CE, false);
+    // m_cacheHistogram.ce = &m_cacheHistogram.object->AddPlot("Energy Histogram", CacheHistogram::PlotType_CE, false);
+    m_cacheHistogram.energy = &m_cacheHistogram.object->AddPlot("Energy Histogram", CacheHistogram::PlotType_Energy, false);
     m_cacheHistogram.depth = &m_cacheHistogram.object->AddPlot("Depth Histogram", CacheHistogram::PlotType_Depth, false);
     m_cacheHistogram.samples = &m_cacheHistogram.object->AddPlot("Samples Histogram", CacheHistogram::PlotType_Samples, false);
 
@@ -274,7 +275,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderSetNodeSize(midDock, ImVec2(std::min(m_resolution.x + 2 * padding, m_windowSize.x - 239 - 350), iviewport->Size.y));
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
-        for (auto s: {"Settings", "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram"})
+        for (auto s: {"Settings", "Fluence Histogram", "Energy Histogram", "Depth Histogram", "Samples Histogram"})
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
@@ -344,7 +345,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", rightBottomDock);
-        ImGui::DockBuilderDockWindow("CE Histogram", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Energy Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Signature View", rightBottomDock);
@@ -403,7 +404,7 @@ void Application::SetupLayoutProbeViews() {
 
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         for (auto s: {"Settings",
-            "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram",
+            "Fluence Histogram", "Energy Histogram", "Depth Histogram", "Samples Histogram",
             "CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
         })
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
@@ -469,7 +470,7 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
         ImGui::DockBuilderDockWindow("Signature View", leftMidDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", leftBottomDock);
-        ImGui::DockBuilderDockWindow("CE Histogram", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Energy Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
@@ -649,8 +650,8 @@ void Application::UpdateFramebuffer() {
         clipValue = m_colormapPanel->hoveringValue;
     } else if (c == Channel_Fluence && m_cacheHistogram.fluence->isHovered) {
         clipValue = m_cacheHistogram.fluence->hoveringValue;
-    } else if (c == Channel_CE && m_cacheHistogram.ce->isHovered) {
-        clipValue = m_cacheHistogram.ce->hoveringValue;
+    } else if (c == Channel_Energy && m_cacheHistogram.energy->isHovered) {
+        clipValue = m_cacheHistogram.energy->hoveringValue;
     } else if (c == Channel_Depth && m_cacheHistogram.depth->isHovered) {
         clipValue = m_cacheHistogram.depth->hoveringValue;
     } else if (c == Channel_Samples && m_cacheHistogram.samples->isHovered) {
@@ -983,6 +984,7 @@ void Application::UpdateCacheHistograms() {
         size_t numRegions = m_field.GetRegionCountSurface();
         data.fluence.clear();
         data.ce.clear();
+        data.energy.clear();
         data.depth.clear();
         data.samples.clear();
         for (size_t i = 0; i < numRegions; ++i) {
@@ -990,6 +992,7 @@ void Application::UpdateCacheHistograms() {
             if (cache.removed) continue;
             data.fluence.push_back(cache.fluence);
             data.ce.push_back(cache.crossEntropy);
+            data.energy.push_back(cache.energy);
             data.depth.push_back(cache.depth);
             data.samples.push_back(cache.numSamples);
         }
@@ -1387,8 +1390,8 @@ void Application::SpatialSubdivisionSettings() {
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Enable Three Splits", &m_subdivCfg.enableThreeSplits);
         _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
-        _(), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
-        _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
+        // _(), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
+        // _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("Signature Decay", &m_subdivCfg.signatureDecay, 0.0f, 1.0f);
         _();
@@ -1454,7 +1457,7 @@ void Application::CacheHistogramViews() {
             ImVec2 padding = ImGui::GetStyle().CellPadding;
             avail.x -= padding.x, avail.y -= padding.y * 4;
             if (ImGui::BeginTable("##Histograms", 2, flags)) {
-                for (auto *hist : {m_cacheHistogram.fluence, m_cacheHistogram.ce, m_cacheHistogram.depth, m_cacheHistogram.samples}) {
+                for (auto *hist : {m_cacheHistogram.fluence, m_cacheHistogram.energy, m_cacheHistogram.depth, m_cacheHistogram.samples}) {
                     ImGui::TableNextColumn();
                     ImGui::BeginChild(hist->title.c_str(), ImVec2(avail.x * 0.5f, avail.y * 0.5f));
                     hist->enableTitle = true;
@@ -1467,7 +1470,7 @@ void Application::CacheHistogramViews() {
         ImGui::End();
     }
     else {
-        for (auto *hist : {m_cacheHistogram.fluence, m_cacheHistogram.ce, m_cacheHistogram.depth, m_cacheHistogram.samples}) {
+        for (auto *hist : {m_cacheHistogram.fluence, m_cacheHistogram.energy, m_cacheHistogram.depth, m_cacheHistogram.samples}) {
             if (ImGui::Begin(hist->title.c_str())) {
                 hist->enableTitle = false;
                 hist->Draw();

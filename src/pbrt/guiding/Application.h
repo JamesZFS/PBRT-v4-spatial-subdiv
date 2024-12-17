@@ -194,7 +194,7 @@ private:
     } m_cacheMonitor;
     struct {
         std::unique_ptr<CacheHistogram> object;
-        CacheHistogram::Hist *fluence, *ce, *depth, *samples;
+        CacheHistogram::Hist *fluence, *energy, *depth, *samples;
     } m_cacheHistogram;
 
     mutable struct {
