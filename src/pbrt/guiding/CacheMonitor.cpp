@@ -30,6 +30,9 @@ void CacheMonitor::Plot::Draw() {
         ImGui::Checkbox("Integrated CE", &m_monitor.m_showIntegratedCE);
         ImGui::SameLine();
         ImGui::Checkbox("Probe ID", &m_monitor.m_displayProbeID);
+        ImGui::Checkbox("Coarse Std", &m_monitor.m_showCoarseStd);
+        ImGui::SameLine();
+        ImGui::Checkbox("Fine Std", &m_monitor.m_showFineStd);
     }
 
     ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
@@ -72,18 +75,32 @@ void CacheMonitor::Plot::Draw() {
             const float *x = &probe.data[0].iter;
             auto label = StringPrintf("#%d", probe.idx);
             auto lineColor = ImPlot::GetColormapColor(i);
-            if (m_type == PlotType_CE && m_monitor.m_plotLookahead) {  // Plot the child CE and split CE
+            ImPlot::SetNextLineStyle(lineColor);
+            ImPlot::PlotLine(label.c_str(), x, x + yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
+            if (m_type == PlotType_CE && m_monitor.m_showCoarseStd) {
                 auto barColor = ImPlot::GetStyleColorVec4(ImPlotCol_ErrorBar);
                 barColor.w = 0.5f + 0.5f * m_monitor.m_alpha;
                 float barSize = 2 * m_monitor.m_markerSize;
                 ImPlot::SetNextErrorBarStyle(barColor, barSize);
-                ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].negerr, &probe.data[0].poserr, probe.data.size(), 0, 0, sizeof(PlotEntry));
+                ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].coarseStd, probe.data.size(), 0, 0, sizeof(PlotEntry));
+            }
+            if (m_type == PlotType_CE && m_monitor.m_plotLookahead) {  // Plot the child CE
+                // auto barColor = ImPlot::GetStyleColorVec4(ImPlotCol_ErrorBar);
+                // barColor.w = 0.5f + 0.5f * m_monitor.m_alpha;
+                // float barSize = 2 * m_monitor.m_markerSize;
+                // ImPlot::SetNextErrorBarStyle(barColor, barSize);
+                // ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].negerr, &probe.data[0].poserr, probe.data.size(), 0, 0, sizeof(PlotEntry));
                 // ImPlot::SetNextLineStyle(ImVec4(lineColor.x, lineColor.y, lineColor.z, m_monitor.m_alpha));
                 // ImPlot::PlotLine(label.c_str(), x, &probe.data[0].splitCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
-                ImPlot::PlotShaded(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].splitCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
+                ImPlot::PlotShaded(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].fineCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
+                if (m_monitor.m_showFineStd) {
+                    auto barColor = ImPlot::GetStyleColorVec4(ImPlotCol_ErrorBar);
+                    barColor.w = 0.5f + 0.5f * m_monitor.m_alpha;
+                    float barSize = 2 * m_monitor.m_markerSize;
+                    ImPlot::SetNextErrorBarStyle(barColor, barSize);
+                    ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].fineCE, &probe.data[0].fineStd, probe.data.size(), 0, 0, sizeof(PlotEntry));
+                }
             }
-            ImPlot::SetNextLineStyle(lineColor);
-            ImPlot::PlotLine(label.c_str(), x, x + yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
             if (m_type == PlotType_CE && m_monitor.m_showIntegratedCE) {  // Plot a horizontal line
                 double ce = m_parent->GetCrossEntropySDR();
                 ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);

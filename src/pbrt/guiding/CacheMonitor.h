@@ -20,10 +20,9 @@ public:
         float samples;
         float fluence;
         float coarseCE;
+        float coarseStd;
         float fineCE;
-        float negerr;   // 0
-        float poserr;   // fineCE - coarseCE
-        float splitCE;  // coarseCE - threshold
+        float fineStd;
     };
 
     struct Probe {
@@ -104,6 +103,8 @@ private:
     bool m_autoFitAxes = true;
     bool m_plotLookahead = true;
     bool m_showIntegratedCE = false;
+    bool m_showCoarseStd = false;
+    bool m_showFineStd = false;
 };
 
 

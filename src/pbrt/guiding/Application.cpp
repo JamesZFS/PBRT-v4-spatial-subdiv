@@ -808,10 +808,9 @@ void Application::CacheProbesInteraction() {
                         coarseValid ? (float) rc.coarse.numSamples : nan,
                         coarseValid ? rc.coarse.fluence : nan,
                         coarseValid ? rc.coarse.crossEntropy : nan,
+                        coarseValid ? rc.coarse.ceStd : nan,
                         fineValid ? rc.fine.crossEntropy : nan,
-                        coarseValid && fineValid ? 0 : nan,
-                        coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
-                        coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
+                        fineValid ? rc.fine.ceStd : nan,
                     });
                 }
             });
@@ -883,10 +882,9 @@ void Application::UpdateCacheCurves() {
                 coarseValid ? (float) rc.coarse.numSamples : nan,
                 coarseValid ? rc.coarse.fluence : nan,
                 coarseValid ? rc.coarse.crossEntropy : nan,
+                coarseValid ? rc.coarse.ceStd : nan,
                 fineValid ? rc.fine.crossEntropy : nan,
-                coarseValid && fineValid ? 0 : nan,
-                coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
-                coarseValid ? rc.coarse.crossEntropy - m_subdivCfg.ceThreshold : nan,
+                fineValid ? rc.fine.ceStd : nan,
             });
         }
     });

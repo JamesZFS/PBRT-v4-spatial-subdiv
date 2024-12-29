@@ -640,7 +640,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
     settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", 32);
     settings.treeenablece = parameters.GetOneBool("treeenablece", true);
-    settings.treefailuredecay = parameters.GetOneBool("treefailuredecay", true);
+    settings.treefailuredecay = parameters.GetOneBool("treefailuredecay", false);
     settings.treesinglesidepromotion = parameters.GetOneBool("treesinglesidepromotion", true);
     settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
     settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
