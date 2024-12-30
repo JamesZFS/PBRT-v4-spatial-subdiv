@@ -104,7 +104,7 @@ private:
     bool m_autoFitAxes = true;
     bool m_showLookahead = true;
     bool m_showIntegratedCE = false;
-    bool m_showStd = false;
+    bool m_showStd = true;
 };
 
 

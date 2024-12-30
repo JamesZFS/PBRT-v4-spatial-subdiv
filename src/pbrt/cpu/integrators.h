@@ -267,12 +267,14 @@ class GuidedPathIntegrator : public RayIntegrator {
         PGL_DIRECTIONAL_DISTRIBUTION_TYPE dtype {PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM};
         int treemaxsamplesperleaf {PGL_TREE_MAX_SAMPLE_PER_LEAF};
         int treeminsamplesperleaf {100};
+        int treeminsamplescandidatesplit {100};
         int treemaxdepth {32};
         int treemaxdepthwithsamplecount {32};
         bool treeenablece {true};
         bool treefailuredecay {false};
         bool treesinglesidepromotion {true};
         float treecethreshold {std::numeric_limits<float>::infinity()};
+        float treestdmultiplier {2.0f};
         float treemomentum {0.8f};
         float treececlampvalue {1e8f};
 

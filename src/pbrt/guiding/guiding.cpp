@@ -637,13 +637,15 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else throw std::runtime_error("Unknown dtype: " + dtype);
     settings.treemaxsamplesperleaf = parameters.GetOneInt("treemaxsamplesperleaf", PGL_TREE_MAX_SAMPLE_PER_LEAF);
     settings.treeminsamplesperleaf = parameters.GetOneInt("treeminsamplesperleaf", 100);
+    settings.treeminsamplescandidatesplit = parameters.GetOneInt("treeminsamplescandidatesplit", 100);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", 32);
     settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", 32);
     settings.treeenablece = parameters.GetOneBool("treeenablece", true);
     settings.treefailuredecay = parameters.GetOneBool("treefailuredecay", false);
     settings.treesinglesidepromotion = parameters.GetOneBool("treesinglesidepromotion", true);
     settings.treecethreshold = parameters.GetOneFloat("treecethreshold", std::numeric_limits<float>::infinity());
-    settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.8f);
+    settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", 1.0f);
+    settings.treemomentum = parameters.GetOneFloat("treemomentum", 0.25f);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", 1e8f);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
