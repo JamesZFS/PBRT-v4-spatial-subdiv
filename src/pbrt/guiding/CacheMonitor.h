@@ -20,9 +20,9 @@ public:
         float samples;
         float fluence;
         float coarseCE;
-        float coarseStd;
         float fineCE;
-        float fineStd;
+        float diffCE;
+        float diffCEStd;
     };
 
     struct Probe {
@@ -37,6 +37,7 @@ public:
         PlotType_Samples,
         PlotType_Fluence,
         PlotType_CE,
+        PlotType_DiffCE,
     };
 
     /// A window that plots a data field of the probes
@@ -101,10 +102,9 @@ private:
     float m_alpha = 0.5f;
     bool m_displayProbeID = false;
     bool m_autoFitAxes = true;
-    bool m_plotLookahead = true;
+    bool m_showLookahead = true;
     bool m_showIntegratedCE = false;
-    bool m_showCoarseStd = false;
-    bool m_showFineStd = false;
+    bool m_showStd = false;
 };
 
 

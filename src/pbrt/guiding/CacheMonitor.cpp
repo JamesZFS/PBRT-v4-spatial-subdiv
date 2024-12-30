@@ -25,14 +25,13 @@ void CacheMonitor::Plot::Draw() {
         ImGui::SameLine();
         ImGui::Checkbox("Auto Fit", &m_monitor.m_autoFitAxes);
         ImGui::SameLine();
-        ImGui::Checkbox("Lookaheads", &m_monitor.m_plotLookahead);
+        ImGui::Checkbox("Lookaheads", &m_monitor.m_showLookahead);
         ImGui::SameLine();
         ImGui::Checkbox("Integrated CE", &m_monitor.m_showIntegratedCE);
         ImGui::SameLine();
-        ImGui::Checkbox("Probe ID", &m_monitor.m_displayProbeID);
-        ImGui::Checkbox("Coarse Std", &m_monitor.m_showCoarseStd);
+        ImGui::Checkbox("Std", &m_monitor.m_showStd);
         ImGui::SameLine();
-        ImGui::Checkbox("Fine Std", &m_monitor.m_showFineStd);
+        ImGui::Checkbox("Probe ID", &m_monitor.m_displayProbeID);
     }
 
     ImPlotAxisFlags flags = ImPlotAxisFlags_NoLabel;
@@ -45,7 +44,7 @@ void CacheMonitor::Plot::Draw() {
         ImPlot::SetNextAxesToFit();
 
     ImPlotFlags plot_flags = ImPlotFlags_NoTitle;
-    const int yOffset = (int) m_type + 1;
+    const int yOffset = m_type == PlotType_DiffCE ? 6 : (int) m_type + 1;
     if (ImPlot::BeginPlot(m_title.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - (m_isMain ? ImGui::GetFrameHeightWithSpacing() : 0.f)), plot_flags)) {
         ImPlot::SetupAxes(nullptr, nullptr, flags, flags);
         // Hovering behavior: draw a vertical line for all plots at the same x position
@@ -77,34 +76,26 @@ void CacheMonitor::Plot::Draw() {
             auto lineColor = ImPlot::GetColormapColor(i);
             ImPlot::SetNextLineStyle(lineColor);
             ImPlot::PlotLine(label.c_str(), x, x + yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
-            if (m_type == PlotType_CE && m_monitor.m_showCoarseStd) {
-                auto barColor = ImPlot::GetStyleColorVec4(ImPlotCol_ErrorBar);
-                barColor.w = 0.5f + 0.5f * m_monitor.m_alpha;
+            if ((m_type == PlotType_CE || m_type == PlotType_DiffCE) && m_monitor.m_showStd) {
+                auto barColor = LerpImVec4(0.5, lineColor, {1, 1, 1, 1});
                 float barSize = 2 * m_monitor.m_markerSize;
                 ImPlot::SetNextErrorBarStyle(barColor, barSize);
-                ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].coarseStd, probe.data.size(), 0, 0, sizeof(PlotEntry));
+                ImPlot::PlotErrorBars(label.c_str(), x, x + yOffset, &probe.data[0].diffCEStd, probe.data.size(), 0, 0, sizeof(PlotEntry));
             }
-            if (m_type == PlotType_CE && m_monitor.m_plotLookahead) {  // Plot the child CE
-                // auto barColor = ImPlot::GetStyleColorVec4(ImPlotCol_ErrorBar);
-                // barColor.w = 0.5f + 0.5f * m_monitor.m_alpha;
-                // float barSize = 2 * m_monitor.m_markerSize;
-                // ImPlot::SetNextErrorBarStyle(barColor, barSize);
-                // ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].negerr, &probe.data[0].poserr, probe.data.size(), 0, 0, sizeof(PlotEntry));
-                // ImPlot::SetNextLineStyle(ImVec4(lineColor.x, lineColor.y, lineColor.z, m_monitor.m_alpha));
-                // ImPlot::PlotLine(label.c_str(), x, &probe.data[0].splitCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
+            if (m_type == PlotType_CE && m_monitor.m_showLookahead) {  // Plot the child CE
                 ImPlot::PlotShaded(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].fineCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
-                if (m_monitor.m_showFineStd) {
-                    auto barColor = ImPlot::GetStyleColorVec4(ImPlotCol_ErrorBar);
-                    barColor.w = 0.5f + 0.5f * m_monitor.m_alpha;
-                    float barSize = 2 * m_monitor.m_markerSize;
-                    ImPlot::SetNextErrorBarStyle(barColor, barSize);
-                    ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].fineCE, &probe.data[0].fineStd, probe.data.size(), 0, 0, sizeof(PlotEntry));
-                }
             }
-            if (m_type == PlotType_CE && m_monitor.m_showIntegratedCE) {  // Plot a horizontal line
+            if (m_type == PlotType_CE && m_monitor.m_showIntegratedCE) {  // Plot the reference CE value
                 double ce = m_parent->GetCrossEntropySDR();
                 ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
                 ImPlot::Annotation(0, ce, ImVec4(0, 0, 0, 0), ImVec2(0, -5), true, m_parent->IsShowingFine() ? "Lookahead" : "Parent");
+            }
+            if (m_type == PlotType_DiffCE) {  // Plot the x-axis and split threshold
+                double zero = 0;
+                ImPlot::DragLineY(0, &zero, ImVec4(1, 1, 1, 0.2), 1, ImPlotDragToolFlags_NoInputs);
+                double ths = m_parent->GetSubdivCfg().ceThreshold;
+                ImPlot::DragLineY(0, &ths, ImVec4(1, 1, 0, 0.3), 1, ImPlotDragToolFlags_NoInputs);
+                ImPlot::Annotation(0, ths, ImVec4(0, 0, 0, 0), ImVec2(0, 5), true, "Split Threshold");
             }
         }
         ImPlot::EndPlot();

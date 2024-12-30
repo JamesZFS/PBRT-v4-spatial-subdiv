@@ -80,6 +80,7 @@ int Application::Run() {
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
     m_cacheMonitor.ce = &m_cacheMonitor.object->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
+    m_cacheMonitor.diffCE = &m_cacheMonitor.object->AddPlot("Diff CE vs. Iter", CacheMonitor::PlotType_DiffCE, true);
     m_cacheMonitor.fluence = &m_cacheMonitor.object->AddPlot("Fluence vs. Iter", CacheMonitor::PlotType_Fluence, false);
     m_cacheMonitor.depth = &m_cacheMonitor.object->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
     m_cacheMonitor.samples = &m_cacheMonitor.object->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
@@ -258,7 +259,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightMidDock);
-        for (auto s: {"CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"})
+        for (auto s: {"CE Curve", "Diff CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"})
             ImGui::DockBuilderDockWindow(s, rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
@@ -311,6 +312,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Diff CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
@@ -366,7 +368,7 @@ void Application::SetupLayoutProbeViews() {
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         for (auto s: {"Settings", "Ray Casting History",
             "Fluence Histogram", "CE Histogram", "Depth Histogram", "Samples Histogram",
-            "CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
+            "CE Curve", "Diff CE Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
         })
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
@@ -429,6 +431,7 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Radiance View", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Diff CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightMidDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightTopDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", rightTopDock);
@@ -477,6 +480,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
         ImGui::DockBuilderDockWindow("Ray Casting History", leftMidDock);
         ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Diff CE Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
@@ -808,9 +812,9 @@ void Application::CacheProbesInteraction() {
                         coarseValid ? (float) rc.coarse.numSamples : nan,
                         coarseValid ? rc.coarse.fluence : nan,
                         coarseValid ? rc.coarse.crossEntropy : nan,
-                        coarseValid ? rc.coarse.ceStd : nan,
                         fineValid ? rc.fine.crossEntropy : nan,
-                        fineValid ? rc.fine.ceStd : nan,
+                        fineValid ? rc.coarse.crossEntropy - rc.fine.crossEntropy : nan,
+                        fineValid ? rc.coarse.diffCEStd : nan,
                     });
                 }
             });
@@ -882,9 +886,9 @@ void Application::UpdateCacheCurves() {
                 coarseValid ? (float) rc.coarse.numSamples : nan,
                 coarseValid ? rc.coarse.fluence : nan,
                 coarseValid ? rc.coarse.crossEntropy : nan,
-                coarseValid ? rc.coarse.ceStd : nan,
                 fineValid ? rc.fine.crossEntropy : nan,
-                fineValid ? rc.fine.ceStd : nan,
+                fineValid ? rc.coarse.crossEntropy - rc.fine.crossEntropy : nan,
+                fineValid ? rc.coarse.diffCEStd : nan,
             });
         }
     });
@@ -1289,6 +1293,10 @@ void Application::CacheMonitorViews() {
     bool enableMonitor = false;
     if (enableMonitor |= ImGui::Begin("CE Curve"))
         m_cacheMonitor.ce->Draw();
+    ImGui::End();
+
+    if (enableMonitor |= ImGui::Begin("Diff CE Curve"))
+        m_cacheMonitor.diffCE->Draw();
     ImGui::End();
 
     if (enableMonitor |= ImGui::Begin("Fluence Curve"))

@@ -55,6 +55,11 @@ extern const char* cmap_names[CMap_Count];
 
 extern GLuint cmap_tex_ids[CMap_Count];
 
+inline ImVec4 LerpImVec4(float t, const ImVec4 &a, const ImVec4 &b) {
+    using pbrt::Lerp;
+    return {Lerp(t, a.x, b.x), Lerp(t, a.y, b.y), Lerp(t, a.z, b.z), Lerp(t, a.w, b.w)};
+}
+
 void ConfigureTonemapShader(Shader &shader, GLuint sourceTex, bool singleChannel, const TonemapShaderUniforms &uniforms);
 
 bool IsSingleChannel(SelectedChannel channel);

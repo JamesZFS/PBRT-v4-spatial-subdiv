@@ -180,7 +180,7 @@ private:
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;
-        CacheMonitor::Plot *ce, *fluence, *depth, *samples;
+        CacheMonitor::Plot *ce, *diffCE, *fluence, *depth, *samples;
     } m_cacheMonitor;
     struct {
         std::unique_ptr<CacheHistogram> object;
