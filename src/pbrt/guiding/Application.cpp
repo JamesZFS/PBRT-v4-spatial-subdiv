@@ -429,9 +429,9 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Radiance View", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
-        ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
-        ImGui::DockBuilderDockWindow("Samples Curve", rightMidDock);
-        ImGui::DockBuilderDockWindow("Fluence Curve", rightMidDock);
+        ImGui::DockBuilderDockWindow("Depth Curve", rightMidDock);
+        ImGui::DockBuilderDockWindow("Samples Curve", rightTopDock);
+        ImGui::DockBuilderDockWindow("Fluence Curve", rightTopDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -1214,7 +1214,7 @@ void Application::IntegratorSettings() {
         if (m_samplerPrototype.Is<IndependentSampler>()) {
             auto *sampler = m_samplerPrototype.Cast<IndependentSampler>();
             int spp = m_spp;
-            if (ImGui::InputInt("SPP", &spp)) {
+            if (ImGui::InputInt("SPP", &spp, 10, 100)) {
                 m_spp = std::max(1, spp);
                 sampler->SetSamplesPerPixel(m_spp);
                 m_samplers.ForAll([&](Sampler s) {
