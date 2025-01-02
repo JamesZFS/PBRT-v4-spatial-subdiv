@@ -1281,6 +1281,7 @@ void Application::SpatialSubdivisionSettings() {
         ImGui::DragFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.03f, -100, +100, "%.3f", ImGuiSliderFlags_Logarithmic);
         ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         ImGui::Checkbox("Failure Decay", &m_subdivCfg.failureDecay);
+        ImGui::SliderFloat("Stats Decay", &m_subdivCfg.statsDecay, 0.0f, 1.0f);
         ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         if (ImGui::Button("Clear CE Statistics")) {

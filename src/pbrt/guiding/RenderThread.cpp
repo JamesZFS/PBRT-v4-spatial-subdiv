@@ -125,6 +125,8 @@ void RenderThread::Run() {
                 m_state = Rendering;
                 m_renderStep(m_waveStart++);
                 renderedSomething = true;
+            } else {
+                m_autoPlayed = false;
             }
         } else if (cmd == Forward) {
             m_forwarding = true;
