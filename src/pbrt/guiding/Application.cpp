@@ -1328,7 +1328,7 @@ void Application::IntegratorSettings() {
         if (m_samplerPrototype.Is<IndependentSampler>()) {
             auto *sampler = m_samplerPrototype.Cast<IndependentSampler>();
             int spp = m_spp;
-            if (ImGui::InputInt("SPP", &spp)) {
+            if (ImGui::InputInt("SPP", &spp, 10, 100)) {
                 m_spp = std::max(1, spp);
                 sampler->SetSamplesPerPixel(m_spp);
                 m_samplers.ForAll([&](Sampler s) {
