@@ -49,6 +49,7 @@ private:
     bool m_showStd = true;
     bool m_showMultipliedStd = true;
     int m_splitDimension = 3;
+    uint8_t m_bestDimension = 3;
 
     struct {
         bool valid = false;
