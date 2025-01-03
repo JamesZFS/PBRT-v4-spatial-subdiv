@@ -89,6 +89,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
         guiding_fieldSubdivConfig.enableThreeSplits = guideSettings.treeenablethreesplits;
+        guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -641,6 +642,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
     settings.treeenablethreesplits = parameters.GetOneBool("treeenablethreesplits", settings.treeenablethreesplits);
+    settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
