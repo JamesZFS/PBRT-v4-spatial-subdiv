@@ -274,7 +274,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool treefailuredecay {false};
         bool treesinglesidepromotion {true};
         float treecethreshold {std::numeric_limits<float>::infinity()};
-        float treestdmultiplier {1.0f};
+        float treesafestdmeanratio {0.1f};
         float treecedecay {0.8f};
         float treestatsdecay {0.25f};
         float treececlampvalue {1e8f};

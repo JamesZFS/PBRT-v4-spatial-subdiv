@@ -1277,7 +1277,7 @@ void Application::SpatialSubdivisionSettings() {
         ImGui::Checkbox("Enable CE", &m_subdivCfg.enableCE);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Single-side Promotion", &m_subdivCfg.singleSidePromotion);
-        ImGui::DragFloat("Std Multiplier", &m_subdivCfg.stdMultiplier, 0.02f, 0, 10, "%.3f", ImGuiSliderFlags_Logarithmic);
+        ImGui::DragFloat("Safe Std Mean Ratio", &m_subdivCfg.safeStdMeanRatio, 0.02f, 0, 10, "%.3f", ImGuiSliderFlags_Logarithmic);
         ImGui::DragFloat("CE Threshold", &m_subdivCfg.ceThreshold, 0.03f, -100, +100, "%.3f", ImGuiSliderFlags_Logarithmic);
         ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         ImGui::Checkbox("Failure Decay", &m_subdivCfg.failureDecay);
