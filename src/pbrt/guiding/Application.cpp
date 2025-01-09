@@ -724,7 +724,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
     ImGui::Text("CE: %f", coarse.crossEntropy);
     ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(coarse.numSamples).c_str(), FormatInteger(coarse.numZeroValueSamples).c_str());
     ImGui::Text("Depth: %d", (int) coarse.depth);
-    if (coarse.hasCandidateSplit) {
+    if (coarse.splitDim < 3) {
         ImGui::Text("Candidate Split Dim: %d", coarse.splitDim);
         ImGui::Text("Candidate Split Pos: %f", coarse.splitPos);
     }
