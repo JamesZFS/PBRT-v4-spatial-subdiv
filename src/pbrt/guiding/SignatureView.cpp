@@ -44,8 +44,8 @@ void SignatureView::Rescale() {
 void SignatureView::Update() {
     pgl_point3f pglP = {m_prev.pos.x, m_prev.pos.y, m_prev.pos.z};
     m_cachedSignature = m_field.GetDirectionalSignature(pglP);
-    m_cachedSignaturesLR = m_field.GetLRDirectionalSignatures(pglP, m_splitDimension);
-    m_bestDimension = m_field.GetDirectionalSignatureBestDim(pglP);
+    m_cachedSignaturesLR = m_field.GetLRDirectionalSignatures(pglP);
+    m_bestDimension = m_field.GetCandidateSplitDim(pglP);
 }
 
 void SignatureView::Clear() {
@@ -191,11 +191,6 @@ void SignatureView::DrawLR() {
     ImGui::Checkbox("Std", &m_showStd);
     ImGui::SameLine();
     ImGui::Checkbox("Multiplied Std", &m_showMultipliedStd);
-    ImGui::SameLine();
-    ImGui::SetNextItemWidth(90);
-    if (ImGui::Combo("Dimension", &m_splitDimension, "x\0y\0z\0best\0")) {
-        if (m_prev.valid) Update();
-    }
 
     static float left_std[PGL_SIGNATURE_MAX_SIZE], right_std[PGL_SIGNATURE_MAX_SIZE];
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
@@ -248,15 +243,11 @@ void SignatureView::DrawLR() {
             m_cachedSignaturesLR.second.signature[idx], m_cachedSignaturesLR.second.std[idx]);
     } else {
         float energy = getDistanceSMAPE(m_cachedSignaturesLR.first, m_cachedSignaturesLR.second, m_parent->GetSignatureStdMultiplier());
-        if (m_splitDimension == 3) {
-            if (m_bestDimension == 3) {
-                ImGui::Text("Invalid");
-            } else {
-                static const char dim_ch[] = {'x', 'y', 'z'};
-                ImGui::Text("Best Dimension: %c  Energy: %.4f", dim_ch[m_bestDimension], energy);
-            }
+        if (m_bestDimension == 3) {
+            ImGui::Text("Invalid");
         } else {
-            ImGui::Text("Energy: %.4f", energy);
+            static const char dim_ch[] = {'x', 'y', 'z'};
+            ImGui::Text("Best Dimension: %c  Energy: %.4f", dim_ch[m_bestDimension], energy);
         }
     }
 }
