@@ -1388,7 +1388,9 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamplesCandidateSplit = std::max(0, minSamplesCandidateSplit);
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
-        ImGui::Checkbox("Enable Three Splits", &m_subdivCfg.enableThreeSplits);
+        int lookaheadDepth = (int) m_subdivCfg.lookaheadDepth;
+        _(), ImGui::InputInt("Lookahead Depth", &lookaheadDepth, 1, 3);
+        m_subdivCfg.lookaheadDepth = std::max(1, std::min(10, lookaheadDepth));
         _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
         // _(), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         // _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
