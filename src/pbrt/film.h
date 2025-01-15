@@ -170,6 +170,18 @@ class VisibleSurface {
         float fluence = 0;
         float ce = 0;
         float energy = 0;
+
+        GuidingData &operator=(const GuidingData &other) {
+            if (other.id != -1) id = other.id;
+            if (other.fineId != -1) fineId = other.fineId;
+            numSamples = other.numSamples;
+            numZeroValueSamples = other.numZeroValueSamples;
+            depth = other.depth;
+            fluence = other.fluence;
+            ce = other.ce;
+            energy = other.energy;
+            return *this;
+        }
     } guidingData;
 
 };

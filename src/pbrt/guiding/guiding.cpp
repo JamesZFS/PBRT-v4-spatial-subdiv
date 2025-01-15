@@ -87,6 +87,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
         guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
+        guiding_fieldSubdivConfig.stdMultiplier = guideSettings.treestdmultiplier;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
@@ -465,7 +466,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 visibleSurf->guidingData.numZeroValueSamples = coarse.numZeroValueSamples;
                 visibleSurf->guidingData.depth = coarse.depth;
                 visibleSurf->guidingData.fluence = coarse.fluence;
-                visibleSurf->guidingData.energy = coarse.energy;
+                visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
             }
         }
 
@@ -640,6 +641,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", settings.treemaxdepthwithsamplecount);
     settings.treelookaheaddepth = parameters.GetOneInt("treelookaheaddepth", settings.treelookaheaddepth);
     settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
+    settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);

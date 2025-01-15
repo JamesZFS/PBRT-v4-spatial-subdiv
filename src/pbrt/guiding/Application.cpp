@@ -719,11 +719,15 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Cache ID Parent/Child: %u/%u", coarse.id, fine.id);
     else
         ImGui::Text("Cache ID: %u", coarse.id);
-    ImGui::Text("Energy: %f", coarse.energy);
-    ImGui::Text("Fluence: %f", coarse.fluence);
-    ImGui::Text("CE: %f", coarse.crossEntropy);
-    ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(coarse.numSamples).c_str(), FormatInteger(coarse.numZeroValueSamples).c_str());
-    ImGui::Text("Depth: %d", (int) coarse.depth);
+    auto f = [](const PGLRegionStatistics &stats) {
+        ImGui::Text("Energy: %f", stats.energy);
+        ImGui::Text("Fluence: %f", stats.fluence);
+        ImGui::Text("CE: %f", stats.crossEntropy);
+        ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
+        ImGui::Text("Depth: %d", (int) stats.depth);
+    };
+    if (IsShowingFine() && fineIsValid) f(fine);
+    else f(coarse);
     if (coarse.splitDim < 3) {
         ImGui::Text("Candidate Split Dim: %d", coarse.splitDim);
         ImGui::Text("Candidate Split Pos: %f", coarse.splitPos);
