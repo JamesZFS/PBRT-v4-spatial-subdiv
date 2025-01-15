@@ -272,6 +272,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         int treemaxdepthwithsamplecount {12};
         int treelookaheaddepth {3};
         float treeadaptivethreshold {0.1f};
+        float treestdmultiplier {1.0f};
         float treecedecay {0.0f};
         float treececlampvalue {1e8f};
         bool treeenablepromotion {true};
