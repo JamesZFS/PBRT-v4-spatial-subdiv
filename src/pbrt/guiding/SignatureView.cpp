@@ -43,16 +43,16 @@ void SignatureView::Rescale() {
 
 void SignatureView::Update() {
     pgl_point3f pglP = {m_prev.pos.x, m_prev.pos.y, m_prev.pos.z};
-    m_cachedSignature = m_field.GetDirectionalSignature(pglP);
-    m_cachedSignaturesLR = m_field.GetLRDirectionalSignatures(pglP);
-    m_bestDimension = m_field.GetCandidateSplitDim(pglP);
+    m_cachedSignaturesLR = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, m_splitDim, m_isRight);
+    m_cachedSignature = m_isRight ? m_cachedSignaturesLR.second : m_cachedSignaturesLR.first;
 }
 
 void SignatureView::Clear() {
     m_prev.valid = false;
-    m_cachedSignature = {};
     m_cachedSignaturesLR = {};
-    m_bestDimension = 3;
+    m_cachedSignature = {};
+    m_splitDim = 3;
+    m_isRight = false;
 }
 
 void SignatureView::Draw() {
@@ -89,6 +89,12 @@ static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirecti
 }
 
 void SignatureView::DrawColored() {
+    ImGui::SetNextItemWidth(80);
+    if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
+        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 1, (int) m_parent->GetSubdivCfg().lookaheadDepth);
+        if (m_prev.valid) Update();
+    }
+    ImGui::SameLine();
     if (ImGui::Button("Reset")) {
         m_scale = 1.0f;
     }
@@ -152,6 +158,12 @@ void SignatureView::DrawColored() {
 }
 
 void SignatureView::DrawBars() {
+    ImGui::SetNextItemWidth(80);
+    if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
+        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 1, (int) m_parent->GetSubdivCfg().lookaheadDepth);
+        if (m_prev.valid) Update();
+    }
+    ImGui::SameLine();
     ImGui::Checkbox("Std", &m_showStd);
     ImGui::SameLine();
     ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
@@ -188,6 +200,12 @@ void SignatureView::DrawBars() {
 }
 
 void SignatureView::DrawLR() {
+    ImGui::SetNextItemWidth(80);
+    if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
+        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 1, (int) m_parent->GetSubdivCfg().lookaheadDepth);
+        if (m_prev.valid) Update();
+    }
+    ImGui::SameLine();
     ImGui::Checkbox("Std", &m_showStd);
     ImGui::SameLine();
     ImGui::Checkbox("Multiplied Std", &m_showMultipliedStd);
@@ -243,11 +261,11 @@ void SignatureView::DrawLR() {
             m_cachedSignaturesLR.second.signature[idx], m_cachedSignaturesLR.second.std[idx]);
     } else {
         float energy = getDistanceSMAPE(m_cachedSignaturesLR.first, m_cachedSignaturesLR.second, m_parent->GetSignatureStdMultiplier());
-        if (m_bestDimension == 3) {
+        if (m_splitDim == 3) {
             ImGui::Text("Invalid");
         } else {
             static const char dim_ch[] = {'x', 'y', 'z'};
-            ImGui::Text("Best Dimension: %c  Energy: %.4f", dim_ch[m_bestDimension], energy);
+            ImGui::Text("Dimension: %c  Energy: %.4f", dim_ch[m_splitDim], energy);
         }
     }
 }

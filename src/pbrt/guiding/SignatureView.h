@@ -38,8 +38,10 @@ private:
 
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
-    PGLDirectionalSignature m_cachedSignature{};
     std::pair<PGLDirectionalSignature, PGLDirectionalSignature> m_cachedSignaturesLR{};
+    PGLDirectionalSignature m_cachedSignature{};
+    uint8_t m_splitDim = 3;
+    bool m_isRight;
     PGLDirectionalSignature &m_integratedSignature;
     pbrt::RGB m_selectionBuffer[PGL_SIGNATURE_MAX_SIZE];
 
@@ -48,7 +50,7 @@ private:
     bool m_showIntegratedSignature = false;
     bool m_showStd = true;
     bool m_showMultipliedStd = true;
-    uint8_t m_bestDimension = 3;
+    int m_lookaheadDepth = 1;
 
     struct {
         bool valid = false;

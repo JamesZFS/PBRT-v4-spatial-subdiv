@@ -725,13 +725,14 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("CE: %f", stats.crossEntropy);
         ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
+        if (stats.splitDim < 3) {
+            static const char dim_ch[] = {'x', 'y', 'z'};
+            ImGui::Text("Candidate Split Dim: %c", dim_ch[stats.splitDim]);
+            ImGui::Text("Candidate Split Pos: %f", stats.splitPos);
+        }
     };
     if (IsShowingFine() && fineIsValid) f(fine);
     else f(coarse);
-    if (coarse.splitDim < 3) {
-        ImGui::Text("Candidate Split Dim: %d", coarse.splitDim);
-        ImGui::Text("Candidate Split Pos: %f", coarse.splitPos);
-    }
     // ImGui::Text("Sample Mean: (%.4f, %.4f, %.4f)", coarse.sampleMean[0], coarse.sampleMean[1], coarse.sampleMean[2]);
     // ImGui::Text("Sample Variance: (%.4f, %.4f, %.4f)", coarse.sampleVariance[0], coarse.sampleVariance[1], coarse.sampleVariance[2]);
 }
@@ -788,7 +789,10 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
         m_rcHistory += "Child Cache:\n";
         m_rcHistory += printCache(rc.fine);
         pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
-        auto ds = m_field.GetDirectionalSignature(pglP);
+        uint8_t splitDim;
+        bool isRight;
+        auto signatures = m_field.GetDirectionalSignatures(pglP, 1, splitDim, isRight);
+        auto ds = isRight ? signatures.second : signatures.first;
         m_rcHistory += "Directional Signature:\n"
             "  Mean: " + printDS(ds) + "\n"
             "  Std:  " + printDSV(ds) + "\n";
@@ -1333,6 +1337,11 @@ void Application::IntegratorSettings() {
             auto *sampler = m_samplerPrototype.Cast<IndependentSampler>();
             int spp = m_spp;
             if (ImGui::InputInt("SPP", &spp, 10, 100)) {
+                // Ctrl + click "+" => double SPP
+                if (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)) {
+                    if (spp > m_spp) spp = 2 * m_spp;
+                    else spp = m_spp >> 1;
+                }
                 m_spp = std::max(1, spp);
                 sampler->SetSamplesPerPixel(m_spp);
                 m_samplers.ForAll([&](Sampler s) {
