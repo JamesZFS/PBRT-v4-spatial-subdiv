@@ -92,6 +92,8 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
         guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
+        pglSetOctahedralResolution(guideSettings.octahedralresolution);
+        pglSetSignatureSize(guideSettings.numbins);
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -647,6 +649,13 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
     settings.treemultiplycosine = parameters.GetOneBool("treemultiplycosine", settings.treemultiplycosine);
+
+    settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
+    if (settings.octahedralresolution < 0)
+        ErrorExit(loc, "Invalid octahedral resolution %d: only positive values are supported.", settings.octahedralresolution);
+    settings.numbins = parameters.GetOneInt("numbins", settings.numbins);
+    if (settings.numbins <= 0 || settings.numbins > 8)
+        ErrorExit(loc, "Invalid number of bins %d: only 1-8 are supported.", settings.numbins);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);

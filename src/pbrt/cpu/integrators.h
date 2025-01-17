@@ -278,6 +278,9 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool treeenablepromotion {true};
         bool treemultiplycosine {false};
 
+        int octahedralresolution {64};
+        int numbins {8};
+
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};
         std::string guidingCacheFileName {""};
