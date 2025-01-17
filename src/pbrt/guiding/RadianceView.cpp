@@ -198,17 +198,17 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
     m_cpuBuffer[index] = Lerp(1 / (Float) (sampleIndex + 1), m_cpuBuffer[index], rgb);
     if (cameraRay) {
         auto d = cameraRay->ray.d;
-        if (Dot(d, m_prev.normal) < 0) {
+        if (float cosineTerm = Dot(d, m_prev.normal); cosineTerm < 0) {
             m_cpuBuffer[index] = RGB(0, 0, 0);
         } else {
             float val = RGBToScalar(m_cpuBuffer[index]);
             float cosTheta;
-            if (m_localFrame) cosTheta = Clamp(Dot(d, m_prev.normal), -1, 1);
+            if (m_localFrame) cosTheta = Clamp(cosineTerm, -1, 1);
             else cosTheta = d.z;
             float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
             thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
             uint8_t binIdx = m_binIndexBuffer[index];
-            thread_signature.signature[binIdx] += val * sinTheta * m_stepPhi * m_stepTheta;
+            thread_signature.signature[binIdx] += val * sinTheta * m_stepPhi * m_stepTheta * (m_parent->GetSubdivCfg().multiplyCosine ? cosineTerm : 1.0f);
         }
     }
 }

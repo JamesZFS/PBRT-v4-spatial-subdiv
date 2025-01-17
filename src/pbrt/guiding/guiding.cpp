@@ -91,6 +91,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
+        guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -465,7 +466,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 visibleSurf->guidingData.numSamples = coarse.numSamples;
                 visibleSurf->guidingData.numZeroValueSamples = coarse.numZeroValueSamples;
                 visibleSurf->guidingData.depth = coarse.depth;
-                visibleSurf->guidingData.fluence = coarse.fluence;
+                visibleSurf->guidingData.fluence = fine.fluence;
                 visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
             }
         }
@@ -645,6 +646,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
+    settings.treemultiplycosine = parameters.GetOneBool("treemultiplycosine", settings.treemultiplycosine);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
