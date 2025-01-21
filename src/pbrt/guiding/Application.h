@@ -15,6 +15,7 @@
 #include "ColormapPanel.h"
 #include "CacheMonitor.h"
 #include "CacheHistogram.h"
+#include "Plots.h"
 #include <pbrt/cpu/integrators.h>
 
 namespace openpgl {
@@ -111,6 +112,7 @@ private:
     void UpdateCPUBufferFromFilm();
     void UpdateCacheCurves();
     void UpdateCacheHistograms();
+    void UpdatePlots();
     void UpdateSamplingDistributionView();
     void NewRadianceViewRendering();
     void RadianceViewRenderStep();
@@ -130,6 +132,7 @@ private:
     void SpatialSubdivisionSettings();
     void CacheMonitorViews();
     void CacheHistogramViews();
+    void PlotsView();
 
     Camera m_camera;
     Film m_film;
@@ -168,12 +171,13 @@ private:
     bool m_enableShortcuts = true;
     bool m_enableRayCastingAtMouse = false;
 
-    bool m_enableCurve = false;
+    bool m_enableMonitor = false;
     bool m_enableHistogram = false;
     bool m_enableSamplingDistributionView = false;
     bool m_enableRadianceView = false;
     bool m_enableSignatureView = false;
     bool m_enableRayCastingHistory = false;
+    bool m_enablePlots = false;
     bool m_enableImGuiDemo = false;
     bool m_enableImPlotDemo = false;
 
@@ -196,6 +200,10 @@ private:
         std::unique_ptr<CacheHistogram> object;
         CacheHistogram::Hist *fluence, *energy, *depth, *samples;
     } m_cacheHistogram;
+    struct {
+        std::unique_ptr<PlotManager> object;
+        PlotManager::Plot *regions, *error, *renderingTime, *trainingTime;
+    } m_plots;
 
     mutable struct {
         std::mutex field, subdivCfg;
