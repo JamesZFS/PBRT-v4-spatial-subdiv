@@ -95,7 +95,7 @@ void CacheMonitor::Plot::Draw() {
                 ImPlot::DragLineY(0, &zero, ImVec4(1, 1, 1, 0.2), 1, ImPlotDragToolFlags_NoInputs);
                 double ths = m_parent->GetSubdivCfg().ceThreshold;
                 ImPlot::DragLineY(0, &ths, ImVec4(1, 1, 0, 0.3), 1, ImPlotDragToolFlags_NoInputs);
-                ImPlot::Annotation(0, ths, ImVec4(0, 0, 0, 0), ImVec2(0, 5), true, "Split Threshold");
+                // ImPlot::Annotation(0, ths, ImVec4(0, 0, 0, 0), ImVec2(0, 5), true, "Split Threshold");
             }
         }
         ImPlot::EndPlot();
