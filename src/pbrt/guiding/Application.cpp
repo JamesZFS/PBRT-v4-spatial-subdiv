@@ -94,6 +94,12 @@ int Application::Run() {
     m_cacheHistogram.depth = &m_cacheHistogram.object->AddPlot("Depth Histogram", CacheHistogram::PlotType_Depth, false);
     m_cacheHistogram.samples = &m_cacheHistogram.object->AddPlot("Samples Histogram", CacheHistogram::PlotType_Samples, false);
 
+    m_plots.object = std::make_unique<PlotManager>(this);
+    m_plots.regions = &m_plots.object->AddPlot("regions");
+    m_plots.error = &m_plots.object->AddPlot("error");
+    m_plots.renderingTime = &m_plots.object->AddPlot("rendering time");
+    m_plots.trainingTime = &m_plots.object->AddPlot("training time");
+
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 
@@ -168,8 +174,9 @@ void Application::Draw() {
     if (m_enableImGuiDemo) ImGui::ShowDemoWindow(&m_enableImGuiDemo);
     if (m_enableImPlotDemo) ImPlot::ShowDemoWindow(&m_enableImPlotDemo);
 
-    if (m_enableCurve) CacheMonitorViews();
+    if (m_enableMonitor) CacheMonitorViews();
     if (m_enableHistogram) CacheHistogramViews();
+    if (m_enablePlots) PlotsView();
 
     if (m_enableRadianceView) {
         if (ImGui::Begin("Radiance View", &m_enableRadianceView))
@@ -231,7 +238,7 @@ void Application::SetupLayout() {
 
 void Application::SetupLayoutDefault() {
     if (!m_hasSetupLayout) {
-        m_enableCurve = false;
+        m_enableMonitor = false;
         m_enableHistogram = false;
         m_enableSamplingDistributionView = true;
         m_enableRadianceView = true;
@@ -280,7 +287,8 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
-        for (auto s: {"CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View"})
+        for (auto s: {"CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View",
+            "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot"})
             ImGui::DockBuilderDockWindow(s, rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
@@ -292,7 +300,7 @@ void Application::SetupLayoutDefault() {
 
 void Application::SetupLayoutCompact() {
     if (!m_hasSetupLayout) {
-        m_enableCurve = false;
+        m_enableMonitor = false;
         m_enableHistogram = false;
         m_enableSamplingDistributionView = false;
         m_enableRadianceView = false;
@@ -349,6 +357,10 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Depth Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Histogram", rightBottomDock);
         ImGui::DockBuilderDockWindow("Signature View", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Regions Plot", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Error Plot", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Rendering Time Plot", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Training Time Plot", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -359,7 +371,7 @@ void Application::SetupLayoutCompact() {
 
 void Application::SetupLayoutProbeViews() {
     if (!m_hasSetupLayout) {
-        m_enableCurve = false;
+        m_enableMonitor = false;
         m_enableHistogram = false;
         m_enableSamplingDistributionView = true;
         m_enableRadianceView = true;
@@ -405,7 +417,8 @@ void Application::SetupLayoutProbeViews() {
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         for (auto s: {"Settings",
             "Fluence Histogram", "Energy Histogram", "Depth Histogram", "Samples Histogram",
-            "CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve"
+            "CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve",
+            "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot"
         })
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
@@ -421,7 +434,7 @@ void Application::SetupLayoutProbeViews() {
 
 void Application::SetupLayoutCacheMonitor() {
     if (!m_hasSetupLayout) {
-        m_enableCurve = true;
+        m_enableMonitor = true;
         m_enableHistogram = false;
         m_enableSamplingDistributionView = false;
         m_enableRadianceView = false;
@@ -475,6 +488,10 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Samples Histogram", leftBottomDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Regions Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Error Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Rendering Time Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Training Time Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Energy Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
@@ -491,7 +508,7 @@ void Application::SetupLayoutCacheMonitor() {
 
 void Application::SetupLayoutHistograms() {
     if (!m_hasSetupLayout) {
-        m_enableCurve = false;
+        m_enableMonitor = false;
         m_enableHistogram = true;
         m_enableSamplingDistributionView = false;
         m_enableRadianceView = false;
@@ -541,6 +558,10 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Samples Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", leftBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Regions Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Error Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Rendering Time Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Training Time Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Histograms", right);
         ImGui::DockBuilderFinish(dockSpaceID);
@@ -568,6 +589,7 @@ void Application::SetupRenderThread() {
             UpdateField(waveStart);
             UpdateCacheCurves();
             UpdateCacheHistograms();
+            UpdatePlots();
             UpdateSamplingDistributionView();
             UpdateSignatureView();
             RenderWave(waveStart);
@@ -858,7 +880,7 @@ void Application::SDREViewInteraction() {
 }
 
 void Application::CacheProbesInteraction() {
-    if (!m_enableCurve) return;
+    if (!m_enableMonitor) return;
     // Draw all probes
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
     ImVec2 leftTop = m_viewport->GetLeftTop();
@@ -956,6 +978,7 @@ void Application::RestartRendering(bool resetCache) {
     m_cacheHistogram.object->Clear();
     m_samplingDistributionView->Clear();
     m_signatureView->Clear();
+    m_plots.object->ClearCurrent();
 }
 
 void Application::UpdateCPUBufferFromFilm() {
@@ -1006,6 +1029,15 @@ void Application::UpdateCacheHistograms() {
         }
     });
     m_cacheHistogram.object->RequestFitAxes();
+}
+
+void Application::UpdatePlots() {
+    float x = GetCurrentWave();
+    m_plots.object->AppendData("regions", x, m_waveStats.numRegions);
+    m_plots.object->AppendData("error", x, m_viewport->GetMeanError());
+    m_plots.object->AppendData("rendering time", x, m_waveStats.renderMS);
+    m_plots.object->AppendData("training time", x, m_waveStats.postprocessMS);
+    m_plots.object->RequestFitAxes();
 }
 
 void Application::UpdateSamplingDistributionView() {
@@ -1136,8 +1168,9 @@ void Application::MainMenu() {
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Tools")) {
-            if (ImGui::MenuItem("Cache Curves", 0, m_enableCurve)) m_enableCurve ^= true;
+            if (ImGui::MenuItem("Cache Curves", 0, m_enableMonitor)) m_enableMonitor ^= true;
             if (ImGui::MenuItem("Cache Histograms", 0, m_enableHistogram)) m_enableHistogram ^= true;
+            if (ImGui::MenuItem("Plots", 0, m_enablePlots)) m_enablePlots ^= true;
             ImGui::Separator();
             if (ImGui::MenuItem("Radiance View", 0, m_enableRadianceView)) m_enableRadianceView ^= true;
             if (ImGui::MenuItem("Sampling Distribution", 0, m_enableSamplingDistributionView)) m_enableSamplingDistributionView ^= true;
@@ -1494,6 +1527,24 @@ void Application::CacheHistogramViews() {
             ImGui::End();
         }
     }
+}
+
+void Application::PlotsView() {
+    if (ImGui::Begin("Regions Plot"))
+        m_plots.regions->Draw();
+    ImGui::End();
+
+    if (ImGui::Begin("Error Plot"))
+        m_plots.error->Draw();
+    ImGui::End();
+
+    if (ImGui::Begin("Rendering Time Plot"))
+        m_plots.renderingTime->Draw();
+    ImGui::End();
+
+    if (ImGui::Begin("Training Time Plot"))
+        m_plots.trainingTime->Draw();
+    ImGui::End();
 }
 
 }
