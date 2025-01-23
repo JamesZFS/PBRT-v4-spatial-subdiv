@@ -40,6 +40,7 @@ public:
     SelectedChannel GetSelectedChannel() const { return m_selectedChannel; }
     void SetSelectedChannel(SelectedChannel newChannel);
     bool ShortcutEnabled() const { return m_enableShortcuts; }
+    void SetShortcutEnabled(bool val) { m_enableShortcuts = val; }
     void Draw() override;
     int GetCurrentWave() const;
     int GetSPP() const { return m_spp; }
