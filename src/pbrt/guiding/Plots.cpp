@@ -3,7 +3,9 @@
 //
 
 #include "Plots.h"
+#include "Application.h"
 #include <implot.h>
+
 
 PlotManager::~PlotManager() {
     for (auto &[yAxis, plot]: m_plots)
@@ -18,12 +20,37 @@ PlotManager::Plot::Plot(pbrt::Application *parent, const std::string &xAxisName,
 
 void PlotManager::Plot::Draw() {
     // Curve ID
-    static char buf[256] = "#0";
     ImGui::SetNextItemWidth(90);
-    ImGui::InputText("Curve ID", buf, IM_ARRAYSIZE(buf));
+    ImGui::InputText("##Curve-ID", m_manager.m_curveId.data(), m_manager.m_curveId.size(), ImGuiInputTextFlags_ReadOnly);
     ImGui::SameLine();
-    if (ImGui::Button("Confirm")) {
-        m_manager.m_curveId = buf;
+    static bool once = false;
+    if (ImGui::Button("Change Curve ID")) {
+        ImGui::OpenPopup("Change Curve ID...");
+        once = true;
+        m_parent->SetShortcutEnabled(false);
+    }
+    if (ImGui::BeginPopupModal("Change Curve ID...", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        static char buf[256];
+        if (once) {
+            std::fill(buf, buf + IM_ARRAYSIZE(buf), 0);
+            std::copy(m_manager.m_curveId.begin(), m_manager.m_curveId.end(), buf);
+            once = false;
+        }
+        bool shouldClose = false;
+        ImGui::InputText("New Curve ID", buf, IM_ARRAYSIZE(buf));
+        if (ImGui::Button("OK") || ImGui::IsKeyPressed(ImGuiKey_Enter)) {
+            shouldClose = true;
+            m_manager.m_curveId = buf;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel") || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+            shouldClose = true;
+        }
+        if (shouldClose) {
+            ImGui::CloseCurrentPopup();
+            m_parent->SetShortcutEnabled(true);
+        }
+        ImGui::EndPopup();
     }
 
     // Draw plots
@@ -37,7 +64,7 @@ void PlotManager::Plot::Draw() {
         ImPlot::SetNextAxesToFit();
 
     if (ImPlot::BeginPlot(m_yAxisName.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), plot_flags)) {
-        ImPlot::SetupAxes(m_xAxisName.c_str(), m_yAxisName.c_str());
+        ImPlot::SetupAxes(m_xAxisName.c_str(), m_yAxisName.c_str(), ImPlotAxisFlags_NoLabel, ImPlotAxisFlags_NoLabel);
         // Hovering behavior: draw a vertical line for all plots at the same x position
         ImDrawList *draw_list = ImPlot::GetPlotDrawList();
         if (ImPlot::IsPlotHovered()) {

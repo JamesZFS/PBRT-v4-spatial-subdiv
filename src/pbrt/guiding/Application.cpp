@@ -1205,8 +1205,8 @@ void Application::MainMenu() {
             resolution = m_samplingDistributionView->GetResolution();
             m_hasOpenedChangeResolutionPopup = true;
         }
-        ImGui::InputInt("Width", &resolution.x);
-        ImGui::InputInt("Height", &resolution.y);
+        ImGui::InputInt("Width", &resolution.x, 0);
+        ImGui::InputInt("Height", &resolution.y, 0);
         resolution.x = std::max(1, resolution.x);
         resolution.y = std::max(1, resolution.y);
         if (ImGui::Button("OK")) {
