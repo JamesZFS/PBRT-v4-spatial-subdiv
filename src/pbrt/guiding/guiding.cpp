@@ -468,8 +468,13 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 visibleSurf->guidingData.numSamples = coarse.numSamples;
                 visibleSurf->guidingData.numZeroValueSamples = coarse.numZeroValueSamples;
                 visibleSurf->guidingData.depth = coarse.depth;
-                visibleSurf->guidingData.fluence = fine.fluence;
-                visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
+                if (fine.id != -1) {
+                    visibleSurf->guidingData.fluence = fine.fluence;
+                    visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
+                } else {
+                    visibleSurf->guidingData.fluence = coarse.fluence;
+                    visibleSurf->guidingData.energy = coarse.energy;
+                }
             }
         }
 
