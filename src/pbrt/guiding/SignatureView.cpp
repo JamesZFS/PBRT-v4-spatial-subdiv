@@ -81,17 +81,18 @@ void SignatureView::Draw() {
 
 // Needs to align with Signature.h
 static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier) {
-    float sum = 0;
+    float num = 0, denom = 0;
     for (uint8_t i = 0; i < pglGetSignatureSize(); i++) {
         float ai = a.signature[i], bi = b.signature[i];
         float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
         // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
         if (ai - a_std > bi + b_std)
-            sum += 2.0f * (ai - bi - a_std - b_std) / (ai + bi);
+            num += ai - bi - a_std - b_std;
         else if (ai + a_std < bi - b_std)
-            sum += 2.0f * (bi - ai - a_std - b_std) / (ai + bi);
+            num += bi - ai - a_std - b_std;
+        denom += ai + bi;
     }
-    return sum / (float) pglGetSignatureSize();
+    return denom == 0 ? 0 : 2.0f * num / denom;
 }
 
 void SignatureView::DrawColored() {
