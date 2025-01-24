@@ -43,12 +43,14 @@ void SignatureView::Rescale() {
 
 void SignatureView::Update() {
     pgl_point3f pglP = {m_prev.pos.x, m_prev.pos.y, m_prev.pos.z};
+    m_cachedSignatureParent = m_field.GetDirectionalSignatures(pglP, 0, m_splitDim, m_isRight).first;
     m_cachedSignaturesLR = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, m_splitDim, m_isRight);
     m_cachedSignature = m_isRight ? m_cachedSignaturesLR.second : m_cachedSignaturesLR.first;
 }
 
 void SignatureView::Clear() {
     m_prev.valid = false;
+    m_cachedSignatureParent = {};
     m_cachedSignaturesLR = {};
     m_cachedSignature = {};
     m_splitDim = 3;
@@ -57,12 +59,16 @@ void SignatureView::Clear() {
 
 void SignatureView::Draw() {
     if (ImGui::BeginTabBar("ViewMode")) {
-        if (ImGui::BeginTabItem("LR")) {
-            DrawLR();
+        if (ImGui::BeginTabItem("PC")) {
+            DrawPC();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Bars")) {
             DrawBars();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("LR")) {
+            DrawLR();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Colored")) {
@@ -91,7 +97,7 @@ static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirecti
 void SignatureView::DrawColored() {
     ImGui::SetNextItemWidth(80);
     if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
-        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 1, (int) m_parent->GetSubdivCfg().lookaheadDepth);
+        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 0, (int) m_parent->GetSubdivCfg().lookaheadDepth);
         if (m_prev.valid) Update();
     }
     ImGui::SameLine();
@@ -160,7 +166,7 @@ void SignatureView::DrawColored() {
 void SignatureView::DrawBars() {
     ImGui::SetNextItemWidth(80);
     if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
-        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 1, (int) m_parent->GetSubdivCfg().lookaheadDepth);
+        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 0, (int) m_parent->GetSubdivCfg().lookaheadDepth);
         if (m_prev.valid) Update();
     }
     ImGui::SameLine();
@@ -199,10 +205,81 @@ void SignatureView::DrawBars() {
     }
 }
 
+void SignatureView::DrawPC() {
+    ImGui::SetNextItemWidth(80);
+    if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
+        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 0, (int) m_parent->GetSubdivCfg().lookaheadDepth);
+        if (m_prev.valid) Update();
+    }
+    ImGui::SameLine();
+    ImGui::Checkbox("Std", &m_showStd);
+    ImGui::SameLine();
+    ImGui::Checkbox("Multiplied Std", &m_showMultipliedStd);
+
+    static float child_std[PGL_SIGNATURE_MAX_SIZE], parent_std[PGL_SIGNATURE_MAX_SIZE];
+    auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+    if (ImPlot::BeginPlot("Child/Parent Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
+        ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
+
+        ImPlot::PlotBars("Child", m_cachedSignature.signature, pglGetSignatureSize(), barSize);
+        ImPlot::PlotBars("Parent", m_cachedSignatureParent.signature, pglGetSignatureSize(), barSize, barSize);
+        if (m_showStd) {
+            ImPlot::PlotErrorBars("Child-std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Parent-std", m_barRXs, m_cachedSignatureParent.signature, m_cachedSignatureParent.std, pglGetSignatureSize());
+        }
+        if (m_showMultipliedStd) {
+            float multiplier = m_parent->GetSignatureStdMultiplier();
+            for (int i = 0; i < pglGetSignatureSize(); ++i) {
+                child_std[i] = m_cachedSignature.std[i] * multiplier;
+                parent_std[i] = m_cachedSignatureParent.std[i] * multiplier;
+            }
+            ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
+            ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
+            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignature.signature, child_std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignatureParent.signature, parent_std, pglGetSignatureSize());
+            ImPlot::PopStyleColor();
+            ImPlot::PopStyleVar();
+        }
+
+        // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
+        if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            double x = ImPlot::GetPlotMousePos().x + barSize / 2;
+            if (x >= 0 && x < pglGetSignatureSize()) {
+                m_radianceView.SetSelectedBinIndex((uint8_t) x);
+            }
+        }
+        if (m_radianceView.HasSelectedBinIndex()) {
+            double x = m_radianceView.GetSelectedBinIndex();
+            ImPlot::TagX(x, ImVec4(1, 0, 0, 0.5));
+        }
+        ImPlot::EndPlot();
+    }
+    // Compute distance
+    ImGui::Text("Number of samples child / parent: %s / %s",
+        FormatInteger((int) m_cachedSignature.numSamples).c_str(),
+        FormatInteger((int) m_cachedSignatureParent.numSamples).c_str());
+    if (m_radianceView.HasSelectedBinIndex()) {
+        uint8_t idx = m_radianceView.GetSelectedBinIndex();
+        ImGui::Text("Child / std: %.4f / %.2e, parent / std: %.4f / %.3e",
+            m_cachedSignature.signature[idx], m_cachedSignature.std[idx],
+            m_cachedSignatureParent.signature[idx], m_cachedSignatureParent.std[idx]);
+    } else {
+        float energy = getDistanceSMAPE(m_cachedSignature, m_cachedSignatureParent, m_parent->GetSignatureStdMultiplier());
+        if (m_splitDim == 3) {
+            ImGui::Text("Invalid");
+        } else {
+            static const char dim_ch[] = {'x', 'y', 'z'};
+            ImGui::Text("Dimension: %c  Energy: %.4f", dim_ch[m_splitDim], energy);
+        }
+    }
+}
+
 void SignatureView::DrawLR() {
     ImGui::SetNextItemWidth(80);
     if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
-        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 1, (int) m_parent->GetSubdivCfg().lookaheadDepth);
+        m_lookaheadDepth = std::clamp(m_lookaheadDepth, 0, (int) m_parent->GetSubdivCfg().lookaheadDepth);
         if (m_prev.valid) Update();
     }
     ImGui::SameLine();

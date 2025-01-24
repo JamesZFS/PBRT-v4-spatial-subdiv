@@ -29,6 +29,8 @@ public:
 
     void DrawBars();
 
+    void DrawPC();
+
     void DrawLR();
 
     void UpdateFramebuffer();
@@ -39,6 +41,7 @@ private:
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
     std::pair<PGLDirectionalSignature, PGLDirectionalSignature> m_cachedSignaturesLR{};
+    PGLDirectionalSignature m_cachedSignatureParent{};
     PGLDirectionalSignature m_cachedSignature{};
     uint8_t m_splitDim = 3;
     bool m_isRight;
@@ -50,7 +53,7 @@ private:
     bool m_showIntegratedSignature = false;
     bool m_showStd = true;
     bool m_showMultipliedStd = true;
-    int m_lookaheadDepth = 1;
+    int m_lookaheadDepth = 0;
 
     struct {
         bool valid = false;
