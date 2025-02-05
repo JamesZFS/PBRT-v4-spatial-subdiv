@@ -277,6 +277,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         float treececlampvalue {1e8f};
         bool treeenablepromotion {true};
         bool treemultiplycosine {false};
+        bool treejittersample {false};
 
         int octahedralresolution {64};
         int numbins {8};
