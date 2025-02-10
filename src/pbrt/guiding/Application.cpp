@@ -1285,7 +1285,7 @@ void Application::ChannelSelector() {
     if (m_isMultiChannel) {
         SelectedChannel newChannel = m_selectedChannel;
         for (int i = 0; i < m_channelCount; ++i) {
-            if (IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false))
+            if (IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false) && (ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl)))
                 newChannel = (SelectedChannel) i;
         }
 
@@ -1435,7 +1435,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Multiply Cosine", &m_subdivCfg.multiplyCosine);
-        ImGui::Checkbox("Jitter Sample", &m_subdivCfg.jitterSample);
+        ImGui::Combo("Contrib Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Determ\0Jitter\0Splat\0");
         int lookaheadDepth = (int) m_subdivCfg.lookaheadDepth;
         _(), ImGui::InputInt("Lookahead Depth", &lookaheadDepth, 1, 3);
         m_subdivCfg.lookaheadDepth = std::max(1, std::min(10, lookaheadDepth));
