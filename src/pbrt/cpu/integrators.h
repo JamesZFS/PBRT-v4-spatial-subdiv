@@ -281,6 +281,7 @@ class GuidedPathIntegrator : public RayIntegrator {
 
         int octahedralresolution {64};
         int numbins {8};
+        float splatSigma {pglGetSplatSigma()};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};
