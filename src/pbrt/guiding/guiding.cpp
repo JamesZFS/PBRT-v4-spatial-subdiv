@@ -95,6 +95,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.contribType = guideSettings.treecontribtype;
         pglSetOctahedralResolution(guideSettings.octahedralresolution);
         pglSetSignatureSize(guideSettings.numbins);
+        pglSetSplatSigma(guideSettings.splatSigma);
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -669,6 +670,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.numbins = parameters.GetOneInt("numbins", settings.numbins);
     if (settings.numbins <= 0 || settings.numbins > 8)
         ErrorExit(loc, "Invalid number of bins %d: only 1-8 are supported.", settings.numbins);
+    settings.splatSigma = parameters.GetOneFloat("splatsigma", settings.splatSigma);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
