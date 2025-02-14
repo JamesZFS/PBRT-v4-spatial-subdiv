@@ -1449,7 +1449,7 @@ void Application::SpatialSubdivisionSettings() {
         if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
             pglSetOctahedralResolution(octahedralRes);
             if (m_enableRadianceView && m_radianceView->HasStarted()) {
-                m_radianceView->UpdateBinIndexBuffer();
+                m_radianceView->UpdateBasisBuffer();
             }
         }
         _();
@@ -1458,7 +1458,7 @@ void Application::SpatialSubdivisionSettings() {
             pglSetSignatureSize(signatureSize);
             m_signatureView->Rescale();
             if (m_enableRadianceView && m_radianceView->HasStarted()) {
-                m_radianceView->UpdateBinIndexBuffer();
+                m_radianceView->UpdateBasisBuffer();
             }
         }
         _();

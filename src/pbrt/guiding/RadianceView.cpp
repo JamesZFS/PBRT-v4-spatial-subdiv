@@ -19,9 +19,10 @@ RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &sce
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.resize(m_resolution.x * m_resolution.y);
-    m_binIndexBuffer.resize(m_resolution.x * m_resolution.y);
+    for (int i = 0; i < PGL_SIGNATURE_MAX_SIZE; ++i)
+        m_basisBuffer[i].resize(m_resolution.x * m_resolution.y);
     glGenTextures(1, &m_renderingTex);
-    glGenTextures(1, &m_binIndexTex);
+    glGenTextures(PGL_SIGNATURE_MAX_SIZE, m_basisTex);
     FilmBaseParameters fp(m_resolution, Bounds2i({0, 0}, m_resolution), filter, 35., sensor,
                           "RadianceView-temp.exr");
     m_cbp.film = {new RGBFilm(fp, RGBColorSpace::sRGB)};
@@ -31,7 +32,7 @@ RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &sce
 
 RadianceView::~RadianceView() {
     glDeleteTextures(1, &m_renderingTex);
-    glDeleteTextures(1, &m_binIndexTex);
+    glDeleteTextures(PGL_SIGNATURE_MAX_SIZE, m_basisTex);
     auto film = m_cbp.film.Cast<RGBFilm>();
     delete film;
 }
@@ -58,12 +59,40 @@ void RadianceView::RenderStart() {
     auto camera = Camera(m_camera.get());
     auto sampler = Sampler(m_sampler.get());
     m_integrator = std::make_unique<PathIntegrator>(m_maxDepth, camera, sampler, m_scene, m_lights);
-    UpdateBinIndexBuffer();
+    UpdateBasisBuffer();
 }
 
-void RadianceView::UpdateBinIndexBuffer() {
+//A pseudorandom number generator with a seed consisting of 3 uints
+static uint32_t pcg_3d(uint32_t x, uint32_t y, uint32_t z) {
+    // Taken from: https://www.shadertoy.com/view/XlGcRh
+    x = x * 1664525u + 1013904223u;
+    y = y * 1664525u + 1013904223u;
+    z = z * 1664525u + 1013904223u;
+    x += y * z;
+    y += z * x;
+    z += x * y;
+    x ^= x >> 16u;
+    y ^= y >> 16u;
+    z ^= z >> 16u;
+    x += y * z;
+    y += z * x;
+    z += x * y;
+    return x;
+}
+
+static float mix(float a, float b, float t) {
+    return (1 - t) * a + t * b;
+}
+
+static float fract(float x) {
+    return x - std::floor(x);
+}
+
+void RadianceView::UpdateBasisBuffer() {
+    const uint8_t S = pglGetSignatureSize();
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     auto frame = Frame::FromZ(m_prev.normal);
+    const uint8_t octave_min = PGL_OCTAVE_MIN, octave_max = PGL_OCTAVE_MAX;
     for (Point2i p: pixelBounds) {
         float theta = m_stepTheta * (0.5f + float(p.y));
         float phi = m_stepPhi * (0.5f + float(p.x));
@@ -71,13 +100,56 @@ void RadianceView::UpdateBinIndexBuffer() {
         Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
         if (m_localFrame)
             dir = frame.FromLocal(dir);
-        pgl_vec3f pglDir{dir.x, dir.y, dir.z};
+        pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
+        
+        // Find octahedral map coordinate
+        auto uv = pgl_vec2f(pglDir);  // [-1, 1]
+        uv.x = uv.x * 0.5 + 0.5;
+        uv.y = uv.y * 0.5 + 0.5;   // to [0, 1]
 
-        size_t index = p.y * m_resolution.x + p.x;
-        m_binIndexBuffer[index] = pglGetSignatureIndex(pglDir);
+        // uv = {float(p.x) / m_resolution.x, float(p.y) / m_resolution.y};  // debug
+
+        const size_t pixel_index = p.y * m_resolution.x + p.x;
+
+        // * Evaluates all basis functions at the given coordinate
+        for (uint8_t j = 0; j < S; ++j)
+            m_basisBuffer[j][pixel_index] = 0.0;
+        // Iterate over all octaves
+        for (uint8_t k = octave_min; k <= octave_max; ++k) {
+            // Discretize uv at the appropriate resolution
+            pgl_vec2f octave_uv = {uv.x * float(1u << k), uv.y * float(1u << k)};
+            uint32_t x0 = uint32_t(octave_uv.x), y0 = uint32_t(octave_uv.y);
+            // Generate offset versions with wrapping
+            uint32_t x1 = (x0 + 1u) & ((1u << k) - 1u);
+            uint32_t y1 = (y0 + 1u) & ((1u << k) - 1u);
+            uint8_t h00 = pcg_3d(x0, y0, k) % S;
+            uint8_t h01 = pcg_3d(x0, y1, k) % S;
+            uint8_t h10 = pcg_3d(x1, y0, k) % S;
+            uint8_t h11 = pcg_3d(x1, y1, k) % S;
+
+            for (uint8_t j = 0; j < S; ++j) {
+                // Determine whether this bin gets the sample
+                float M00 = (h00 == j) ? 1.0 : 0.0;
+                float M01 = (h01 == j) ? 1.0 : 0.0;
+                float M10 = (h10 == j) ? 1.0 : 0.0;
+                float M11 = (h11 == j) ? 1.0 : 0.0;
+                // Perform bilinear interpolation
+                float M0 = mix(M00, M01, fract(octave_uv.y));
+                float M1 = mix(M10, M11, fract(octave_uv.y));
+                float M = mix(M0, M1, fract(octave_uv.x));
+                // Accumulate into the result
+                m_basisBuffer[j][pixel_index] += pow(0.5, float(k)) / (pow(2.0, 1.0 - float(octave_min)) - pow(0.5, float(octave_max))) * M;
+            }
+        }
+        // Check sum
+        float sum = 0;
+        for (uint8_t j = 0; j < S; ++j)
+            sum += m_basisBuffer[j][pixel_index];
+        CHECK(std::abs(sum - 1.0) < 1e-5);
     }
 
-    UpdateTextureFromUInt8Data((GLuint) (uintptr_t) m_binIndexTex, m_binIndexBuffer.data(), m_resolution.x, m_resolution.y, false);
+    for (uint8_t j = 0; j < S; ++j)
+        UpdateTextureFromFloatData((GLuint) (uintptr_t) m_basisTex[j], m_basisBuffer[j].data(), m_resolution.x, m_resolution.y, false);
 }
 
 thread_local double thread_normalizer = 0;
@@ -130,7 +202,8 @@ void RadianceView::SetResolution(const pbrt::Point2i &resolution) {
     m_resolution = resolution;
     m_framebuffer.rescale(resolution.x, resolution.y);
     m_cpuBuffer.resize(m_resolution.x * m_resolution.y);
-    m_binIndexBuffer.resize(m_resolution.x * m_resolution.y);
+    for (int i = 0; i < PGL_SIGNATURE_MAX_SIZE; ++i)
+        m_basisBuffer[i].resize(m_resolution.x * m_resolution.y);
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     auto film = m_cbp.film.Cast<RGBFilm>();
@@ -207,8 +280,9 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
             else cosTheta = d.z;
             float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
             thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
-            uint8_t binIdx = m_binIndexBuffer[index];
-            thread_signature.signature[binIdx] += val * sinTheta * m_stepPhi * m_stepTheta * (m_parent->GetSubdivCfg().multiplyCosine ? cosineTerm : 1.0f);
+            for (uint8_t j = 0; j < pglGetSignatureSize(); ++j) {
+                thread_signature.signature[j] += val * sinTheta * m_stepPhi * m_stepTheta * m_basisBuffer[j][index] * (m_parent->GetSubdivCfg().multiplyCosine ? cosineTerm : 1.0f);
+            }
         }
     }
 }
@@ -255,9 +329,9 @@ void RadianceView::UpdateFramebuffer() {
         glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
         shader.setUniform1i("image_tex", 0);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, m_binIndexTex);
-        shader.setUniform1i("index_map", 1);
-        shader.setUniform1ui("selected_index", m_selectedBinIndex);
+        glBindTexture(GL_TEXTURE_2D, m_basisTex[m_selectedBinIndex]);
+        shader.setUniform1i("basis_map", 1);
+        shader.setUniform1ui("selected_bin_index", m_selectedBinIndex);
 
         // Render!
         m_overlayFramebuffer.draw();
@@ -322,8 +396,16 @@ void RadianceView::Draw() {
             ImGui::EndTooltip();
         }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
-            // Show the selected bin index
-            SetSelectedBinIndex(m_binIndexBuffer[idx]);
+            // Select the bin index with the largest basis function value
+            uint8_t jmax = PGL_SIGNATURE_MAX_SIZE;
+            float maxVal = 0;
+            for (uint8_t j = 0; j < pglGetSignatureSize(); ++j) {
+                if (m_basisBuffer[j][idx] > maxVal) {
+                    maxVal = m_basisBuffer[j][idx];
+                    jmax = j;
+                }
+            }
+            SetSelectedBinIndex(jmax);
         }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
             ResetSelectedBinIndex();
