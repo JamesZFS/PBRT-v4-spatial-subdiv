@@ -21,7 +21,7 @@ public:
 
     void RenderStep();
 
-    void UpdateBinIndexBuffer();
+    void UpdateBasisBuffer();
 
     void UpdateFramebuffer();
 
@@ -64,7 +64,7 @@ private:
     pbrt::Point2i m_resolution{640, 320};
 
     std::vector<pbrt::RGB> m_cpuBuffer;
-    std::vector<uint8_t> m_binIndexBuffer;  // buffer of indices into the signature vector for each pixel
+    std::vector<float> m_basisBuffer[PGL_SIGNATURE_MAX_SIZE];  // buffer of indices into the signature vector for each pixel
     double m_normalizer = 1;
     int m_numSamples = 0;
     int m_spp = 16;
@@ -89,7 +89,7 @@ private:
     float m_stepTheta;
 
     GLuint m_renderingTex = 0;  // stores the cpu buffer
-    GLuint m_binIndexTex = 0;  // stores the bin index buffer
+    GLuint m_basisTex[PGL_SIGNATURE_MAX_SIZE] = {};  // stores the basis map buffer
     Framebuffer m_framebuffer;
     Framebuffer m_overlayFramebuffer;
 };
