@@ -277,11 +277,14 @@ class GuidedPathIntegrator : public RayIntegrator {
         float treececlampvalue {1e8f};
         bool treeenablepromotion {true};
         bool treemultiplycosine {false};
-        PGL_SPATIAL_CONTRIB_TYPE treecontribtype {PGL_SPATIAL_CONTRIB_DETERM};
+        bool treereproject {false};
+        PGL_SPATIAL_CONTRIB_TYPE treecontribtype {PGL_SPATIAL_CONTRIB_NN};
 
-        int octahedralresolution {64};
-        int numbins {8};
+        int octahedralresolution {(int)pglGetOctahedralResolution()};
+        int numbins {(int)pglGetSignatureSize()};
         float splatSigma {pglGetSplatSigma()};
+        int octavemin {(int)pglGetOctaveMin()};
+        int octavemax {(int)pglGetOctaveMax()};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};
