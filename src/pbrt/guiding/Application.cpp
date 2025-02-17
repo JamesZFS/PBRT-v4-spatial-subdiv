@@ -1435,7 +1435,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Multiply Cosine", &m_subdivCfg.multiplyCosine);
-        ImGui::Combo("Contrib Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Determ\0Jitter\0Splat\0Reproject\0Splat+Reproject\0");
+        ImGui::Checkbox("Reproject Samples", &m_subdivCfg.reproject);
         int lookaheadDepth = (int) m_subdivCfg.lookaheadDepth;
         _(), ImGui::InputInt("Lookahead Depth", &lookaheadDepth, 1, 3);
         m_subdivCfg.lookaheadDepth = std::max(1, std::min(10, lookaheadDepth));
@@ -1445,11 +1445,36 @@ void Application::SpatialSubdivisionSettings() {
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("Signature Decay", &m_subdivCfg.signatureDecay, 0.0f, 1.0f);
         _();
-        int octahedralRes = (int) pglGetOctahedralResolution();
-        if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
-            pglSetOctahedralResolution(octahedralRes);
-            if (m_enableRadianceView && m_radianceView->HasStarted()) {
-                m_radianceView->UpdateBasisBuffer();
+        if (ImGui::Combo("Contrib Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis Function\0")) {
+            if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
+        }
+        if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_NN || m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
+            _();
+            int octahedralRes = (int) pglGetOctahedralResolution();
+            if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
+                pglSetOctahedralResolution(octahedralRes);
+                if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
+            }
+            if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
+                _();
+                float splatSigma = pglGetSplatSigma();
+                if (ImGui::SliderFloat("Splat Sigma", &splatSigma, 0.05f, 5.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
+                    pglSetSplatSigma(splatSigma);
+                    if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
+                }
+            }
+        } else {  // Basis function
+            int octaveMin = (int) pglGetOctaveMin();
+            int octaveMax = (int) pglGetOctaveMax();
+            _();
+            if (ImGui::SliderInt("Octave Min", &octaveMin, 1, octaveMax)) {
+                pglSetOctaveMin(octaveMin);
+                if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
+            }
+            _();
+            if (ImGui::SliderInt("Octave Max", &octaveMax, octaveMin, 10)) {
+                pglSetOctaveMax(octaveMax);
+                if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
         }
         _();
@@ -1460,11 +1485,6 @@ void Application::SpatialSubdivisionSettings() {
             if (m_enableRadianceView && m_radianceView->HasStarted()) {
                 m_radianceView->UpdateBasisBuffer();
             }
-        }
-        _();
-        float splatSigma = pglGetSplatSigma();
-        if (ImGui::SliderFloat("Splat Sigma", &splatSigma, 0.01f, 5.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-            pglSetSplatSigma(splatSigma);
         }
         _(), ImGui::DragFloat("Std Multiplier", &m_subdivCfg.stdMultiplier, 0.2f, 0, 10);
         if (ImGui::Button("Clear CE Statistics")) {

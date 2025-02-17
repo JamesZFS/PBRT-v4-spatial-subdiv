@@ -92,10 +92,13 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
         guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
+        guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
         guiding_fieldSubdivConfig.contribType = guideSettings.treecontribtype;
         pglSetOctahedralResolution(guideSettings.octahedralresolution);
         pglSetSignatureSize(guideSettings.numbins);
         pglSetSplatSigma(guideSettings.splatSigma);
+        pglSetOctaveMin(guideSettings.octavemin);
+        pglSetOctaveMax(guideSettings.octavemax);
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -656,12 +659,11 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
     settings.treemultiplycosine = parameters.GetOneBool("treemultiplycosine", settings.treemultiplycosine);
-    auto contribtype = parameters.GetOneString("treecontribtype", "determ");
-    if (contribtype == "determ") settings.treecontribtype = PGL_SPATIAL_CONTRIB_DETERM;
-    else if (contribtype == "jitter") settings.treecontribtype = PGL_SPATIAL_CONTRIB_JITTER;
+    settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
+    auto contribtype = parameters.GetOneString("treecontribtype", "nn");
+    if (contribtype == "nn") settings.treecontribtype = PGL_SPATIAL_CONTRIB_NN;
     else if (contribtype == "splat") settings.treecontribtype = PGL_SPATIAL_CONTRIB_SPLAT;
-    else if (contribtype == "reproject") settings.treecontribtype = PGL_SPATIAL_CONTRIB_REPROJECT;
-    else if (contribtype == "splat_reproject") settings.treecontribtype = PGL_SPATIAL_CONTRIB_SPLAT_REPROJECT;
+    else if (contribtype == "basis") settings.treecontribtype = PGL_SPATIAL_CONTRIB_BASIS;
     else throw std::runtime_error("Unknown treecontribtype: " + contribtype);
 
     settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
@@ -671,6 +673,10 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     if (settings.numbins <= 0 || settings.numbins > 8)
         ErrorExit(loc, "Invalid number of bins %d: only 1-8 are supported.", settings.numbins);
     settings.splatSigma = parameters.GetOneFloat("splatsigma", settings.splatSigma);
+    settings.octavemin = parameters.GetOneInt("octavemin", settings.octavemin);
+    settings.octavemax = parameters.GetOneInt("octavemax", settings.octavemax);
+    if (settings.octavemin <= 0 || settings.octavemax <= 0 || settings.octavemin > settings.octavemax)
+        ErrorExit(loc, "Invalid octave range [%d, %d].", settings.octavemin, settings.octavemax);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
