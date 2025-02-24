@@ -53,6 +53,8 @@ void SignatureView::Clear() {
     m_cachedSignatureParent = {};
     m_cachedSignaturesLR = {};
     m_cachedSignature = {};
+    m_storedSignature = {};
+    m_hasStoredSignature = false;
     m_splitDim = 3;
     m_isRight = false;
 }
@@ -61,6 +63,10 @@ void SignatureView::Draw() {
     if (ImGui::BeginTabBar("ViewMode")) {
         if (ImGui::BeginTabItem("PC")) {
             DrawPC();
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginTabItem("Comp")) {
+            DrawComp();
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Bars")) {
@@ -164,6 +170,48 @@ void SignatureView::DrawColored() {
     }
 }
 
+void SignatureView::DrawComp() {
+    if (ImGui::Button("Store") || IsKeyPressed(ImGuiKey_F3, false)) {
+        m_storedSignature = m_integratedSignature;
+        m_hasStoredSignature = true;
+    }
+    ImGui::SetItemTooltip("(F3) This will update the orange bars");
+    ImGui::SameLine();
+    if (ImGui::Button("Clear")) {
+        m_storedSignature = {};
+        m_hasStoredSignature = false;
+    }
+    ImGui::SetItemTooltip("This will clear the orange bars");
+    auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+    if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
+        ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
+
+        ImPlot::SetNextFillStyle(ImPlot::GetColormapColor(2));  // Green
+        ImPlot::PlotBars("Current", m_integratedSignature.signature, pglGetSignatureSize(), barSize);
+        ImPlot::SetNextFillStyle(ImPlot::GetColormapColor(1));  // Orange
+        ImPlot::PlotBars("Stored", m_storedSignature.signature, pglGetSignatureSize(), barSize, barSize);
+
+        BinInteraction();
+        ImPlot::EndPlot();
+    }
+    if (m_radianceView.HasSelectedBinIndex()) {
+        uint8_t idx = m_radianceView.GetSelectedBinIndex();
+        ImGui::Text("Current: %.4f  Stored: %.4f", m_integratedSignature.signature[idx], m_storedSignature.signature[idx]);
+    } else if (m_hasStoredSignature) {
+        // Show the distance
+        float distance = getDistanceSMAPE(m_integratedSignature, m_storedSignature, 0.0f);
+        ImGui::Text("Distance: %.4f", distance);
+    } else {
+        float sum = 0.0f;
+        for (uint8_t i = 0; i < pglGetSignatureSize(); i++) {
+            sum += m_integratedSignature.signature[i];
+        }
+        ImGui::Text("Sum of bin value: %.4f", sum);
+    }
+}
+
 void SignatureView::DrawBars() {
     ImGui::SetNextItemWidth(80);
     if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
@@ -187,17 +235,7 @@ void SignatureView::DrawBars() {
         if (m_showIntegratedSignature)
             ImPlot::PlotBars("Integrated", m_integratedSignature.signature, pglGetSignatureSize(), barSize, barSize);
 
-        // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
-        if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            double x = ImPlot::GetPlotMousePos().x + barSize / 2;
-            if (x >= 0 && x < pglGetSignatureSize()) {
-                m_radianceView.SetSelectedBinIndex((uint8_t) x);
-            }
-        }
-        if (m_radianceView.HasSelectedBinIndex()) {
-            double x = m_radianceView.GetSelectedBinIndex();
-            ImPlot::TagX(x, ImVec4(1, 0, 0, 0.5));
-        }
+        BinInteraction();
         ImPlot::EndPlot();
     }
     if (m_radianceView.HasSelectedBinIndex()) {
@@ -244,17 +282,7 @@ void SignatureView::DrawPC() {
             ImPlot::PopStyleVar();
         }
 
-        // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
-        if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            double x = ImPlot::GetPlotMousePos().x + barSize / 2;
-            if (x >= 0 && x < pglGetSignatureSize()) {
-                m_radianceView.SetSelectedBinIndex((uint8_t) x);
-            }
-        }
-        if (m_radianceView.HasSelectedBinIndex()) {
-            double x = m_radianceView.GetSelectedBinIndex();
-            ImPlot::TagX(x, ImVec4(1, 0, 0, 0.5));
-        }
+        BinInteraction();
         ImPlot::EndPlot();
     }
     // Compute distance
@@ -315,17 +343,7 @@ void SignatureView::DrawLR() {
             ImPlot::PopStyleVar();
         }
 
-        // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
-        if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            double x = ImPlot::GetPlotMousePos().x + barSize / 2;
-            if (x >= 0 && x < pglGetSignatureSize()) {
-                m_radianceView.SetSelectedBinIndex((uint8_t) x);
-            }
-        }
-        if (m_radianceView.HasSelectedBinIndex()) {
-            double x = m_radianceView.GetSelectedBinIndex();
-            ImPlot::TagX(x, ImVec4(1, 0, 0, 0.5));
-        }
+        BinInteraction();
         ImPlot::EndPlot();
     }
     // Compute distance
@@ -345,6 +363,24 @@ void SignatureView::DrawLR() {
             static const char dim_ch[] = {'x', 'y', 'z'};
             ImGui::Text("Dimension: %c  Energy: %.4f", dim_ch[m_splitDim], energy);
         }
+    }
+}
+
+void SignatureView::BinInteraction() {
+    // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
+    if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+        double x = ImPlot::GetPlotMousePos().x + barSize / 2;
+        if (x >= 0 && x < pglGetSignatureSize()) {
+            if (m_radianceView.GetSelectedBinIndex() == (uint8_t) x) {
+                m_radianceView.ResetSelectedBinIndex();
+            } else {
+                m_radianceView.SetSelectedBinIndex((uint8_t) x);
+            }
+        }
+    }
+    if (m_radianceView.HasSelectedBinIndex()) {
+        double x = m_radianceView.GetSelectedBinIndex();
+        ImPlot::TagX(x, ImVec4(1, 0, 0, 0.5));
     }
 }
 

@@ -33,10 +33,14 @@ public:
 
     void DrawLR();
 
+    void DrawComp();
+
     void UpdateFramebuffer();
 
 private:
     void Update();
+
+    void BinInteraction();
 
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
@@ -46,6 +50,7 @@ private:
     uint8_t m_splitDim = 3;
     bool m_isRight;
     PGLDirectionalSignature &m_integratedSignature;
+    PGLDirectionalSignature m_storedSignature{};
     pbrt::RGB m_selectionBuffer[PGL_SIGNATURE_MAX_SIZE];
 
     float m_scale = 1.0f;
@@ -53,6 +58,7 @@ private:
     bool m_showIntegratedSignature = false;
     bool m_showStd = true;
     bool m_showMultipliedStd = true;
+    bool m_hasStoredSignature = false;
     int m_lookaheadDepth = 0;
 
     struct {
