@@ -64,6 +64,7 @@ void RadianceView::RenderStart() {
 
 //A pseudorandom number generator with a seed consisting of 3 uints
 static uint32_t pcg_3d(uint32_t x, uint32_t y, uint32_t z) {
+    x ^= 12312u;
     // Taken from: https://www.shadertoy.com/view/XlGcRh
     x = x * 1664525u + 1013904223u;
     y = y * 1664525u + 1013904223u;
