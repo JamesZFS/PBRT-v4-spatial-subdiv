@@ -258,6 +258,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool guideSurface {true};
 
         bool guideRR {false};
+        bool deterministic {true};
 
         GuidingType surfaceGuidingType {EGuideRIS};
         float guideSurfaceProbability {0.5f};
@@ -275,6 +276,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         float treestdmultiplier {1.0f};
         float treecedecay {0.0f};
         float treececlampvalue {1e8f};
+        bool treeenablesignature {true};
         bool treeenablepromotion {true};
         bool treemultiplycosine {false};
         bool treereproject {false};

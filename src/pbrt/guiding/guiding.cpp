@@ -82,6 +82,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, guideSettings.dtype, true,
             guideSettings.treesamplecountthreshold, guideSettings.treeminsamplescandidatesplit, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
+        guiding_fieldSubdivConfig.deterministic = guideSettings.deterministic;
         guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
         guiding_fieldSubdivConfig.lookaheadDepth = guideSettings.treelookaheaddepth;
         guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
@@ -90,6 +91,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.stdMultiplier = guideSettings.treestdmultiplier;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
+        guiding_fieldSubdivConfig.enableSignature = guideSettings.treeenablesignature;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
         guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
         guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
@@ -637,6 +639,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
 
     settings.guideSurface = parameters.GetOneBool("surfaceguiding", true);
     settings.guideRR = parameters.GetOneBool("rrguiding", false);
+    settings.deterministic = parameters.GetOneBool("deterministic", true);
 
     settings.knnLookup = parameters.GetOneBool("knnlookup", true);
     std::string strSurfaceGuidingType = parameters.GetOneString("surfaceguidingtype", "ris");
@@ -658,6 +661,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
+    settings.treeenablesignature = parameters.GetOneBool("treeenablesignature", settings.treeenablesignature);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
     settings.treemultiplycosine = parameters.GetOneBool("treemultiplycosine", settings.treemultiplycosine);
     settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
