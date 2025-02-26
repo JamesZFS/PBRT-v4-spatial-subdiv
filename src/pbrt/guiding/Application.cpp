@@ -1433,6 +1433,8 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.sampleCountThreshold = std::max(0, sampleCountThreshold);
         m_subdivCfg.minSamplesCandidateSplit = std::max(0, minSamplesCandidateSplit);
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
+        ImGui::Checkbox("Deterministic", &m_subdivCfg.deterministic);
+        ImGui::Checkbox("Enable Signature", &m_subdivCfg.enableSignature);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Multiply Cosine", &m_subdivCfg.multiplyCosine);
         ImGui::Checkbox("Reproject Samples", &m_subdivCfg.reproject);
