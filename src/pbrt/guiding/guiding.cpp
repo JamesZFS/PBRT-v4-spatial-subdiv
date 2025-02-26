@@ -99,6 +99,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         pglSetSplatSigma(guideSettings.splatSigma);
         pglSetOctaveMin(guideSettings.octavemin);
         pglSetOctaveMax(guideSettings.octavemax);
+        pglSetOctaveGamma(guideSettings.octaveGamma);
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -677,6 +678,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.octavemax = parameters.GetOneInt("octavemax", settings.octavemax);
     if (settings.octavemin <= 0 || settings.octavemax <= 0 || settings.octavemin > settings.octavemax)
         ErrorExit(loc, "Invalid octave range [%d, %d].", settings.octavemin, settings.octavemax);
+    settings.octaveGamma = parameters.GetOneFloat("octavegamma", settings.octaveGamma);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);

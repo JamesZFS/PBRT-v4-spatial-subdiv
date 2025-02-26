@@ -285,6 +285,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         float splatSigma {pglGetSplatSigma()};
         int octavemin {(int)pglGetOctaveMin()};
         int octavemax {(int)pglGetOctaveMax()};
+        float octaveGamma {pglGetOctaveGamma()};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};
