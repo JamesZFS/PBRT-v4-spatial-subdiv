@@ -1466,6 +1466,7 @@ void Application::SpatialSubdivisionSettings() {
         } else {  // Basis function
             int octaveMin = (int) pglGetOctaveMin();
             int octaveMax = (int) pglGetOctaveMax();
+            float octaveGamma = pglGetOctaveGamma();
             _();
             if (ImGui::SliderInt("Octave Min", &octaveMin, 1, octaveMax)) {
                 pglSetOctaveMin(octaveMin);
@@ -1474,6 +1475,11 @@ void Application::SpatialSubdivisionSettings() {
             _();
             if (ImGui::SliderInt("Octave Max", &octaveMax, octaveMin, 10)) {
                 pglSetOctaveMax(octaveMax);
+                if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
+            }
+            _();
+            if (ImGui::SliderFloat("Octave Gamma", &octaveGamma, 0.05f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
+                pglSetOctaveGamma(octaveGamma);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
         }

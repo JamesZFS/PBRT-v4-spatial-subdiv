@@ -140,7 +140,8 @@ void RadianceView::UpdateBasisBuffer() {
     const uint8_t octave_min = pglGetOctaveMin(), octave_max = pglGetOctaveMax();
     const float sigma = pglGetSplatSigma();
     const auto contribType = m_parent->GetSubdivCfg().contribType;
-    const float basis_normalizer = pow(2.0, 1.0 - float(octave_min)) - pow(0.5, float(octave_max));
+    // const float basis_normalizer = pow(2.0, 1.0 - float(octave_min)) - pow(0.5, float(octave_max));
+    const float gamma = pglGetOctaveGamma();
     const float alpha = -0.5f / (sigma*sigma);
     const float kernel_lb = std::exp(alpha);
     for (Point2i p: pixelBounds) {
@@ -164,10 +165,12 @@ void RadianceView::UpdateBasisBuffer() {
             // * Evaluates all basis functions at the given coordinate
             for (uint8_t j = 0; j < S; ++j)
                 m_basisBuffer[j][pixel_index] = 0.0;
+            float normalizer = 0.0;
             // Iterate over all octaves
             for (uint8_t k = octave_min; k <= octave_max; ++k) {
                 const uint32_t res = 1 << k;
-                const float scale = pow(0.5, float(k)) / basis_normalizer;
+                const float weight = pow(gamma, float(k));
+                normalizer += weight;
                 // Discretize uv at the appropriate resolution
                 pgl_vec2f octave_uv = {uv.x * float(res), uv.y * float(res)};
                 uint32_t x00 = uint32_t(octave_uv.x), y00 = uint32_t(octave_uv.y);
@@ -196,8 +199,12 @@ void RadianceView::UpdateBasisBuffer() {
                     float M1 = mix(M10, M11, fract(octave_uv.y));
                     float M = mix(M0, M1, fract(octave_uv.x));
                     // Accumulate into the result
-                    m_basisBuffer[j][pixel_index] += scale * M;
+                    m_basisBuffer[j][pixel_index] += weight * M;
                 }
+            }
+
+            for (uint8_t j = 0; j < S; ++j) {
+                m_basisBuffer[j][pixel_index] /= normalizer;
             }
             // // Check sum
             // float sum = 0;
