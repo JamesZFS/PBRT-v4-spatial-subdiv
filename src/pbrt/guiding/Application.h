@@ -164,6 +164,7 @@ private:
     LayoutType m_layout = Layout_Default;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     RayCastingData m_rcSDRE;  // ray casting result at the sampling distribution / radiance view
+    std::vector<RayCastingData> m_rcSDREHistory;
     std::string m_rcHistory;
     int m_maxMaxDepth = 15;
     SelectedChannel m_selectedChannel = Channel_Radiance;
@@ -183,6 +184,7 @@ private:
     bool m_enableImPlotDemo = false;
 
     bool m_recordSamples = false;
+    bool m_trackSRDEHistory = false;
     ErrorMetric m_errorMetric = Metric_MRAE;
 
     // Components and views

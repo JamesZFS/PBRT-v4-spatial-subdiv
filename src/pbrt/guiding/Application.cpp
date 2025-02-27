@@ -848,22 +848,56 @@ void Application::UpdateRayCastingAtMouse() {
 // Sampling distribution and radiance view
 void Application::SDREViewInteraction() {
     if (!m_enableSamplingDistributionView && !m_enableRadianceView && !m_enableSignatureView) return;
-    // Left click to update the sampling distribution
-    if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
-        Point2i pixel = m_viewport->GetMousePixel();
-        m_rcSDRE = RayCast(pixel);
-        UpdateSamplingDistributionView();
-        NewRadianceViewRendering();
-        UpdateSignatureView();
+
+    ImVec2 leftTop = m_viewport->GetLeftTop();
+    float scale = m_viewport->GetScale();
+    float a = 4;
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
+
+    Point2i pixel = m_viewport->GetMousePixel();
+    if (m_trackSRDEHistory) {  // History mode
+        // Draw historic positions and look for ones that overlaps with this click
+        bool found = false;
+        for (const auto &rcData: m_rcSDREHistory) {
+            bool isHovered = m_viewport->IsHovered() && Distance(rcData.pixel, pixel) < 2 * a;
+            ImVec2 center(leftTop.x + rcData.pixel.x * scale, leftTop.y + rcData.pixel.y * scale);
+            draw_list->AddTriangleFilled(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32(0, 0, 100, 255));
+            if (isHovered) {
+                draw_list->AddTriangle(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32_WHITE, 2);
+                if (ImGui::IsMouseClicked(ImGuiMouseButton_Left, false)) {
+                    found = true;
+                    m_rcSDRE = rcData;
+                }
+            }
+        }
+        bool hasUpdate = found;
+        // Not found: create a new one at click
+        if (!found && m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, false)) {
+            hasUpdate = true;
+            m_rcSDRE = RayCast(pixel);
+            m_rcSDREHistory.push_back(m_rcSDRE);
+            UpdateSamplingDistributionView();
+            NewRadianceViewRendering();
+            UpdateSignatureView();
+        }
+        if (hasUpdate) {
+            UpdateSamplingDistributionView();
+            NewRadianceViewRendering();
+            UpdateSignatureView();
+        }
+    } else {  // Standard mode
+        // Left click to update the sampling distribution
+        if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
+            m_rcSDRE = RayCast(pixel);
+            UpdateSamplingDistributionView();
+            NewRadianceViewRendering();
+            UpdateSignatureView();
+        }
     }
 
     // Draw the view location
     if (m_rcSDRE.valid) {
-        ImVec2 leftTop = m_viewport->GetLeftTop();
-        float scale = m_viewport->GetScale();
         ImVec2 center(leftTop.x + m_rcSDRE.pixel.x * scale, leftTop.y + m_rcSDRE.pixel.y * scale);
-        ImDrawList *draw_list = ImGui::GetWindowDrawList();
-        float a = 4;
         bool isHovered = m_viewport->IsHovered() && Distance(m_viewport->GetMousePixel(), m_rcSDRE.pixel) < 2 * a;
         draw_list->AddTriangleFilled(ImVec2(center.x - a, center.y + a), ImVec2(center.x + a, center.y + a), center, IM_COL32(255, 0, 0, 255));
         if (isHovered)
@@ -1164,6 +1198,14 @@ void Application::MainMenu() {
             if (ImGui::MenuItem("Set Resolution")) {
                 openChangeResolutionPopup = true;
                 m_enableShortcuts = false;
+            }
+            if (ImGui::MenuItem("Track History", 0, m_trackSRDEHistory)) {
+                m_trackSRDEHistory ^= true;
+                m_rcSDRE.valid = false;
+            }
+            if (ImGui::MenuItem("Clear History")) {
+                m_rcSDREHistory.clear();
+                m_rcSDRE.valid = false;
             }
             ImGui::EndMenu();
         }
