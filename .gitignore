@@ -10,3 +10,6 @@ install/
 .vscode/
 cmake-build-*/
 .idea/
+scenes
+scripts
+results

@@ -18,7 +18,7 @@
 #include <pbrt/util/colorspace.h>
 #include <pbrt/util/display.h>
 #include <pbrt/util/file.h>
-#include <pbrt/util/gui.h>
+// #include <pbrt/util/gui.h>
 #include <pbrt/util/image.h>
 #include <pbrt/util/log.h>
 #include <pbrt/util/print.h>
@@ -291,7 +291,6 @@ Float WavefrontPathIntegrator::Render() {
     Bounds2i pixelBounds = film.PixelBounds();
     Vector2i resolution = pixelBounds.Diagonal();
 
-    GUI *gui = nullptr;
     // FIXME: camera animation; whatever...
     Transform renderFromCamera =
         camera.GetCameraTransform().RenderFromCamera().startTransform;
@@ -299,10 +298,7 @@ Float WavefrontPathIntegrator::Render() {
     Transform cameraFromWorld =
         camera.GetCameraTransform().CameraFromWorld(camera.SampleTime(0.f));
     if (Options->interactive) {
-        if (!Options->displayServer.empty())
-            ErrorExit(
-                "--interactive and --display-server cannot be used at the same time.");
-        gui = new GUI(film.GetFilename(), resolution, aggregate->Bounds());
+        ErrorExit("Interactive mode not currently supported.");
     }
 
     Timer timer;
@@ -333,7 +329,7 @@ Float WavefrontPathIntegrator::Render() {
 
     ProgressReporter progress(lastSampleIndex - firstSampleIndex, "Rendering",
                               Options->quiet || Options->interactive, Options->useGPU);
-    for (int sampleIndex = firstSampleIndex; sampleIndex < lastSampleIndex || gui;
+    for (int sampleIndex = firstSampleIndex; sampleIndex < lastSampleIndex;
          ++sampleIndex) {
         // Attempt to work around issue #145.
 #if !(defined(PBRT_IS_WINDOWS) && defined(PBRT_BUILD_GPU_RENDERER) && \
@@ -362,9 +358,6 @@ Float WavefrontPathIntegrator::Render() {
                    });
 
                 Transform cameraMotion;
-                if (gui)
-                    cameraMotion =
-                        renderFromCamera * gui->GetCameraTransform() * cameraFromRender;
                 GenerateCameraRays(y0, cameraMotion, sampleIndex);
                 Do(
                    "Update camera ray stats",
@@ -440,42 +433,6 @@ Float WavefrontPathIntegrator::Render() {
 
             progress.Update();
         }
-
-        if (gui) {
-            RGB *rgb = gui->MapFramebuffer();
-            UpdateFramebufferFromFilm(pixelBounds, gui->exposure, rgb);
-            gui->UnmapFramebuffer();
-
-            if (gui->printCameraTransform) {
-                SquareMatrix<4> cfw =
-                    (Inverse(gui->GetCameraTransform()) * cameraFromWorld).GetMatrix();
-                Printf("Current camera transform:\nTransform [ ");
-                for (int i = 0; i < 16; ++i)
-                    Printf("%f ", cfw[i % 4][i / 4]);
-                Printf("]\n");
-                std::fflush(stdout);
-                gui->printCameraTransform = false;
-            }
-
-            DisplayState state = gui->RefreshDisplay();
-            if (state == DisplayState::EXIT)
-                break;
-            else if (state == DisplayState::RESET) {
-                sampleIndex = firstSampleIndex - 1;
-                ParallelFor(
-                    "Reset pixels", resolution.x * resolution.y,
-                    PBRT_CPU_GPU_LAMBDA(int i) {
-                        int x = i % resolution.x, y = i / resolution.x;
-                        film.ResetPixel(pixelBounds.pMin + Vector2i(x, y));
-                    });
-            }
-        }
-
-    }
-
-    if (gui) {
-        delete gui;
-        gui = nullptr;
     }
 
     progress.Done();

@@ -251,7 +251,7 @@ int main(int argc, char *argv[]) {
         ErrorExit("Must provide log output filename via "
                   "--csv-out");
 #else
-    if (!options.mseReferenceImage.empty() && options.mseReferenceOutput.empty())
+    if (!options.referenceImage.empty() && options.referenceImage.empty())
         ErrorExit("Must provide log output filename via "
                   "--csv-out");
 #endif

@@ -108,7 +108,7 @@ endif()
 
 ###########################################################################
 # path guiding (Open PGL)
-option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." ON)
+option(PBRT_WITH_OIDN "Build PBRT with Open Image Denoise (OIDN) support." OFF)
 
 if(PBRT_WITH_OIDN)
   list (APPEND PBRT_DEFINITIONS "PBRT_WITH_OIDN")
@@ -116,7 +116,7 @@ endif()
 
 ###########################################################################
 # Enable RGB mode
-option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." OFF)
+option(PBRT_WITH_RGB "Enable RGB rendering in favor of spectral rendering." ON)
 
 if(PBRT_WITH_RGB)
   list (APPEND PBRT_DEFINITIONS "PBRT_RGB_RENDERING")
@@ -124,7 +124,7 @@ endif()
 
 ###########################################################################
 # interactive guiding viewer (Open PGL)
-option(PBRT_BUILD_GUIDING_VIEWER "Build PBRT with interactive guiding viewer support." ON)
+option(PBRT_BUILD_GUIDING_VIEWER "Build PBRT with interactive guiding viewer support." OFF)
 
 if(PBRT_BUILD_GUIDING_VIEWER)
     list (APPEND PBRT_DEFINITIONS "PBRT_BUILD_GUIDING_VIEWER")
@@ -679,7 +679,7 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/error.cpp
   src/pbrt/util/file.cpp
   src/pbrt/util/float.cpp
-  src/pbrt/util/gui.cpp
+  # src/pbrt/util/gui.cpp
   src/pbrt/util/image.cpp
   src/pbrt/util/log.cpp
   src/pbrt/util/loopsubdiv.cpp
@@ -705,8 +705,8 @@ SET (PBRT_UTIL_SOURCE
   src/pbrt/util/string.cpp
   src/pbrt/util/transform.cpp
   src/pbrt/util/vecmath.cpp
-  src/pbrt/util/shader.cpp
-  src/pbrt/util/framebuffer.cpp
+  # src/pbrt/util/shader.cpp
+  # src/pbrt/util/framebuffer.cpp
 )
 
 SET (PBRT_UTIL_SOURCE_HEADERS
@@ -969,8 +969,8 @@ set (ALL_PBRT_LIBS
   double-conversion
   ${PBRT_CUDA_LIB}
   utf8proc
-  glfw
-  glad
+  # glfw
+  # glad
   OpenGL::GL
   )
 

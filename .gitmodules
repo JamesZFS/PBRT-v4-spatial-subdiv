@@ -39,7 +39,7 @@
 [submodule "src/ext/openpgl"]
 	path = src/ext/openpgl
 	url = git@github.com:JamesZFS/OpenPGL-spatial-subdiv.git
-	branch = zfs
+	branch = cluster2
 [submodule "src/ext/oidn"]
 	path = src/ext/oidn
 	url = https://github.com/OpenImageDenoise/oidn.git

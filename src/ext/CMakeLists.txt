@@ -157,67 +157,70 @@ set (QOI_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/qoi PARENT_SCOPE)
 ###########################################################################
 # glfw / glad
 
-set (GLFW_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/glfw/include PARENT_SCOPE)
-set (GLAD_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/glad/include PARENT_SCOPE)
+if(0)
+  set (GLFW_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/glfw/include PARENT_SCOPE)
+  set (GLAD_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/glad/include PARENT_SCOPE)
 
-set (GLFW_LIBRARY_TYPE STATIC CACHE STRING "" FORCE)
-set (GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set (GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set (GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+  set (GLFW_LIBRARY_TYPE STATIC CACHE STRING "" FORCE)
+  set (GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+  set (GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+  set (GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
-add_subdirectory (glfw)
-add_subdirectory (glad)
+  add_subdirectory (glfw)
+  add_subdirectory (glad)
 
-set_property (TARGET glfw PROPERTY FOLDER "ext")
-set_property (TARGET glad PROPERTY FOLDER "ext")
+  set_property (TARGET glfw PROPERTY FOLDER "ext")
+  set_property (TARGET glad PROPERTY FOLDER "ext")
+endif()
 
-###########################################################################
-# imgui
+if(PBRT_BUILD_GUIDING_VIEWER)
+  message(STATUS "Building viewer with ImGui")
+  ###########################################################################
+  # imgui
+  set (IMGUI_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
+  set (IMGUI_INCLUDE ${IMGUI_INCLUDE} PARENT_SCOPE)
 
-set (IMGUI_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
-set (IMGUI_INCLUDE ${IMGUI_INCLUDE} PARENT_SCOPE)
+  set (IMGUI_SOURCES
+          ${IMGUI_INCLUDE}/imgui.cpp
+          ${IMGUI_INCLUDE}/imgui_demo.cpp
+          ${IMGUI_INCLUDE}/imgui_draw.cpp
+          ${IMGUI_INCLUDE}/imgui_tables.cpp
+          ${IMGUI_INCLUDE}/imgui_widgets.cpp
+          ${IMGUI_INCLUDE}/backends/imgui_impl_glfw.cpp
+          ${IMGUI_INCLUDE}/backends/imgui_impl_opengl3.cpp
+  )
 
-set (IMGUI_SOURCES
-        ${IMGUI_INCLUDE}/imgui.cpp
-        ${IMGUI_INCLUDE}/imgui_demo.cpp
-        ${IMGUI_INCLUDE}/imgui_draw.cpp
-        ${IMGUI_INCLUDE}/imgui_tables.cpp
-        ${IMGUI_INCLUDE}/imgui_widgets.cpp
-        ${IMGUI_INCLUDE}/backends/imgui_impl_glfw.cpp
-        ${IMGUI_INCLUDE}/backends/imgui_impl_opengl3.cpp
-)
+  add_library(imgui STATIC ${IMGUI_SOURCES})
+  target_include_directories(imgui PUBLIC ${IMGUI_INCLUDE})
+  target_compile_options(imgui PRIVATE -lGL)  # for Linux
 
-add_library(imgui STATIC ${IMGUI_SOURCES})
-target_include_directories(imgui PUBLIC ${IMGUI_INCLUDE})
-target_compile_options(imgui PRIVATE -lGL)  # for Linux
+  ###########################################################################
+  # implot
+  set (IMPLOT_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/implot)
+  set (IMPLOT_INCLUDE ${IMPLOT_INCLUDE} PARENT_SCOPE)
 
-###########################################################################
-# implot
+  set (IMPLOT_SOURCES
+          ${IMPLOT_INCLUDE}/implot.cpp
+          ${IMPLOT_INCLUDE}/implot_demo.cpp
+          ${IMPLOT_INCLUDE}/implot_items.cpp
+  )
 
-set (IMPLOT_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/implot)
-set (IMPLOT_INCLUDE ${IMPLOT_INCLUDE} PARENT_SCOPE)
+  add_library(implot STATIC ${IMPLOT_SOURCES})
+  target_include_directories(implot PUBLIC ${IMPLOT_INCLUDE} ${IMGUI_INCLUDE})
+  target_link_libraries(implot imgui)
 
-set (IMPLOT_SOURCES
-        ${IMPLOT_INCLUDE}/implot.cpp
-        ${IMPLOT_INCLUDE}/implot_demo.cpp
-        ${IMPLOT_INCLUDE}/implot_items.cpp
-)
+  ###########################################################################
+  # ImGuiFileDialog
 
-add_library(implot STATIC ${IMPLOT_SOURCES})
-target_include_directories(implot PUBLIC ${IMPLOT_INCLUDE} ${IMGUI_INCLUDE})
-target_link_libraries(implot imgui)
+  set (IMGUIFILEDIALOG_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/ImGuiFileDialog)
+  set (IMGUIFILEDIALOG_INCLUDE ${IMGUIFILEDIALOG_INCLUDE} PARENT_SCOPE)
 
-###########################################################################
-# ImGuiFileDialog
+  set (IMGUIFILEDIALOG_SOURCES ${IMGUIFILEDIALOG_INCLUDE}/ImGuiFileDialog.cpp)
 
-set (IMGUIFILEDIALOG_INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/ImGuiFileDialog)
-set (IMGUIFILEDIALOG_INCLUDE ${IMGUIFILEDIALOG_INCLUDE} PARENT_SCOPE)
-
-set (IMGUIFILEDIALOG_SOURCES ${IMGUIFILEDIALOG_INCLUDE}/ImGuiFileDialog.cpp)
-
-add_library(ImGuiFileDialog STATIC ${IMGUIFILEDIALOG_SOURCES})
-target_include_directories(ImGuiFileDialog PUBLIC ${IMGUIFILEDIALOG_INCLUDE} ${IMGUI_INCLUDE})
-target_link_libraries(ImGuiFileDialog imgui)
+  add_library(ImGuiFileDialog STATIC ${IMGUIFILEDIALOG_SOURCES})
+  target_include_directories(ImGuiFileDialog PUBLIC ${IMGUIFILEDIALOG_INCLUDE} ${IMGUI_INCLUDE})
+  target_link_libraries(ImGuiFileDialog imgui)
+endif()
 
 ###########################################################################
 # libnpy

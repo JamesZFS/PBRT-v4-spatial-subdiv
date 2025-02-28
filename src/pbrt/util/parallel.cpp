@@ -15,6 +15,7 @@
 #include <list>
 #include <thread>
 #include <vector>
+#include <iostream>
 
 namespace pbrt {
 
@@ -343,6 +344,7 @@ void ParallelInit(int nThreads) {
     CHECK(!ParallelJob::threadPool);
     if (nThreads <= 0)
         nThreads = AvailableCores();
+    std::cout << "nThreads: " << nThreads << std::endl;
     ParallelJob::threadPool = new ThreadPool(nThreads);
 }
 

@@ -44,7 +44,9 @@
 #include <iostream>
 
 #include <pbrt/guiding/guiding.h>
+#ifdef PBRT_BUILD_GUIDING_VIEWER
 #include <pbrt/guiding/Application.h>
+#endif
 
 namespace pbrt {
 
@@ -139,22 +141,6 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         Vector2i resolution = camera.GetFilm().PixelBounds().Diagonal();
         sensor = camera.GetFilm().GetPixelSensor();
 
-        if(guideSettings.loadContributionEstimate) {
-            if(FileExists(guideSettings.contributionEstimateFileName)) {
-                imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(guideSettings.contributionEstimateFileName);
-                imageSpaceGuidingBufferReady = true;
-                calculateImageSpaceGuidingBuffer = false;
-            } else {
-                std::cout << "Warning: Contribution estimate file does not exists: contributionEstimateFileName = " << guideSettings.contributionEstimateFileName << std::endl;
-            }
-        }
-
-        if(!imageSpaceGuidingBufferReady && (guideSettings.storeContributionEstimate || guideSettings.guideRR)){
-            calculateImageSpaceGuidingBuffer = true;
-            imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(openpgl::cpp::Point2i(resolution[0], resolution[1]));
-            imageSpaceGuidingBufferReady = false;
-        }
-
         if(guideSettings.guideRR) {
             settings.minRRDepth = 1;
         }
@@ -170,18 +156,14 @@ GuidedPathIntegrator::~GuidedPathIntegrator() {
         guiding_field->Store(guideSettings.guidingCacheFileName);
     }
 
-    if(guideSettings.storeContributionEstimate){
-        imageSpaceGuidingBuffer->Store(guideSettings.contributionEstimateFileName);
-    }
-
     delete guiding_device;
     delete guiding_sampleStorage;
     delete guiding_field;
-    delete imageSpaceGuidingBuffer;
 }
 
 void GuidedPathIntegrator::Render() {
     if (!Options->guidingViewer) return ImageTileIntegrator::Render();
+#ifdef PBRT_BUILD_GUIDING_VIEWER
     std::cout << "Running interactive guiding cache viewer mode." << std::endl;
     // Handle debugStart, if set
     if (!Options->debugStart.empty()) {
@@ -292,6 +274,9 @@ void GuidedPathIntegrator::Render() {
         Error("Guiding viewer application failed with %d", ret);
 
     LOG_VERBOSE("Rendering finished");
+#else
+    LOG_FATAL("PBRT_BUILD_GUIDING_VIEWER not defined");
+#endif
 }
 
 
@@ -317,14 +302,6 @@ void GuidedPathIntegrator::PostProcessWave() {
         }
     }
     guiding_sampleStorage->Clear();
-
-    if(calculateImageSpaceGuidingBuffer && waveCounter == std::pow(2.0f, imageSpaceGuidingBufferUpdateWave)) {
-        Timer imageSpaceGuidingBufferTimer;
-        imageSpaceGuidingBuffer->Update();
-        imageSpaceGudingBufferUpdateTime += imageSpaceGuidingBufferTimer.ElapsedSeconds();
-        imageSpaceGuidingBufferReady = true;
-        imageSpaceGuidingBufferUpdateWave++;
-    }
 }
 
 SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
@@ -336,18 +313,9 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
 
     openpgl::cpp::PathSegment* pathSegmentData = nullptr;
 
-    openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample cedSample;
-
     SampledSpectrum pixelContributionEstimate(0.f);
     SampledSpectrum adjointEstimate(0.f);
     bool guideRR = false;
-    if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
-        openpgl::cpp::Vector3f pgPixelContributionEstimate = imageSpaceGuidingBuffer->GetPixelContributionEstimate(openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-        pixelContributionEstimate[0] = pgPixelContributionEstimate.x;
-        pixelContributionEstimate[1] = pgPixelContributionEstimate.y;
-        pixelContributionEstimate[2] = pgPixelContributionEstimate.z;
-        guideRR = true;
-    }
 
     // Declare local variables for GuidedPathIntegrator::Li()
     SampledSpectrum L(0.f), beta(1.f);
@@ -426,7 +394,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         add_direct_contribution = false;
 
         // Initialize _visibleSurf_ at first intersection
-        if (depth == 0 && (visibleSurf || calculateImageSpaceGuidingBuffer)) {
+        if (depth == 0 && (visibleSurf)) {
             // Estimate BSDF's albedo
             // Define sample arrays _ucRho_ and _uRho_ for reflectance estimate
             constexpr int nRhoSamples = 16;
@@ -449,9 +417,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 *visibleSurf = VisibleSurface(isect, albedo, lambda);
 
             const RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
-            cedSample.albedo = openpgl::cpp::Vector3f(albedoRGB[0], albedoRGB[1], albedoRGB[2]);
-            cedSample.normal = openpgl::cpp::Vector3f(isect.n[0], isect.n[1], isect.n[2]);
-            cedSample.SetSurfaceEvent(true);
         }
 
         // End path if maximum depth reached
@@ -568,17 +533,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         std::lock_guard lock(pathLengthMutex);
         pathLengthCnt += 1;
         avgPathLength = Lerp(1.f / pathLengthCnt, avgPathLength, (float) depth);
-    }
-
-    if(calculateImageSpaceGuidingBuffer)
-    {
-    #if defined(PBRT_RGB_RENDERING)
-        RGB color = L.ToRGB(lambda, *colorSpace);
-    #else
-        RGB color = sensor->ToSensorRGB(L, lambda);
-    #endif
-        cedSample.contribution = openpgl::cpp::Vector3f(color[0], color[1], color[2]);
-        imageSpaceGuidingBuffer->AddSample(openpgl::cpp::Point2i(pPixel[0], pPixel[1]), cedSample);
     }
 
     if (guideSettings.enableTraining || guideSettings.evaluateOnly)
@@ -737,10 +691,6 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
     settings.guidingCacheFileName = parameters.GetOneString("guidingCacheFileName", "");
 
-    settings.storeContributionEstimate = parameters.GetOneBool("storeContributionEstimate", false);
-    settings.loadContributionEstimate = parameters.GetOneBool("loadContributionEstimate", false);
-    settings.contributionEstimateFileName = parameters.GetOneString("contributionEstimateFileName", "");
-
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
 
@@ -806,22 +756,6 @@ GuidedVolPathIntegrator::GuidedVolPathIntegrator(int maxDepth, int minRRDepth, b
         Vector2i resolution = camera.GetFilm().PixelBounds().Diagonal();
         sensor = camera.GetFilm().GetPixelSensor();
 
-        if(guideSettings.loadContributionEstimate) {
-            if(FileExists(guideSettings.contributionEstimateFileName)) {
-                imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(guideSettings.contributionEstimateFileName);
-                imageSpaceGuidingBufferReady = true;
-                calculateImageSpaceGuidingBuffer = false;
-            } else {
-                std::cout << "Warning: Contribution estimate file does not exists: contributionEstimateFileName = " << guideSettings.contributionEstimateFileName << std::endl;
-            }
-        }
-
-        if(!imageSpaceGuidingBufferReady && (guideSettings.storeContributionEstimate || guideSettings.guideRR)){
-            calculateImageSpaceGuidingBuffer = true;
-            imageSpaceGuidingBuffer = new openpgl::cpp::util::ImageSpaceGuidingBuffer(openpgl::cpp::Point2i(resolution[0],resolution[1]));
-            imageSpaceGuidingBufferReady = false;
-        }
-
         if(guideSettings.guideRR) {
             this->minRRDepth = 1;
         }
@@ -835,14 +769,9 @@ GuidedVolPathIntegrator::~GuidedVolPathIntegrator() {
         guiding_field->Store(guideSettings.guidingCacheFileName);
     }
 
-    if(guideSettings.storeContributionEstimate){
-        imageSpaceGuidingBuffer->Store(guideSettings.contributionEstimateFileName);
-    }
-
     delete guiding_device;
     delete guiding_sampleStorage;
     delete guiding_field;
-    delete imageSpaceGuidingBuffer;
 }
 
 void GuidedVolPathIntegrator::PostProcessWave() {
@@ -864,15 +793,6 @@ void GuidedVolPathIntegrator::PostProcessWave() {
     }
 
     guiding_sampleStorage->Clear();
-
-    if(calculateImageSpaceGuidingBuffer && waveCounter == std::pow(2.0f, imageSpaceGuidingBufferUpdateWave)) {
-        Timer imageSpaceGuidingBufferTimer;
-        imageSpaceGuidingBuffer->Update();
-        imageSpaceGudingBufferUpdateTime += imageSpaceGuidingBufferTimer.ElapsedSeconds();
-        std::cout << "Denoiser::time = " << imageSpaceGuidingBufferTimer.ElapsedSeconds() << std::endl;
-        imageSpaceGuidingBufferReady = true;
-        imageSpaceGuidingBufferUpdateWave++;
-    }
 }
 
 SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledWavelengths &lambda,
@@ -885,20 +805,11 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
 
     openpgl::cpp::PathSegment* pathSegmentData = nullptr;
 
-    openpgl::cpp::util::ImageSpaceGuidingBuffer::Sample cedSample;
-
     SampledSpectrum pixelContributionEstimate(1.f);
     SampledSpectrum adjointEstimate(1.f);
     bool guideRR = false;
     const bool guideSurfaceRR = guideSettings.guideSurfaceRR;
     const bool guideVolumeRR = guideSettings.guideVolumeRR;
-    if (guideSettings.guideRR && imageSpaceGuidingBufferReady) {
-        openpgl::cpp::Vector3f pgPixelContributionEstimate = imageSpaceGuidingBuffer->GetPixelContributionEstimate(openpgl::cpp::Point2i(pPixel[0], pPixel[1]));
-        pixelContributionEstimate[0] = pgPixelContributionEstimate.x;
-        pixelContributionEstimate[1] = pgPixelContributionEstimate.y;
-        pixelContributionEstimate[2] = pgPixelContributionEstimate.z;
-        guideRR = true;
-    }
 
     // Declare state variables for volumetric path sampling
     SampledSpectrum L(0.f), beta(1.f), r_u(1.f), r_l(1.f);
@@ -991,10 +902,6 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                         if(depth==0) {
                             SampledSpectrum albedo = mp.sigma_s / (mp.sigma_s + mp.sigma_a);
                             RGB albedoRGB = albedo.ToRGB(lambda, *colorSpace);
-
-                            cedSample.albedo = openpgl::cpp::Vector3f(albedoRGB[0], albedoRGB[1], albedoRGB[2]);
-                            cedSample.normal = openpgl::cpp::Vector3f(-ray.d[0], -ray.d[1], -ray.d[2]);
-                            cedSample.SetSurfaceEvent(false);
                         }
 
                         // Handle scattering along ray path
@@ -1181,7 +1088,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         add_direct_contribution = false;
 
         // Initialize _visibleSurf_ at first intersection
-        if (depth == 0 && (visibleSurf || calculateImageSpaceGuidingBuffer)) {
+        if (depth == 0 && (visibleSurf)) {
             // Estimate BSDF's albedo
             // Define sample arrays _ucRho_ and _uRho_ for reflectance estimate
             constexpr int nRhoSamples = 16;
@@ -1204,10 +1111,6 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
 
             if(visibleSurf)
                 *visibleSurf = VisibleSurface(isect, albedo, lambda);
-
-            cedSample.albedo = openpgl::cpp::Vector3f(albedoRGB[0], albedoRGB[1], albedoRGB[2]);
-            cedSample.normal = openpgl::cpp::Vector3f(isect.n[0], isect.n[1], isect.n[2]);
-            cedSample.SetSurfaceEvent(true);
         }
 
         // Terminate path if maximum depth reached
@@ -1377,17 +1280,6 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
 
     pathLength << depth;
 
-    if(calculateImageSpaceGuidingBuffer)
-    {
-#if defined(PBRT_RGB_RENDERING)
-        RGB color = L.ToRGB(lambda, *colorSpace);
-#else
-        RGB color = sensor->ToSensorRGB(L, lambda);
-#endif
-        cedSample.contribution = openpgl::cpp::Vector3f(color[0], color[1], color[2]);
-        imageSpaceGuidingBuffer->AddSample(openpgl::cpp::Point2i(pPixel[0], pPixel[1]), cedSample);
-    }
-
     if (guideTraining)
     {
         //pathSegmentStorage->ValidateSegments();
@@ -1546,10 +1438,6 @@ std::unique_ptr<GuidedVolPathIntegrator> GuidedVolPathIntegrator::Create(
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
     settings.guidingCacheFileName = parameters.GetOneString("guidingCacheFileName", "");
-
-    settings.storeContributionEstimate = parameters.GetOneBool("storeContributionEstimate", false);
-    settings.loadContributionEstimate = parameters.GetOneBool("loadContributionEstimate", false);
-    settings.contributionEstimateFileName = parameters.GetOneString("contributionEstimateFileName", "");
 
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
