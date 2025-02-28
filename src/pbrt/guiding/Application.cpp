@@ -1461,22 +1461,21 @@ void Application::SpatialSubdivisionSettings() {
     if (ImGui::CollapsingHeader("Spatial Subdivision")) {
         std::lock_guard lock(m_mtx.subdivCfg);
         int maxDepth = (int) m_subdivCfg.maxDepth;
-        int maxDepthWithSampleCount = (int) m_subdivCfg.maxDepthWithSampleCount;
+        int initializingIters = (int) m_subdivCfg.initializingIters;
         int sampleCountThreshold = (int) m_subdivCfg.sampleCountThreshold;
         int minSamplesCandidateSplit = (int) m_subdivCfg.minSamplesCandidateSplit;
         int minSamplesPromotion = (int) m_subdivCfg.minSamplesPromotion;
         _(), ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
-        _(), ImGui::InputInt("Max Depth with Sample Count", &maxDepthWithSampleCount, 1, 10);
         _(), ImGui::InputInt("Samples Count Threshold", &sampleCountThreshold, 0, 0);
+        _(), ImGui::InputInt("Initializing Iters", &initializingIters, 1, 10);
         _(), ImGui::InputInt("Min Samples Candidate Split", &minSamplesCandidateSplit, 0, 0);
         _(), ImGui::InputInt("Min Samples Promotion", &minSamplesPromotion, 0, 0);
         m_subdivCfg.maxDepth = std::max(1, std::min(32, maxDepth));
-        m_subdivCfg.maxDepthWithSampleCount = std::max(1, std::min(32, maxDepthWithSampleCount));
+        m_subdivCfg.initializingIters = std::max(0, initializingIters);
         m_subdivCfg.sampleCountThreshold = std::max(0, sampleCountThreshold);
         m_subdivCfg.minSamplesCandidateSplit = std::max(0, minSamplesCandidateSplit);
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Deterministic", &m_subdivCfg.deterministic);
-        ImGui::Checkbox("Enable Signature", &m_subdivCfg.enableSignature);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
         ImGui::Checkbox("Multiply Cosine", &m_subdivCfg.multiplyCosine);
         ImGui::Checkbox("Reproject Samples", &m_subdivCfg.reproject);

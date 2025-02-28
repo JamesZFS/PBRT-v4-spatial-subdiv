@@ -83,7 +83,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             guideSettings.treesamplecountthreshold, guideSettings.treeminsamplescandidatesplit, guideSettings.treemaxdepth);
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.deterministic = guideSettings.deterministic;
-        guiding_fieldSubdivConfig.maxDepthWithSampleCount = guideSettings.treemaxdepthwithsamplecount;
+        guiding_fieldSubdivConfig.initializingIters = guideSettings.treeinitializingiters;
         guiding_fieldSubdivConfig.lookaheadDepth = guideSettings.treelookaheaddepth;
         guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
@@ -91,7 +91,6 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.stdMultiplier = guideSettings.treestdmultiplier;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
-        guiding_fieldSubdivConfig.enableSignature = guideSettings.treeenablesignature;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
         guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
         guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
@@ -655,13 +654,12 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treeminsamplescandidatesplit = parameters.GetOneInt("treeminsamplescandidatesplit", settings.treeminsamplescandidatesplit);
     settings.treeminsamplespromotion = parameters.GetOneInt("treeminsamplespromotion", settings.treeminsamplespromotion);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", settings.treemaxdepth);
-    settings.treemaxdepthwithsamplecount = parameters.GetOneInt("treemaxdepthwithsamplecount", settings.treemaxdepthwithsamplecount);
+    settings.treeinitializingiters = parameters.GetOneInt("treeinitializingiters", settings.treeinitializingiters);
     settings.treelookaheaddepth = parameters.GetOneInt("treelookaheaddepth", settings.treelookaheaddepth);
     settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
     settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
-    settings.treeenablesignature = parameters.GetOneBool("treeenablesignature", settings.treeenablesignature);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
     settings.treemultiplycosine = parameters.GetOneBool("treemultiplycosine", settings.treemultiplycosine);
     settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
