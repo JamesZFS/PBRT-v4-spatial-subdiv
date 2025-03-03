@@ -84,6 +84,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.deterministic = guideSettings.deterministic;
         guiding_fieldSubdivConfig.initializingIters = guideSettings.treeinitializingiters;
+        guiding_fieldSubdivConfig.forcedSampleCountThreshold = (uint32_t) guideSettings.treeforcedsamplecountthreshold;
         guiding_fieldSubdivConfig.lookaheadDepth = guideSettings.treelookaheaddepth;
         guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
@@ -650,7 +651,8 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
     else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
     else throw std::runtime_error("Unknown dtype: " + dtype);
-    settings.treesamplecountthreshold = parameters.GetOneInt("treesamplecountthreshold", PGL_TREE_MAX_SAMPLE_PER_LEAF);
+    settings.treesamplecountthreshold = parameters.GetOneInt("treesamplecountthreshold", settings.treesamplecountthreshold);
+    settings.treeforcedsamplecountthreshold = parameters.GetOneInt("treeforcedsamplecountthreshold", settings.treeforcedsamplecountthreshold);
     settings.treeminsamplescandidatesplit = parameters.GetOneInt("treeminsamplescandidatesplit", settings.treeminsamplescandidatesplit);
     settings.treeminsamplespromotion = parameters.GetOneInt("treeminsamplespromotion", settings.treeminsamplespromotion);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", settings.treemaxdepth);
