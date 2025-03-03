@@ -79,7 +79,7 @@ private:
     } m_prev;
     pbrt::Frame m_frame;
 
-    bool m_pdf = true;
+    bool m_pdf = false;
     bool &m_localFrame;
     float &m_exposure;
     float m_rayEps = 1e-3f;

@@ -267,7 +267,7 @@ class GuidedPathIntegrator : public RayIntegrator {
 
         PGL_DIRECTIONAL_DISTRIBUTION_TYPE dtype {PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM};
         int treesamplecountthreshold {PGL_TREE_MAX_SAMPLE_PER_LEAF};
-        int treeforcedsamplecountthreshold {16 * PGL_TREE_MAX_SAMPLE_PER_LEAF};
+        int treeforcedsamplecountthreshold {-1};
         int treeminsamplescandidatesplit {1000};
         int treeminsamplespromotion {8000};
         int treemaxdepth {32};

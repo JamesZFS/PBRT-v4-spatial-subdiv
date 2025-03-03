@@ -669,6 +669,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     if (contribtype == "nn") settings.treecontribtype = PGL_SPATIAL_CONTRIB_NN;
     else if (contribtype == "splat") settings.treecontribtype = PGL_SPATIAL_CONTRIB_SPLAT;
     else if (contribtype == "basis") settings.treecontribtype = PGL_SPATIAL_CONTRIB_BASIS;
+    else if (contribtype == "basis_xi") settings.treecontribtype = PGL_SPATIAL_CONTRIB_BASIS_XI;
     else throw std::runtime_error("Unknown treecontribtype: " + contribtype);
 
     settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
