@@ -53,7 +53,7 @@ public:
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
     float GetSignatureStdMultiplier() const { return m_subdivCfg.stdMultiplier; }
 
-    bool sdrLocalFrame = true;
+    bool sdrLocalFrame = false;
     float sdrExposure = 1.0f;
 
 private:

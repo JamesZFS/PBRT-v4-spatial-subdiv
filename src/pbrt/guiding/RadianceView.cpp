@@ -100,6 +100,56 @@ static uint32_t pcg_2d(uint32_t x, uint32_t y) {
     return x;
 }
 
+// Inserts one 0-bit between any two of the 16 low bits of x
+static uint32_t part_1_by_1(uint32_t x) {
+    // x = ---- ---- ---- ---- fedc ba98 7654 3210
+    x &= 0xffffu;
+    // x = ---- ---- fedc ba98 ---- ---- 7654 3210
+    x = (x ^ (x << 8u)) & 0xff00ffu;
+    // x = ---- fedc ---- ba98 ---- 7654 ---- 3210
+    x = (x ^ (x << 4u)) & 0xf0f0f0fu;
+    // x = --fe --dc --ba --98 --76 --54 --32 --10
+    x = (x ^ (x << 2u)) & 0x33333333u;
+    // x = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
+    x = (x ^ (x << 1u)) & 0x55555555u;
+    return x;
+}
+
+
+// Creates a Morton code from two 8-bit integers (costs more than morton_8())
+static uint32_t morton_16(uint32_t x, uint32_t y) {
+    return (part_1_by_1(y) << 1u) ^ part_1_by_1(x);
+}
+
+
+// Inverse of xi() for max_depth = 16 (or maybe not)
+uint32_t invert_xi_16(uint32_t x, uint32_t y) {
+    x ^= 2631929843u, y ^= 3492732422u;
+    uint32_t z = morton_16(x >> 16u, y >> 16u);
+    constexpr uint32_t U[4] = {0u, 1790330939u, 2934368918u, 3293618861u};
+    uint32_t seq_no = 0u;
+    for (uint32_t bit = 0u; bit < 32u; bit += 2u)
+        seq_no ^= U[(z >> (30u - bit)) & 3u] << bit;
+    return seq_no;
+}
+
+
+// Inverse of xi() (or maybe not)
+uint32_t invert_xi(uint32_t x, uint32_t y, uint32_t max_depth) {
+    uint32_t mask = (1u << (2u * max_depth)) - 1u;
+    mask = (max_depth == 16u) ? 0xffffffffu : mask;
+    return invert_xi_16(x << (32u - max_depth), y << (32u - max_depth)) & mask;
+}
+
+// Maps a texel index and an octave index to a bin index. Only the octave least
+// significant bits of the texel index should be non-zero. octave must be 8 or
+// less.
+uint32_t get_bin(uint32_t x, uint32_t y, uint32_t octave, uint32_t log2_bin_count) {
+    uint32_t seq_no = invert_xi(x, y, 2u * octave);
+    uint32_t bin = (seq_no >> (4u * octave - log2_bin_count)) & ((1u << log2_bin_count) - 1u);
+    return bin;
+}
+
 static float mix(float a, float b, float t) {
     return (1 - t) * a + t * b;
 }
@@ -118,6 +168,7 @@ inline static void wrap(uint32_t &x, uint32_t &y, uint32_t res) {
     if (y > hres && (x == 0u || x == res)) {
         y = res - y;
     }
+    x &= res - 1u, y &= res - 1u;
 }
 
 // Wrapping for splatting
@@ -135,11 +186,18 @@ inline static void wrap_splat(int &x, int &y, uint32_t res) {
 void RadianceView::UpdateBasisBuffer() {
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     auto frame = Frame::FromZ(m_prev.normal);
+    const auto contribType = m_parent->GetSubdivCfg().contribType;
     const uint8_t S = pglGetSignatureSize();
+    const uint8_t log2_bin_count = (uint8_t) std::log2(S);
+    if (contribType == PGL_SPATIAL_CONTRIB_BASIS_XI) {
+        if (S != (1 << log2_bin_count)) {
+            std::cerr << "Signature size must be a power of 2" << std::endl;
+            return;
+        }
+    }
     const uint32_t oct_res = pglGetOctahedralResolution();
     const uint8_t octave_min = pglGetOctaveMin(), octave_max = pglGetOctaveMax();
     const float sigma = pglGetSplatSigma();
-    const auto contribType = m_parent->GetSubdivCfg().contribType;
     // const float basis_normalizer = pow(2.0, 1.0 - float(octave_min)) - pow(0.5, float(octave_max));
     const float gamma = pglGetOctaveGamma();
     const float alpha = -0.5f / (sigma*sigma);
@@ -154,7 +212,7 @@ void RadianceView::UpdateBasisBuffer() {
         pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
         const size_t pixel_index = p.y * m_resolution.x + p.x;
 
-        if (contribType == PGL_SPATIAL_CONTRIB_BASIS) {
+        if (contribType == PGL_SPATIAL_CONTRIB_BASIS || contribType == PGL_SPATIAL_CONTRIB_BASIS_XI) {
             // Find octahedral map coordinate
             auto uv = pgl_vec2f(pglDir);  // [-1, 1]
             uv.x = uv.x * 0.5 + 0.5;
@@ -183,10 +241,22 @@ void RadianceView::UpdateBasisBuffer() {
                 wrap(x01, y01, res);
                 wrap(x10, y10, res);
                 wrap(x11, y11, res);
-                uint8_t h00 = pcg_3d(x00, y00, k) % S;
-                uint8_t h01 = pcg_3d(x01, y01, k) % S;
-                uint8_t h10 = pcg_3d(x10, y10, k) % S;
-                uint8_t h11 = pcg_3d(x11, y11, k) % S;
+                uint8_t h00;
+                uint8_t h01;
+                uint8_t h10;
+                uint8_t h11;
+                if (contribType == PGL_SPATIAL_CONTRIB_BASIS) {
+                    h00 = pcg_3d(x00, y00, k) % S;
+                    h01 = pcg_3d(x01, y01, k) % S;
+                    h10 = pcg_3d(x10, y10, k) % S;
+                    h11 = pcg_3d(x11, y11, k) % S;
+                } else {
+                    // using Xi-seq for lower discrepancy and less clumping
+                    h00 = get_bin(x00, y00, k, log2_bin_count);
+                    h01 = get_bin(x01, y01, k, log2_bin_count);
+                    h10 = get_bin(x10, y10, k, log2_bin_count);
+                    h11 = get_bin(x11, y11, k, log2_bin_count);
+                }
 
                 for (uint8_t j = 0; j < S; ++j) {
                     // Determine whether this bin gets the sample

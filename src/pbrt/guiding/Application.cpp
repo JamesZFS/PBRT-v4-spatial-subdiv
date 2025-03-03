@@ -1463,7 +1463,7 @@ void Application::SpatialSubdivisionSettings() {
         int maxDepth = (int) m_subdivCfg.maxDepth;
         int initializingIters = (int) m_subdivCfg.initializingIters;
         int sampleCountThreshold = (int) m_subdivCfg.sampleCountThreshold;
-        int forcedSampleCountThreshold = (int) m_subdivCfg.forcedSampleCountThreshold;
+        int forcedSampleCountThreshold = m_subdivCfg.forcedSampleCountThreshold == std::numeric_limits<uint32_t>::max() ? -1 : (int) m_subdivCfg.forcedSampleCountThreshold;
         int minSamplesCandidateSplit = (int) m_subdivCfg.minSamplesCandidateSplit;
         int minSamplesPromotion = (int) m_subdivCfg.minSamplesPromotion;
         _(), ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
@@ -1475,7 +1475,7 @@ void Application::SpatialSubdivisionSettings() {
         m_subdivCfg.maxDepth = std::max(1, std::min(32, maxDepth));
         m_subdivCfg.initializingIters = std::max(0, initializingIters);
         m_subdivCfg.sampleCountThreshold = std::max(0, sampleCountThreshold);
-        m_subdivCfg.forcedSampleCountThreshold = std::max(0, forcedSampleCountThreshold);
+        m_subdivCfg.forcedSampleCountThreshold = (uint32_t) std::max(-1, forcedSampleCountThreshold);
         m_subdivCfg.minSamplesCandidateSplit = std::max(0, minSamplesCandidateSplit);
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Deterministic", &m_subdivCfg.deterministic);
@@ -1491,7 +1491,7 @@ void Application::SpatialSubdivisionSettings() {
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("Signature Decay", &m_subdivCfg.signatureDecay, 0.0f, 1.0f);
         _();
-        if (ImGui::Combo("Contrib Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis Function\0")) {
+        if (ImGui::Combo("Contrib Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis\0Basis Xi\0")) {
             if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
         }
         if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_NN || m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
