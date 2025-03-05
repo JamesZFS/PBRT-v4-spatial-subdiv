@@ -281,6 +281,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool treemultiplycosine {false};
         bool treereproject {false};
         PGL_SPATIAL_CONTRIB_TYPE treecontribtype {PGL_SPATIAL_CONTRIB_NN};
+        PGL_SPATIAL_DEFENSIVE_TYPE treedefensivetype {PGL_SPATIAL_DEFENSIVE_FIXED};
 
         int octahedralresolution {(int)pglGetOctahedralResolution()};
         int numbins {(int)pglGetSignatureSize()};

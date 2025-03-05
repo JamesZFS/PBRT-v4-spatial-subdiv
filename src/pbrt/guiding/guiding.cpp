@@ -96,6 +96,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
         guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
         guiding_fieldSubdivConfig.contribType = guideSettings.treecontribtype;
+        guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
         pglSetOctahedralResolution(guideSettings.octahedralresolution);
         pglSetSignatureSize(guideSettings.numbins);
         pglSetSplatSigma(guideSettings.splatSigma);
@@ -671,6 +672,12 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (contribtype == "basis") settings.treecontribtype = PGL_SPATIAL_CONTRIB_BASIS;
     else if (contribtype == "basis_xi") settings.treecontribtype = PGL_SPATIAL_CONTRIB_BASIS_XI;
     else throw std::runtime_error("Unknown treecontribtype: " + contribtype);
+
+    auto defensivetype = parameters.GetOneString("treedefensivetype", "fixed");
+    if (defensivetype == "fixed") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_FIXED;
+    else if (defensivetype == "sqrt") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_SQRT;
+    else if (defensivetype == "ppg") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_PPG;
+    else throw std::runtime_error("Unknown treedefensivetype: " + defensivetype);
 
     settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
     if (settings.octahedralresolution < 0)
