@@ -1468,7 +1468,8 @@ void Application::SpatialSubdivisionSettings() {
         int minSamplesPromotion = (int) m_subdivCfg.minSamplesPromotion;
         _(), ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
         _(), ImGui::InputInt("Samples Count Threshold", &sampleCountThreshold, 0, 0);
-        _(), ImGui::InputInt("Forced Samples Count Threshold", &forcedSampleCountThreshold, 0, 0);
+        _(), ImGui::InputInt("Defensive Samples Count", &forcedSampleCountThreshold, 0, 0);
+        _(), ImGui::Combo("Defensive Strategy", reinterpret_cast<int *>(&m_subdivCfg.defensiveType), "Fixed\0Sqrt\0PPG\0");
         _(), ImGui::InputInt("Initializing Iters", &initializingIters, 1, 10);
         _(), ImGui::InputInt("Min Samples Candidate Split", &minSamplesCandidateSplit, 0, 0);
         _(), ImGui::InputInt("Min Samples Promotion", &minSamplesPromotion, 0, 0);
@@ -1491,7 +1492,7 @@ void Application::SpatialSubdivisionSettings() {
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("Signature Decay", &m_subdivCfg.signatureDecay, 0.0f, 1.0f);
         _();
-        if (ImGui::Combo("Contrib Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis\0Basis Xi\0")) {
+        if (ImGui::Combo("Mask Function Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis\0Basis Xi\0")) {
             if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
         }
         if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_NN || m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
