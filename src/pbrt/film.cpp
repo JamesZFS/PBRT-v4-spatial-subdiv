@@ -956,7 +956,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                  "ZeroSamples",
                  "Depth",
                  "Fluence",
-                 "CE",
+                 "Risk",
                  "Energy",
 
                     // Fine:
@@ -970,7 +970,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
     ImageChannelDesc guideDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
-            "Samples", "ZeroSamples", "Depth", "Fluence", "CE", "Energy",
+            "Samples", "ZeroSamples", "Depth", "Fluence", "Risk", "Energy",
             "FineId.R", "FineId.G", "FineId.B"});
 
     std::atomic<int> nClamped{0};
@@ -1016,7 +1016,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         image.SetChannels(pOffset, guideDesc,
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                               (float) pixel.guidingData.numSamples, (float) pixel.guidingData.numZeroValueSamples, (float) pixel.guidingData.depth,
-                              pixel.guidingData.fluence, pixel.guidingData.ce, pixel.guidingData.energy,
+                              pixel.guidingData.fluence, pixel.guidingData.risk, pixel.guidingData.energy,
                                 fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
 
         //Normal3f n =

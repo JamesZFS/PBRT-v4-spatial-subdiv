@@ -17,8 +17,6 @@ void CacheMonitor::Plot::Draw() {
             ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
             ImGui::BulletText("Middle click viewport to insert a guiding cache probe");
             ImGui::BulletText("Right click a probe to remove it");
-            ImGui::BulletText("The lower edges of shaded area represent the split CE");
-            ImGui::BulletText("The white error bars represent the lookahead child's CE");
             ImGui::PopTextWrapPos();
             ImGui::EndTooltip();
         }
@@ -72,21 +70,13 @@ void CacheMonitor::Plot::Draw() {
             const float *x = &probe.data[0].iter;
             auto label = StringPrintf("#%d", probe.idx);
             auto lineColor = ImPlot::GetColormapColor(i);
-            if (m_type == PlotType_CE && m_monitor.m_plotLookahead) {  // Plot the child CE and split CE
-                auto barColor = ImPlot::GetStyleColorVec4(ImPlotCol_ErrorBar);
-                barColor.w = 0.5f + 0.5f * m_monitor.m_alpha;
-                float barSize = 2 * m_monitor.m_markerSize;
-                ImPlot::SetNextErrorBarStyle(barColor, barSize);
-                ImPlot::PlotErrorBars(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].negerr, &probe.data[0].poserr, probe.data.size(), 0, 0, sizeof(PlotEntry));
-                ImPlot::PlotShaded(label.c_str(), x, &probe.data[0].coarseCE, &probe.data[0].splitCE, probe.data.size(), 0, 0, sizeof(PlotEntry));
-            }
             ImPlot::SetNextLineStyle(lineColor);
             ImPlot::PlotLine(label.c_str(), x, x + yOffset, probe.data.size(), 0, 0, sizeof(PlotEntry));
         }
-        if (m_type == PlotType_CE && m_monitor.m_showHorizontal) {  // Plot CE convergence line
-            double ce = m_parent->GetCrossEntropySDRE();
-            ImPlot::DragLineY(0, &ce, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
-            ImPlot::Annotation(0, ce, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, m_parent->IsShowingFine() ? "Lookahead" : "Parent");
+        if (m_type == PlotType_Risk && m_monitor.m_showHorizontal) {  // Plot the risk threshold
+            double risk = m_parent->GetRiskTolerance();
+            ImPlot::DragLineY(0, &risk, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+            ImPlot::Annotation(0, risk, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, "Tolerance");
         }
         if (m_type == PlotType_Energy && m_monitor.m_showHorizontal) {  // Plot energy threshold
             double ths = m_parent->GetEnergyThreshold();

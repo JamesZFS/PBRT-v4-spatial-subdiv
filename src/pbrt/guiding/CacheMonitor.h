@@ -19,11 +19,8 @@ public:
         float depth;
         float samples;
         float fluence;
-        float coarseCE;
+        float risk;
         float energy;
-        float negerr;   // 0
-        float poserr;   // fineCE - coarseCE
-        float splitCE;  // coarseCE - threshold
     };
 
     struct Probe {
@@ -37,7 +34,7 @@ public:
         PlotType_Depth = 0,
         PlotType_Samples,
         PlotType_Fluence,
-        PlotType_CE,
+        PlotType_Risk,
         PlotType_Energy,
     };
 

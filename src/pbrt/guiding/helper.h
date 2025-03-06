@@ -16,7 +16,7 @@ enum SelectedChannel {
     Channel_CacheID,
     Channel_Energy,
     Channel_Fluence,
-    Channel_CE,
+    Channel_Risk,
     Channel_Samples,
     // Channel_ZeroSamples,
     Channel_Depth,
