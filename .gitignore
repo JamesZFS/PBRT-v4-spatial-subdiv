@@ -13,3 +13,4 @@ cmake-build-*/
 scenes
 scripts
 results
+rebase.sh
