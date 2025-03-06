@@ -12,7 +12,7 @@ ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const p
     for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Energy, Channel_Reference, Channel_Error}) {
         shaderData[c].firstNormalized = true;
     }
-    for (auto c: {Channel_Energy, Channel_Fluence, Channel_CE, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
+    for (auto c: {Channel_Energy, Channel_Fluence, Channel_Risk, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
         shaderData[c].cmap = CMap_Viridis;
     }
     for (auto c: {Channel_Radiance, Channel_Reference}) {
@@ -26,49 +26,9 @@ void ColormapPanel::Draw() {
     isHovered = false;
     hoveringValue = std::numeric_limits<float>::infinity();
     auto c = m_parent->GetSelectedChannel();
-    bool isDiffCE = c == Channel_CE && m_parent->IsShowingDiff();
     bool isID = c == Channel_CacheID;
     auto &io = ImGui::GetIO();
-    if (isDiffCE) {
-        auto &sd = shaderDataDiffCE;
-        auto reset = [&]() {
-            sd.scale = 1.0f;
-            sd.offset = 0.5f;
-        };
-        if (IsKeyPressed(ImGuiKey_E)) {
-            if (!io.KeyShift) {
-                sd.scale *= 1.1f;
-            } else {
-                sd.scale /= 1.1f;
-            }
-            sd.offset = 0.5f / sd.scale;  // such that 0 is mapped to 0.5
-        }
-        if (IsKeyPressed(ImGuiKey_R, false)) reset();
-        if (IsKeyPressed(ImGuiKey_B, false)) sd.boundary ^= true;
-        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-        if (ImGui::CollapsingHeader("Color Map")) {
-            if (ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f"))
-                sd.offset = 0.5f / sd.scale;
-            if (ImGui::Button("Reset")) reset();
-            ImGui::Checkbox("Boundaries", &sd.boundary);
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(90);
-            ImGui::Combo("Tonemap", reinterpret_cast<int *>(&sd.cmap), cmap_names, CMap_Count);
-            if (sd.cmap != CMap_None) {
-                ImGui::Image((void *) (uintptr_t) cmap_tex_ids[sd.cmap],
-                             ImVec2(ImGui::GetColumnWidth(), ImGui::GetFrameHeight()));
-                float xmin = ImGui::GetItemRectMin().x, xmax = ImGui::GetItemRectMax().x;
-                isHovered |= ImGui::IsItemHovered();
-                if (isHovered && ImGui::BeginTooltip()) {
-                    float t = (io.MousePos.x - xmin) / (xmax - xmin);
-                    hoveringValue = t / sd.scale - sd.offset;
-                    ImGui::Text("Pos: %.2f", t);
-                    ImGui::Text("Value: %.4f", hoveringValue);
-                    ImGui::EndTooltip();
-                }
-            }
-        }
-    } else if (!isID) {
+    if (!isID) {
         auto &sd = shaderData[c];
         auto reset = [&]() {
             sd.scale = 1.0f;
@@ -143,8 +103,8 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c, bool
                     case Channel_Fluence:
                         val = pixel.guidingData.fluence;
                         break;
-                    case Channel_CE:
-                        val = pixel.guidingData.ce;
+                    case Channel_Risk:
+                        val = pixel.guidingData.risk;
                         break;
                     case Channel_Samples:
                         val = (float) pixel.guidingData.numSamples;

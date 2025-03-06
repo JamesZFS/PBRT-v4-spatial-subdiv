@@ -168,7 +168,7 @@ class VisibleSurface {
         uint32_t numZeroValueSamples = 0;
         uint32_t depth = 0;
         float fluence = 0;
-        float ce = 0;
+        float risk = 0;
         float energy = 0;
 
         GuidingData &operator=(const GuidingData &other) {
@@ -178,7 +178,7 @@ class VisibleSurface {
             numZeroValueSamples = other.numZeroValueSamples;
             depth = other.depth;
             fluence = other.fluence;
-            ce = other.ce;
+            risk = other.risk;
             energy = other.energy;
             return *this;
         }

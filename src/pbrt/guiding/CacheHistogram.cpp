@@ -33,7 +33,7 @@ void CacheHistogram::Hist::Draw() {
         ImPlot::SetNextAxesToFit();
 
     // Use an eccentric color when the selected channel is same as the current histogram
-    static const SelectedChannel histType2Channel[] = {Channel_Fluence, Channel_CE, Channel_Energy, Channel_Depth, Channel_Samples};
+    static const SelectedChannel histType2Channel[] = {Channel_Fluence, Channel_Risk, Channel_Energy, Channel_Depth, Channel_Samples};
     static const ImU32 unselectedCol = ImGui::GetColorU32({0.2f, 0.4f, 0.6f, 1.f});
     static const ImU32 selectedCol = ImGui::GetColorU32({0.6f, 0.4f, 0.2f, 1.f});
     ImU32 col = m_parent->GetSelectedChannel() == histType2Channel[m_type] ? selectedCol : unselectedCol;
@@ -66,8 +66,8 @@ void CacheHistogram::Hist::Draw() {
             case PlotType_Fluence:
                 ImPlot::PlotHistogram(title.c_str(), m_object.m_data.fluence.data(), m_object.m_data.fluence.size(), m_object.m_bins, 1, {}, hist_flags);
                 break;
-            case PlotType_CE:
-                ImPlot::PlotHistogram(title.c_str(), m_object.m_data.ce.data(), m_object.m_data.ce.size(), m_object.m_bins, 1, {}, hist_flags);
+            case PlotType_Risk:
+                ImPlot::PlotHistogram(title.c_str(), m_object.m_data.risk.data(), m_object.m_data.risk.size(), m_object.m_bins, 1, {}, hist_flags);
                 break;
             case PlotType_Energy:
                 ImPlot::PlotHistogram(title.c_str(), m_object.m_data.energy.data(), m_object.m_data.energy.size(), m_object.m_bins, 1, {}, hist_flags);
@@ -90,7 +90,7 @@ void CacheHistogram::Hist::Draw() {
 CacheHistogram::CacheHistogram(pbrt::Application* parent) : m_parent(parent) {
     m_bins = ImPlotBin_Sqrt;
     m_data.fluence.reserve(1000);
-    m_data.ce.reserve(1000);
+    m_data.risk.reserve(1000);
     m_data.depth.reserve(1000);
     m_data.samples.reserve(1000);
 }
@@ -119,7 +119,7 @@ void CacheHistogram::RequestFitAxes() {
 void CacheHistogram::Clear() {
     std::lock_guard lock(m_mutex);
     m_data.fluence.clear();
-    m_data.ce.clear();
+    m_data.risk.clear();
     m_data.depth.clear();
     m_data.samples.clear();
     m_bins = ImPlotBin_Sqrt;

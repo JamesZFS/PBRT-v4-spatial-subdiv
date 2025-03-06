@@ -18,9 +18,7 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.cacheID.fine.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.cacheID.diff.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.fluence.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.ce.coarse.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.ce.fine.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.ce.diff.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.risk.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.signatureDist.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
@@ -73,9 +71,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
                 m_cpuBuffer.cacheID.fine[index] = m_cpuBuffer.cacheID.coarse[index];
             }
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
-            m_cpuBuffer.ce.coarse[index] = pixel.guidingData.ce;
-            m_cpuBuffer.ce.fine[index] = pixel.guidingData.ce;  // deprecated
-            m_cpuBuffer.ce.diff[index] = pixel.guidingData.fineId != -1 ? pixel.guidingData.ce - pixel.guidingData.ce : 0;  // deprecated
+            m_cpuBuffer.risk[index] = pixel.guidingData.risk;
             m_cpuBuffer.signatureDist[index] = pixel.guidingData.energy;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
@@ -144,9 +140,9 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms, Selected
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.fluence.data(), m_resolution.x, m_resolution.y, false);
                 break;
-            case Channel_CE:
+            case Channel_Risk:
                 CHECK(m_isMultiChannel);
-                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, showDiff ? m_cpuBuffer.ce.diff.data() : showFine ? m_cpuBuffer.ce.fine.data() : m_cpuBuffer.ce.coarse.data(), m_resolution.x, m_resolution.y, false);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.risk.data(), m_resolution.x, m_resolution.y, false);
                 break;
             case Channel_Samples:
                 CHECK(m_isMultiChannel);

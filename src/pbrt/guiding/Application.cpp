@@ -23,7 +23,7 @@ static std::vector<const char *> channelNames = {
     "Cache ID (2)",
     "Energy (3)",
     "Fluence (4)",
-    "CE (5)",
+    "Risk (5)",
     "Samples (6)",
     // "Zero Samples (6)",
     "Depth (7)",
@@ -81,7 +81,7 @@ int Application::Run() {
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
-    m_cacheMonitor.ce = &m_cacheMonitor.object->AddPlot("CE vs. Iter", CacheMonitor::PlotType_CE, true);
+    m_cacheMonitor.risk = &m_cacheMonitor.object->AddPlot("Risk vs. Iter", CacheMonitor::PlotType_Risk, true);
     m_cacheMonitor.energy = &m_cacheMonitor.object->AddPlot("Energy vs. Iter", CacheMonitor::PlotType_Energy, true);
     m_cacheMonitor.fluence = &m_cacheMonitor.object->AddPlot("Fluence vs. Iter", CacheMonitor::PlotType_Fluence, false);
     m_cacheMonitor.depth = &m_cacheMonitor.object->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
@@ -287,7 +287,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
-        for (auto s: {"CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View",
+        for (auto s: {"Risk Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View",
             "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot"})
             ImGui::DockBuilderDockWindow(s, rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
@@ -347,7 +347,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Settings", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightBottomDock);
-        ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Risk Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Energy Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
@@ -417,7 +417,7 @@ void Application::SetupLayoutProbeViews() {
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         for (auto s: {"Settings",
             "Fluence Histogram", "Energy Histogram", "Depth Histogram", "Samples Histogram",
-            "CE Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve",
+            "Risk Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve",
             "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot"
         })
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
@@ -494,10 +494,10 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Training Time Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Energy Curve", rightBottomDock);
-        ImGui::DockBuilderDockWindow("CE Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
+        ImGui::DockBuilderDockWindow("Fluence Curve", rightTopDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightMidDock);
-        ImGui::DockBuilderDockWindow("Fluence Curve", rightMidDock);
+        ImGui::DockBuilderDockWindow("Risk Curve", rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -551,7 +551,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
         ImGui::DockBuilderDockWindow("Signature View", leftMidDock);
-        ImGui::DockBuilderDockWindow("CE Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Risk Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Energy Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
@@ -665,8 +665,7 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
 void Application::UpdateFramebuffer() {
     // Update the framebuffer when the film is updated
     SelectedChannel c = m_selectedChannel;
-    bool isDiffCE = c == Channel_CE && m_showDiff;
-    auto &sd = isDiffCE ? m_colormapPanel->shaderDataDiffCE : m_colormapPanel->shaderData[c];
+    auto &sd = m_colormapPanel->shaderData[c];
     float clipValue = std::numeric_limits<float>::infinity();
     if (m_colormapPanel->isHovered) {
         clipValue = m_colormapPanel->hoveringValue;
@@ -744,7 +743,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
     auto f = [](const PGLRegionStatistics &stats) {
         ImGui::Text("Energy: %f", stats.energy);
         ImGui::Text("Fluence: %f", stats.fluence);
-        ImGui::Text("CE: %f", stats.crossEntropy);
+        ImGui::Text("Risk: %f", stats.risk);
         ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
         if (stats.splitDim < 3) {
@@ -800,9 +799,9 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
                 "  Depth: %d\n"
                 "  Energy:  %f\n"
                 "  Fluence: %f\n"
-                "  CE:      %f\n"
+                "  Risk:    %f\n"
                 "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, s.crossEntropy,
+                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, s.risk,
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
                 s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
         };
@@ -956,11 +955,8 @@ void Application::CacheProbesInteraction() {
                         coarseValid ? (float) rc.coarse.depth : nan,
                         coarseValid ? (float) rc.coarse.numSamples : nan,
                         fineValid ? rc.fine.fluence : (coarseValid ? rc.coarse.fluence : nan),
-                        coarseValid ? rc.coarse.crossEntropy : nan,
+                        fineValid ? rc.fine.risk : (coarseValid ? rc.coarse.risk : nan),
                         fineValid ? rc.fine.energy : (coarseValid ? rc.coarse.energy : nan),
-                        coarseValid && fineValid ? 0 : nan,
-                        coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
-                        coarseValid ? rc.coarse.crossEntropy/* - m_subdivCfg.ceThreshold*/ : nan,
                     });
                 }
             });
@@ -1033,11 +1029,8 @@ void Application::UpdateCacheCurves() {
                 coarseValid ? (float) rc.coarse.depth : nan,
                 coarseValid ? (float) rc.coarse.numSamples : nan,
                 fineValid ? rc.fine.fluence : (coarseValid ? rc.coarse.fluence : nan),
-                coarseValid ? rc.coarse.crossEntropy : nan,
+                fineValid ? rc.fine.risk : (coarseValid ? rc.coarse.risk : nan),
                 fineValid ? rc.fine.energy : (coarseValid ? rc.coarse.energy : nan),
-                coarseValid && fineValid ? 0 : nan,
-                coarseValid && fineValid ? rc.fine.crossEntropy - rc.coarse.crossEntropy : nan,
-                coarseValid ? rc.coarse.crossEntropy/* - m_subdivCfg.ceThreshold*/ : nan,
             });
         }
     });
@@ -1048,7 +1041,7 @@ void Application::UpdateCacheHistograms() {
     m_cacheHistogram.object->Update([&](CacheHistogram::Data &data) {
         size_t numRegions = m_field.GetRegionCountSurface();
         data.fluence.clear();
-        data.ce.clear();
+        data.risk.clear();
         data.energy.clear();
         data.depth.clear();
         data.samples.clear();
@@ -1056,7 +1049,7 @@ void Application::UpdateCacheHistograms() {
             auto cache = m_field.GetRegionStatisticsSurface(i);
             if (cache.removed) continue;
             data.fluence.push_back(cache.fluence);
-            data.ce.push_back(cache.crossEntropy);
+            data.risk.push_back(cache.risk);
             data.energy.push_back(cache.energy);
             data.depth.push_back(cache.depth);
             data.samples.push_back(cache.numSamples);
@@ -1353,9 +1346,9 @@ void Application::ViewportOptions() {
     if (IsKeyPressed(ImGuiKey_F, false)) m_showFine ^= true;
     if (IsKeyPressed(ImGuiKey_D, false)) m_showDiff ^= true;
     ImGui::Checkbox("Show Lookaheads", &m_showFine);
-    ImGui::SetItemTooltip("(F) Works for Cache ID, CE channels, and sampling distribution view.");
+    ImGui::SetItemTooltip("(F) Works for Cache ID and sampling distribution view.");
     ImGui::Checkbox("Show Difference", &m_showDiff);
-    ImGui::SetItemTooltip("(D) Only works for Cache ID and CE channels.");
+    ImGui::SetItemTooltip("(D) Only works for Cache ID channel.");
     if (m_showFine != showFineOld || m_showDiff != showDiffOld) {
         m_viewport->RequestUpdate();
     }
@@ -1556,8 +1549,8 @@ void Application::SpatialSubdivisionSettings() {
 }
 
 void Application::CacheMonitorViews() {
-    if (ImGui::Begin("CE Curve"))
-        m_cacheMonitor.ce->Draw();
+    if (ImGui::Begin("Risk Curve"))
+        m_cacheMonitor.risk->Draw();
     ImGui::End();
 
     if (ImGui::Begin("Energy Curve"))

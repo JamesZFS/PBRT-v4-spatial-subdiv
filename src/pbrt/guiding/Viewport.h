@@ -57,11 +57,7 @@ private:
             std::vector<pbrt::RGB> diff;
         } cacheID;
         std::vector<float> fluence;
-        struct {
-            std::vector<float> coarse;
-            std::vector<float> fine;
-            std::vector<float> diff;
-        } ce;
+        std::vector<float> risk;
         std::vector<float> signatureDist;
         std::vector<float> samples;
         std::vector<float> zeroSamples;
