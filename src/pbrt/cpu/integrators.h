@@ -277,7 +277,9 @@ class GuidedPathIntegrator : public RayIntegrator {
         float treestdmultiplier {1.0f};
         float treecedecay {0.0f};
         float treerisktolerance {100.f};
+        bool treedbor {false};
         float treeinlierpercent {1.0f};
+        float treedborstdmultiplier {3.0f};
         float treececlampvalue {1e8f};
         bool treeenablepromotion {true};
         bool treemultiplycosine {false};
