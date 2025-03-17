@@ -91,7 +91,9 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
         guiding_fieldSubdivConfig.stdMultiplier = guideSettings.treestdmultiplier;
         guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
+        guiding_fieldSubdivConfig.DBOR = guideSettings.treedbor;
         guiding_fieldSubdivConfig.inlierPercent = guideSettings.treeinlierpercent;
+        guiding_fieldSubdivConfig.DBORstdMultiplier = guideSettings.treedborstdmultiplier;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.ceClampValue = guideSettings.treececlampvalue;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
@@ -667,7 +669,9 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
     settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
     settings.treerisktolerance = parameters.GetOneFloat("treerisktolerance", settings.treerisktolerance);
+    settings.treedbor = parameters.GetOneBool("treedbor", settings.treedbor);
     settings.treeinlierpercent = parameters.GetOneFloat("treeinlierpercent", settings.treeinlierpercent);
+    settings.treedborstdmultiplier = parameters.GetOneFloat("treedborstdmultiplier", settings.treedborstdmultiplier);
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treececlampvalue = parameters.GetOneFloat("treececlampvalue", settings.treececlampvalue);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);

@@ -1535,7 +1535,12 @@ void Application::SpatialSubdivisionSettings() {
         }
         _(), ImGui::DragFloat("Std Multiplier", &m_subdivCfg.stdMultiplier, 0.2f, 0, 10);
         _(), ImGui::DragFloat("Risk Tolerance", &m_subdivCfg.riskTolerance, 0.2f, 0, 2.0);
-        _(), ImGui::DragFloat("Inlier Percent", &m_subdivCfg.inlierPercent, 0.1f, 0, 1.0);
+        ImGui::Checkbox("DBOR", &m_subdivCfg.DBOR);
+        if (m_subdivCfg.DBOR) {
+            _(), ImGui::DragFloat("DBOR Std Multiplier", &m_subdivCfg.DBORstdMultiplier, 0.2f, 0, 5.0);
+        } else {
+            _(), ImGui::DragFloat("Inlier Percent", &m_subdivCfg.inlierPercent, 0.1f, 0, 1.0);
+        }
         if (ImGui::Button("Clear CE Statistics")) {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearCEStatistics();
