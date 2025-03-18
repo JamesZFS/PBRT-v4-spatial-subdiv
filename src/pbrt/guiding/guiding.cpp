@@ -90,8 +90,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
         guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
         guiding_fieldSubdivConfig.stdMultiplier = guideSettings.treestdmultiplier;
-        guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
-        guiding_fieldSubdivConfig.DBOR = guideSettings.treedbor;
+        guiding_fieldSubdivConfig.filterType = guideSettings.treefiltertype;
         guiding_fieldSubdivConfig.inlierPercent = guideSettings.treeinlierpercent;
         guiding_fieldSubdivConfig.DBORstdMultiplier = guideSettings.treedborstdmultiplier;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
@@ -102,6 +101,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.nonRecursive = guideSettings.treenonrecursive;
         guiding_fieldSubdivConfig.contribType = guideSettings.treecontribtype;
         guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
+        guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
         pglSetOctahedralResolution(guideSettings.octahedralresolution);
         pglSetSignatureSize(guideSettings.numbins);
         pglSetSplatSigma(guideSettings.splatSigma);
@@ -669,7 +669,6 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
     settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
     settings.treerisktolerance = parameters.GetOneFloat("treerisktolerance", settings.treerisktolerance);
-    settings.treedbor = parameters.GetOneBool("treedbor", settings.treedbor);
     settings.treeinlierpercent = parameters.GetOneFloat("treeinlierpercent", settings.treeinlierpercent);
     settings.treedborstdmultiplier = parameters.GetOneFloat("treedborstdmultiplier", settings.treedborstdmultiplier);
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
@@ -690,6 +689,13 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (defensivetype == "sqrt") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_SQRT;
     else if (defensivetype == "ppg") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_PPG;
     else throw std::runtime_error("Unknown treedefensivetype: " + defensivetype);
+
+    auto filtertype = parameters.GetOneString("treefiltertype", "none");
+    if (filtertype == "none") settings.treefiltertype = PGL_SPATIAL_FILTER_NONE;
+    else if (filtertype == "percentage") settings.treefiltertype = PGL_SPATIAL_FILTER_PERCENTAGE;
+    else if (filtertype == "dbor") settings.treefiltertype = PGL_SPATIAL_FILTER_DBOR;
+    else if (filtertype == "dbor_accum") settings.treefiltertype = PGL_SPATIAL_FILTER_DBOR_ACCUM;
+    else throw std::runtime_error("Unknown treefiltertype: " + filtertype);
 
     settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
     if (settings.octahedralresolution < 0)
