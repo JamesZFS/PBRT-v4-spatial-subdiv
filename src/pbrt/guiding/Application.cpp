@@ -1478,6 +1478,7 @@ void Application::SpatialSubdivisionSettings() {
         ImGui::Checkbox("Multiply Cosine", &m_subdivCfg.multiplyCosine);
         ImGui::Checkbox("Reproject Samples", &m_subdivCfg.reproject);
         ImGui::Checkbox("Non Recursive", &m_subdivCfg.nonRecursive);
+        ImGui::Checkbox("Single Promotion", &m_subdivCfg.singlePromotion);
         int lookaheadDepth = (int) m_subdivCfg.lookaheadDepth;
         _(), ImGui::InputInt("Lookahead Depth", &lookaheadDepth, 1, 3);
         m_subdivCfg.lookaheadDepth = std::max(1, std::min(10, lookaheadDepth));
