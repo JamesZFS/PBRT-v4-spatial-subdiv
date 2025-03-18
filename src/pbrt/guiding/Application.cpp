@@ -143,7 +143,7 @@ void Application::Draw() {
         ImGui::Begin("Controls");
         m_controlPanel->Draw();
         int wave = GetCurrentWave();
-        ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave >= m_spp ? "Done" : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
+        ImGui::ProgressBar((float) wave / (float) m_spp, {ImGui::GetColumnWidth(), 0}, wave >= m_spp ? StringPrintf("%d SPP Done", m_spp).c_str() : StringPrintf("%d/%d SPP", wave, m_spp).c_str());
         ErrorMetricSelector();
         ViewportOptions();
         m_colormapPanel->Draw();
@@ -746,6 +746,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Risk: %f", stats.risk);
         ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
+        ImGui::Text("DBOR mean: %.2e, std: %.2e", stats.dborMean, stats.dborStd);
         if (stats.splitDim < 3) {
             static const char dim_ch[] = {'x', 'y', 'z'};
             ImGui::Text("Candidate Split Dim: %c", dim_ch[stats.splitDim]);
@@ -1535,11 +1536,15 @@ void Application::SpatialSubdivisionSettings() {
         }
         _(), ImGui::DragFloat("Std Multiplier", &m_subdivCfg.stdMultiplier, 0.2f, 0, 10);
         _(), ImGui::DragFloat("Risk Tolerance", &m_subdivCfg.riskTolerance, 0.2f, 0, 2.0);
-        ImGui::Checkbox("DBOR", &m_subdivCfg.DBOR);
-        if (m_subdivCfg.DBOR) {
-            _(), ImGui::DragFloat("DBOR Std Multiplier", &m_subdivCfg.DBORstdMultiplier, 0.2f, 0, 5.0);
-        } else {
-            _(), ImGui::DragFloat("Inlier Percent", &m_subdivCfg.inlierPercent, 0.1f, 0, 1.0);
+        _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");
+        switch (m_subdivCfg.filterType) {
+            case PGL_SPATIAL_FILTER_PERCENTAGE:
+                _(), ImGui::DragFloat("Inlier Percent", &m_subdivCfg.inlierPercent, 0.1f, 0, 1.0); break;
+            case PGL_SPATIAL_FILTER_DBOR:
+            case PGL_SPATIAL_FILTER_DBOR_ACCUM:
+                _(), ImGui::DragFloat("DBOR Std Multiplier", &m_subdivCfg.DBORstdMultiplier, 0.2f, 0, 5.0); break;
+            case PGL_SPATIAL_FILTER_NONE:
+            default: break;
         }
         if (ImGui::Button("Clear CE Statistics")) {
             std::lock_guard lock_(m_mtx.field);

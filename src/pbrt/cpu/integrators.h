@@ -277,7 +277,6 @@ class GuidedPathIntegrator : public RayIntegrator {
         float treestdmultiplier {1.0f};
         float treecedecay {0.0f};
         float treerisktolerance {100.f};
-        bool treedbor {false};
         float treeinlierpercent {1.0f};
         float treedborstdmultiplier {3.0f};
         float treececlampvalue {1e8f};
@@ -287,6 +286,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool treenonrecursive {false};
         PGL_SPATIAL_CONTRIB_TYPE treecontribtype {PGL_SPATIAL_CONTRIB_NN};
         PGL_SPATIAL_DEFENSIVE_TYPE treedefensivetype {PGL_SPATIAL_DEFENSIVE_FIXED};
+        PGL_SPATIAL_FILTER_TYPE treefiltertype {PGL_SPATIAL_FILTER_NONE};
 
         int octahedralresolution {(int)pglGetOctahedralResolution()};
         int numbins {(int)pglGetSignatureSize()};
