@@ -18,7 +18,7 @@ public:
     ~PlotManager();
 
     struct Plot : public View {
-        Plot(pbrt::Application *parent, const std::string &xAxisName, const std::string &yAxisName, PlotManager &plotManager);
+        Plot(pbrt::Application *parent, const std::string &yAxisName, PlotManager &plotManager);
 
         void Draw() override;
 
@@ -26,20 +26,21 @@ public:
 
         struct Curve {
             std::string id;
-            std::vector<float> xData, yData;
+            std::vector<float> iterData, timeData, yData;
 
             explicit Curve(const std::string &id) : id(id) {}
         };
 
-        std::string m_xAxisName, m_yAxisName;
+        std::string m_yAxisName;
         std::vector<Curve> m_curves;
         PlotManager &m_manager;
         std::atomic_bool m_shouldFitAxes = true;
+        bool m_xAxisTime = false;  // false: use iteration as x-axis, true: use total render time as x-axis
     };
 
     Plot &AddPlot(const std::string &yAxisName);
 
-    void AppendData(const std::string &yAxisName, float x, float y);
+    void AppendData(const std::string &yAxisName, float iter, float time, float y);
 
     void ClearAll();
 

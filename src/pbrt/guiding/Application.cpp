@@ -598,10 +598,10 @@ void Application::SetupRenderThread() {
             UpdateField(waveStart);
             UpdateCacheCurves();
             UpdateCacheHistograms();
-            UpdatePlots();
             UpdateSamplingDistributionView();
             UpdateSignatureView();
             RenderWave(waveStart);
+            UpdatePlots();
             UpdateCPUBufferFromFilm();
         }, m_saveImage);
     m_renderThread->SetCmdCallback(RenderThread::Restart, [&] {
@@ -1020,6 +1020,7 @@ void Application::RestartRendering(bool resetCache) {
     m_samplingDistributionView->Clear();
     m_signatureView->Clear();
     m_plots.object->ClearCurrent();
+    m_waveStats.totalSeconds = 0;
 }
 
 void Application::UpdateCPUBufferFromFilm() {
@@ -1070,13 +1071,14 @@ void Application::UpdateCacheHistograms() {
 }
 
 void Application::UpdatePlots() {
-    float x = GetCurrentWave();
-    m_plots.object->AppendData("regions", x, m_waveStats.numRegions);
-    m_plots.object->AppendData("error", x, m_viewport->GetMeanError());
-    m_plots.object->AppendData("rendering time", x, m_waveStats.renderMS);
-    m_plots.object->AppendData("training time", x, m_waveStats.postprocessMS);
-    m_plots.object->AppendData("samples", x, m_waveStats.trainingSamples);
-    m_plots.object->AppendData("avg path length", x, m_waveStats.avgPathLength);
+    float iter = GetCurrentWave();
+    m_waveStats.totalSeconds += (m_waveStats.renderMS + m_waveStats.postprocessMS) * 1e-3f;  // to secs
+    m_plots.object->AppendData("regions", iter, m_waveStats.totalSeconds, m_waveStats.numRegions);
+    m_plots.object->AppendData("error", iter, m_waveStats.totalSeconds, m_viewport->GetMeanError());
+    m_plots.object->AppendData("rendering time", iter, m_waveStats.totalSeconds, m_waveStats.renderMS);
+    m_plots.object->AppendData("training time", iter, m_waveStats.totalSeconds, m_waveStats.postprocessMS);
+    m_plots.object->AppendData("samples", iter, m_waveStats.totalSeconds, m_waveStats.trainingSamples);
+    m_plots.object->AppendData("avg path length", iter, m_waveStats.totalSeconds, m_waveStats.avgPathLength);
     m_plots.object->RequestFitAxes();
 }
 

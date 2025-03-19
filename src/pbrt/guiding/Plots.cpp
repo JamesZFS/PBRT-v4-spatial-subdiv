@@ -12,9 +12,8 @@ PlotManager::~PlotManager() {
         delete plot;
 }
 
-PlotManager::Plot::Plot(pbrt::Application *parent, const std::string &xAxisName, const std::string &yAxisName,
+PlotManager::Plot::Plot(pbrt::Application *parent, const std::string &yAxisName,
                         PlotManager &plotManager) : View(parent), m_manager(plotManager) {
-    m_xAxisName = xAxisName;
     m_yAxisName = yAxisName;
 }
 
@@ -52,6 +51,10 @@ void PlotManager::Plot::Draw() {
         }
         ImGui::EndPopup();
     }
+    ImGui::SameLine();
+    if (ImGui::Checkbox("X-axis Time", &m_xAxisTime)) {
+        m_shouldFitAxes = true;
+    }
 
     // Draw plots
     ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0, 0.3));
@@ -64,7 +67,7 @@ void PlotManager::Plot::Draw() {
         ImPlot::SetNextAxesToFit();
 
     if (ImPlot::BeginPlot(m_yAxisName.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), plot_flags)) {
-        ImPlot::SetupAxes(m_xAxisName.c_str(), m_yAxisName.c_str(), ImPlotAxisFlags_NoLabel, ImPlotAxisFlags_NoLabel);
+        ImPlot::SetupAxes("", m_yAxisName.c_str(), ImPlotAxisFlags_NoLabel, ImPlotAxisFlags_NoLabel);
         // Hovering behavior: draw a vertical line for all plots at the same x position
         ImDrawList *draw_list = ImPlot::GetPlotDrawList();
         if (ImPlot::IsPlotHovered()) {
@@ -91,7 +94,7 @@ void PlotManager::Plot::Draw() {
             const auto &curve = m_curves[i];
             auto lineColor = ImPlot::GetColormapColor(i);
             ImPlot::SetNextLineStyle(lineColor);
-            ImPlot::PlotLine(curve.id.c_str(), &curve.xData[0], &curve.yData[0], (int) curve.xData.size());
+            ImPlot::PlotLine(curve.id.c_str(), &(m_xAxisTime ? curve.timeData : curve.iterData)[0], &curve.yData[0], (int) curve.yData.size());
         }
         ImPlot::EndPlot();
     }
@@ -122,12 +125,12 @@ void PlotManager::Plot::Draw() {
 }
 
 PlotManager::Plot &PlotManager::AddPlot(const std::string &yAxisName) {
-    auto [it, success] = m_plots.emplace(yAxisName, new Plot(m_parent, "iter", yAxisName, *this));
+    auto [it, success] = m_plots.emplace(yAxisName, new Plot(m_parent, yAxisName, *this));
     CHECK(success);
     return *it->second;
 }
 
-void PlotManager::AppendData(const std::string &yAxisName, float x, float y) {
+void PlotManager::AppendData(const std::string &yAxisName, float iter, float time, float y) {
     std::lock_guard lock(m_mutex);
     auto &plot = *m_plots.at(yAxisName);
 
@@ -146,7 +149,8 @@ void PlotManager::AppendData(const std::string &yAxisName, float x, float y) {
     }
 
     // Append data
-    curve->xData.push_back(x);
+    curve->iterData.push_back(iter);
+    curve->timeData.push_back(time);
     curve->yData.push_back(y);
 }
 
@@ -169,7 +173,8 @@ void PlotManager::ClearCurrent() {
             }
         }
         if (curve) {
-            curve->xData.clear();
+            curve->iterData.clear();
+            curve->timeData.clear();
             curve->yData.clear();
         }
     }
