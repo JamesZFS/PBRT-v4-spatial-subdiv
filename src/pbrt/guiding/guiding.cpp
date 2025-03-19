@@ -281,7 +281,8 @@ void GuidedPathIntegrator::Render() {
             metadata.samplesPerPixel = waveEnd;
             camera.InitMetadata(&metadata);
             camera.GetFilm().WriteImage(metadata, 1.0f / waveEnd);
-        });
+        },
+        [&]() { return avgPathLength; });
 
     if (int ret = app.Run(); ret != 0)
         Error("Guiding viewer application failed with %d", ret);
@@ -291,6 +292,7 @@ void GuidedPathIntegrator::Render() {
 
 
 void GuidedPathIntegrator::PostProcessWave() {
+    avgPathLength = pathLengthCnt = 0;
 
     waveCounter++;
     std::cout << "GuidedPathIntegrator::PostProcessWave()" << std::endl;
@@ -556,6 +558,11 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                                survivalProb, lambda, colorSpace);
     }
     pathLength << depth;
+    {
+        std::lock_guard lock(pathLengthMutex);
+        pathLengthCnt += 1;
+        avgPathLength = Lerp(1.f / pathLengthCnt, avgPathLength, (float) depth);
+    }
 
     if(calculateImageSpaceGuidingBuffer)
     {

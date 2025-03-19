@@ -368,6 +368,9 @@ class GuidedPathIntegrator : public RayIntegrator {
     openpgl::cpp::Field* guiding_field {nullptr};
     openpgl::cpp::Device* guiding_device {nullptr};
     //ThreadLocal<Allocator> threadPathSegmentStorage;
+    mutable std::mutex pathLengthMutex;
+    mutable float avgPathLength {0};
+    mutable float pathLengthCnt {0};
 
     openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer {nullptr};
 
