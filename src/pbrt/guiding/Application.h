@@ -34,7 +34,8 @@ public:
         GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
         const std::function<void(int waveStart)> &renderWave,
         const std::function<void(int waveEnd)> &updateCache,
-        const std::function<void(int waveEnd)> &saveImage);
+        const std::function<void(int waveEnd)> &saveImage,
+        const std::function<float()> &getAvgPathLength);
     ~Application() override;
     int Run();
     SelectedChannel GetSelectedChannel() const { return m_selectedChannel; }
@@ -157,6 +158,7 @@ private:
     std::function<void(int waveStart)> m_renderWave;
     std::function<void(int waveEnd)> m_updateCache;
     std::function<void(int waveEnd)> m_saveImage;
+    std::function<float()> m_getAvgPathLength;
 
     GLFWwindow *m_window = nullptr;
     ImVec2 m_windowSize{1500, 800};
@@ -206,7 +208,7 @@ private:
     } m_cacheHistogram;
     struct {
         std::unique_ptr<PlotManager> object;
-        PlotManager::Plot *regions, *error, *renderingTime, *trainingTime;
+        PlotManager::Plot *regions, *error, *renderingTime, *trainingTime, *samples, *avgPathLength;
     } m_plots;
 
     mutable struct {
@@ -218,6 +220,7 @@ private:
         double postprocessMS = 0;
         size_t trainingSamples = 0;
         size_t numRegions = 0;
+        float avgPathLength = 0;
     } m_waveStats;
 
     std::string m_recordSamplesDir = "./samples";

@@ -45,12 +45,13 @@ Application::Application(Camera camera, Primitive scene, const std::vector<Light
     Sampler samplerPrototype, ThreadLocal<Sampler> &samplers, GuidedPathIntegrator::IntegratorSettings &integratorSettings, GuidedPathIntegrator::GuidingSettings &guideSettings,
     const std::function<void(int waveStart)> &renderWave,
     const std::function<void(int waveEnd)> &updateCache,
-    const std::function<void(int waveEnd)> &saveImage)
+    const std::function<void(int waveEnd)> &saveImage,
+    const std::function<float()> &getAvgPathLength)
     : View(this),
       m_camera(camera), m_film(camera.GetFilm()), m_reference(std::move(reference)), m_isMultiChannel(m_film.Is<GuidedGBufferFilm>()),
       m_scene(scene), m_lights(lights), m_device(*device), m_field(*field), m_sampleStorage(sampleStorage), m_subdivCfg(args), m_samplerPrototype(samplerPrototype), m_samplers(samplers),
       m_integratorSettings(integratorSettings), m_guideSettings(guideSettings),
-      m_renderWave(renderWave), m_updateCache(updateCache), m_saveImage(saveImage),
+      m_renderWave(renderWave), m_updateCache(updateCache), m_saveImage(saveImage), m_getAvgPathLength(getAvgPathLength),
       m_resolution(m_film.PixelBounds().Diagonal()) {
     m_spp = samplerPrototype.SamplesPerPixel();
     m_seed = Options->seed;
@@ -99,6 +100,8 @@ int Application::Run() {
     m_plots.error = &m_plots.object->AddPlot("error");
     m_plots.renderingTime = &m_plots.object->AddPlot("rendering time");
     m_plots.trainingTime = &m_plots.object->AddPlot("training time");
+    m_plots.samples = &m_plots.object->AddPlot("samples");
+    m_plots.avgPathLength = &m_plots.object->AddPlot("avg path length");
 
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     // ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
@@ -288,7 +291,7 @@ void Application::SetupLayoutDefault() {
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
         ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
         for (auto s: {"Risk Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View",
-            "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot"})
+            "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot", "Samples Plot", "Avg Path Length Plot"})
             ImGui::DockBuilderDockWindow(s, rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
@@ -361,6 +364,8 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Error Plot", rightBottomDock);
         ImGui::DockBuilderDockWindow("Rendering Time Plot", rightBottomDock);
         ImGui::DockBuilderDockWindow("Training Time Plot", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Plot", rightBottomDock);
+        ImGui::DockBuilderDockWindow("Avg Path Length Plot", rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -418,7 +423,7 @@ void Application::SetupLayoutProbeViews() {
         for (auto s: {"Settings",
             "Fluence Histogram", "Energy Histogram", "Depth Histogram", "Samples Histogram",
             "Risk Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve",
-            "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot"
+            "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot", "Samples Plot", "Avg Path Length Plot"
         })
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
@@ -492,6 +497,8 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Error Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Rendering Time Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Training Time Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Avg Path Length Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Energy Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightTopDock);
@@ -562,6 +569,8 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Error Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Rendering Time Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Training Time Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Samples Plot", leftBottomDock);
+        ImGui::DockBuilderDockWindow("Avg Path Length Plot", leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Histograms", right);
         ImGui::DockBuilderFinish(dockSpaceID);
@@ -986,6 +995,7 @@ void Application::RenderWave(int waveStart) {
     m_renderWave(waveStart);
     m_waveStats.renderMS = timer.ElapsedSeconds() * 1e3;
     m_waveStats.trainingSamples = m_sampleStorage.GetSizeSurface() + m_sampleStorage.GetSizeVolume();
+    m_waveStats.avgPathLength = m_getAvgPathLength();
 }
 
 void Application::ClearFilm() {
@@ -1065,6 +1075,8 @@ void Application::UpdatePlots() {
     m_plots.object->AppendData("error", x, m_viewport->GetMeanError());
     m_plots.object->AppendData("rendering time", x, m_waveStats.renderMS);
     m_plots.object->AppendData("training time", x, m_waveStats.postprocessMS);
+    m_plots.object->AppendData("samples", x, m_waveStats.trainingSamples);
+    m_plots.object->AppendData("avg path length", x, m_waveStats.avgPathLength);
     m_plots.object->RequestFitAxes();
 }
 
@@ -1376,18 +1388,18 @@ void Application::StatusBar() {
 #endif
     else
         mouseInfo = "<invalid>";
-    if (ImGui::GetColumnWidth() > 850)
-        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Regions: %s | Mouse: %s",
+    if (ImGui::GetColumnWidth() > 900)
+        ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms | Training Samples: %s | Regions: %s | Average Path Length: %.2f | Mouse: %s",
             stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS,
-            FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
+            FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(), m_waveStats.avgPathLength,
             mouseInfo.c_str());
     else {
         ImGui::Text("%s | Wave Render / Training Time: %.1f / %.1f ms",
             stateNames[m_renderThread->GetState()],
             m_waveStats.renderMS, m_waveStats.postprocessMS);
-        ImGui::Text("Training Samples: %s | Regions: %s | Mouse: %s",
-            FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(),
+        ImGui::Text("Training Samples: %s | Regions: %s | Average Path Length: %.2f | Mouse: %s",
+            FormatInteger(m_waveStats.trainingSamples).c_str(), FormatInteger(m_waveStats.numRegions).c_str(), m_waveStats.avgPathLength,
             mouseInfo.c_str());
     }
 }
@@ -1630,6 +1642,14 @@ void Application::PlotsView() {
 
     if (ImGui::Begin("Training Time Plot"))
         m_plots.trainingTime->Draw();
+    ImGui::End();
+
+    if (ImGui::Begin("Samples Plot"))
+        m_plots.samples->Draw();
+    ImGui::End();
+
+    if (ImGui::Begin("Avg Path Length Plot"))
+        m_plots.avgPathLength->Draw();
     ImGui::End();
 }
 
