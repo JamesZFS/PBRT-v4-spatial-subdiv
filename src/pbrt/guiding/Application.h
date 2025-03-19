@@ -221,6 +221,7 @@ private:
         size_t trainingSamples = 0;
         size_t numRegions = 0;
         float avgPathLength = 0;
+        float totalSeconds = 0;  // only including pure rendering and training time
     } m_waveStats;
 
     std::string m_recordSamplesDir = "./samples";
