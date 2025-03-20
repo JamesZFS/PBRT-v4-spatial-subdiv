@@ -100,6 +100,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
         guiding_fieldSubdivConfig.nonRecursive = guideSettings.treenonrecursive;
         guiding_fieldSubdivConfig.singlePromotion = guideSettings.treesinglepromotion;
+        guiding_fieldSubdivConfig.optimizeSignature = guideSettings.treeoptimizesignature;
         guiding_fieldSubdivConfig.contribType = guideSettings.treecontribtype;
         guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
         guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
@@ -686,6 +687,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
     settings.treenonrecursive = parameters.GetOneBool("treenonrecursive", settings.treenonrecursive);
     settings.treesinglepromotion = parameters.GetOneBool("treesinglepromotion", settings.treesinglepromotion);
+    settings.treeoptimizesignature = parameters.GetOneBool("treeoptimizesignature", settings.treeoptimizesignature);
     auto contribtype = parameters.GetOneString("treecontribtype", "nn");
     if (contribtype == "nn") settings.treecontribtype = PGL_SPATIAL_CONTRIB_NN;
     else if (contribtype == "splat") settings.treecontribtype = PGL_SPATIAL_CONTRIB_SPLAT;
