@@ -1562,10 +1562,6 @@ void Application::SpatialSubdivisionSettings() {
             case PGL_SPATIAL_FILTER_NONE:
             default: break;
         }
-        if (ImGui::Button("Clear CE Statistics")) {
-            std::lock_guard lock_(m_mtx.field);
-            m_field.ClearCEStatistics();
-        }
         if (ImGui::Button("Clear Signatures")) {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearSignatures();
