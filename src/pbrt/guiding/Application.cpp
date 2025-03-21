@@ -1497,11 +1497,9 @@ void Application::SpatialSubdivisionSettings() {
         int lookaheadDepth = (int) m_subdivCfg.lookaheadDepth;
         _(), ImGui::InputInt("Lookahead Depth", &lookaheadDepth, 1, 3);
         m_subdivCfg.lookaheadDepth = std::max(1, std::min(10, lookaheadDepth));
-        _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
         // _(), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
         // _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
-        _(), ImGui::SliderFloat("Signature Decay", &m_subdivCfg.signatureDecay, 0.0f, 1.0f);
         _();
         if (ImGui::Combo("Mask Function Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis\0Basis Xi\0")) {
             if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
@@ -1550,6 +1548,8 @@ void Application::SpatialSubdivisionSettings() {
                 m_radianceView->UpdateBasisBuffer();
             }
         }
+        _(), ImGui::Combo("Split Criterion", reinterpret_cast<int *>(&m_subdivCfg.splitCriterion), "Relative L1\0L1\0One-sample t-test\0Welch's t-test\0");
+        _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
         _(), ImGui::DragFloat("Std Multiplier", &m_subdivCfg.stdMultiplier, 0.2f, 0, 10);
         _(), ImGui::DragFloat("Risk Tolerance", &m_subdivCfg.riskTolerance, 0.2f, 0, 2.0);
         _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");
