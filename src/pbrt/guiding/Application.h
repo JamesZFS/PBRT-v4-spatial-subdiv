@@ -47,9 +47,11 @@ public:
     int GetSPP() const { return m_spp; }
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
+    bool IsShowingTValue() const { return m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_ONE_SAMPLE_TTEST || m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_WELCH_TTEST; }
     double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
     float GetEnergyThreshold() const { return m_subdivCfg.signatureDistanceThreshold; }
     float GetRiskTolerance() const { return m_subdivCfg.riskTolerance; }
+    float GetTValueThreshold() const { return m_subdivCfg.tValueThreshold; }
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
@@ -200,7 +202,7 @@ private:
     std::unique_ptr<ColormapPanel> m_colormapPanel;
     struct {
         std::unique_ptr<CacheMonitor> object;
-        CacheMonitor::Plot *risk, *energy, *fluence, *depth, *samples;
+        CacheMonitor::Plot *risk, *energy, *fluence, *tValue, *depth, *samples;
     } m_cacheMonitor;
     struct {
         std::unique_ptr<CacheHistogram> object;
