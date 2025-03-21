@@ -20,6 +20,7 @@ public:
         float samples;
         float fluence;
         float risk;
+        float tValue;
         float energy;
     };
 
@@ -35,6 +36,7 @@ public:
         PlotType_Samples,
         PlotType_Fluence,
         PlotType_Risk,
+        PlotType_TValue,
         PlotType_Energy,
     };
 

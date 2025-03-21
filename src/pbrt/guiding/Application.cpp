@@ -21,9 +21,9 @@
 static std::vector<const char *> channelNames = {
     "Radiance (1)",
     "Cache ID (2)",
-    "Energy (3)",
-    "Fluence (4)",
-    "Risk (5)",
+    "Fluence/Irradiance (3)",
+    "Energy (4)",
+    "Risk/TValue (5)",
     "Samples (6)",
     // "Zero Samples (6)",
     "Depth (7)",
@@ -82,9 +82,10 @@ int Application::Run() {
     m_colormapPanel = std::make_unique<ColormapPanel>(this, m_film, m_reference);
 
     m_cacheMonitor.object = std::make_unique<CacheMonitor>(this);
-    m_cacheMonitor.risk = &m_cacheMonitor.object->AddPlot("Risk vs. Iter", CacheMonitor::PlotType_Risk, true);
+    m_cacheMonitor.risk = &m_cacheMonitor.object->AddPlot("Risk vs. Iter", CacheMonitor::PlotType_Risk, false);
     m_cacheMonitor.energy = &m_cacheMonitor.object->AddPlot("Energy vs. Iter", CacheMonitor::PlotType_Energy, true);
     m_cacheMonitor.fluence = &m_cacheMonitor.object->AddPlot("Fluence vs. Iter", CacheMonitor::PlotType_Fluence, false);
+    m_cacheMonitor.tValue = &m_cacheMonitor.object->AddPlot("T-Value vs. Iter", CacheMonitor::PlotType_TValue, false);
     m_cacheMonitor.depth = &m_cacheMonitor.object->AddPlot("Depth vs. Iter", CacheMonitor::PlotType_Depth, false);
     m_cacheMonitor.samples = &m_cacheMonitor.object->AddPlot("Samples vs. Iter", CacheMonitor::PlotType_Samples, false);
 
@@ -249,10 +250,12 @@ void Application::SetupLayoutDefault() {
         m_enableRayCastingHistory = false;
         m_enableImGuiDemo = false;
         m_enableImPlotDemo = false;
+        m_enablePlots = true;
+        SetFullScreen();
         // Figure out proper window size
-        auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
-        m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::max(800, std::min(m_resolution.y + 120, mode->height)));
-        glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
+        // auto mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+        // m_windowSize = ImVec2(std::min(m_resolution.x + 600, mode->width), std::max(800, std::min(m_resolution.y + 120, mode->height)));
+        // glfwSetWindowSize(m_window, m_windowSize.x, m_windowSize.y);
     }
 
     // ImGui::DockSpaceOverViewport();
@@ -289,8 +292,8 @@ void Application::SetupLayoutDefault() {
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
         ImGui::DockBuilderDockWindow("Viewport", midDock);
         ImGui::DockBuilderDockWindow("Radiance View", rightTopDock);
-        ImGui::DockBuilderDockWindow("Sampling Distribution", rightBottomDock);
-        for (auto s: {"Risk Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve", "Signature View",
+        ImGui::DockBuilderDockWindow("Sampling Distribution", rightTopDock);
+        for (auto s: {"Risk Curve", "Energy Curve", "Fluence Curve", "T-Value Curve", "Depth Curve", "Samples Curve", "Signature View",
             "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot", "Samples Plot", "Avg Path Length Plot"})
             ImGui::DockBuilderDockWindow(s, rightBottomDock);
         ImGui::DockBuilderFinish(dockSpaceID);
@@ -353,6 +356,7 @@ void Application::SetupLayoutCompact() {
         ImGui::DockBuilderDockWindow("Risk Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Energy Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", rightBottomDock);
+        ImGui::DockBuilderDockWindow("T-Value Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Histogram", rightBottomDock);
@@ -422,7 +426,7 @@ void Application::SetupLayoutProbeViews() {
         ImGui::DockBuilderDockWindow("Controls", leftTopDock);
         for (auto s: {"Settings",
             "Fluence Histogram", "Energy Histogram", "Depth Histogram", "Samples Histogram",
-            "Risk Curve", "Energy Curve", "Fluence Curve", "Depth Curve", "Samples Curve",
+            "Risk Curve", "Energy Curve", "Fluence Curve", "T-Value Curve", "Depth Curve", "Samples Curve",
             "Regions Plot", "Error Plot", "Rendering Time Plot", "Training Time Plot", "Samples Plot", "Avg Path Length Plot"
         })
             ImGui::DockBuilderDockWindow(s, leftBottomDock);
@@ -505,6 +509,7 @@ void Application::SetupLayoutCacheMonitor() {
         ImGui::DockBuilderDockWindow("Fluence Curve", rightTopDock);
         ImGui::DockBuilderDockWindow("Samples Curve", rightMidDock);
         ImGui::DockBuilderDockWindow("Risk Curve", rightMidDock);
+        ImGui::DockBuilderDockWindow("T-Value Curve", rightMidDock);
         ImGui::DockBuilderFinish(dockSpaceID);
 
         m_hasSetupLayout = true;
@@ -559,6 +564,7 @@ void Application::SetupLayoutHistograms() {
         ImGui::DockBuilderDockWindow("Settings", leftMidDock);
         ImGui::DockBuilderDockWindow("Signature View", leftMidDock);
         ImGui::DockBuilderDockWindow("Risk Curve", leftBottomDock);
+        ImGui::DockBuilderDockWindow("T-Value Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Energy Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Fluence Curve", leftBottomDock);
         ImGui::DockBuilderDockWindow("Depth Curve", leftBottomDock);
@@ -674,7 +680,7 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
 void Application::UpdateFramebuffer() {
     // Update the framebuffer when the film is updated
     SelectedChannel c = m_selectedChannel;
-    auto &sd = m_colormapPanel->shaderData[c];
+    auto &sd = (c == Channel_Risk && IsShowingTValue()) ? m_colormapPanel->shaderDataTValue : m_colormapPanel->shaderData[c];
     float clipValue = std::numeric_limits<float>::infinity();
     if (m_colormapPanel->isHovered) {
         clipValue = m_colormapPanel->hoveringValue;
@@ -749,10 +755,12 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Cache ID Parent/Child: %u/%u", coarse.id, fine.id);
     else
         ImGui::Text("Cache ID: %u", coarse.id);
-    auto f = [](const PGLRegionStatistics &stats) {
-        ImGui::Text("Energy: %f", stats.energy);
+    auto f = [&](const PGLRegionStatistics &stats) {
         ImGui::Text("Fluence: %f", stats.fluence);
+        ImGui::Text("Energy: %f", fine.energy);
         ImGui::Text("Risk: %f", stats.risk);
+        if (IsShowingTValue())
+            ImGui::Text("TValue: %f", fine.tValue);
         ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
         ImGui::Text("DBOR mean: %.2e, std: %.2e", stats.dborMean, stats.dborStd);
@@ -966,6 +974,7 @@ void Application::CacheProbesInteraction() {
                         coarseValid ? (float) rc.coarse.numSamples : nan,
                         fineValid ? rc.fine.fluence : (coarseValid ? rc.coarse.fluence : nan),
                         fineValid ? rc.fine.risk : (coarseValid ? rc.coarse.risk : nan),
+                        fineValid ? rc.fine.tValue : (coarseValid ? rc.coarse.tValue : nan),
                         fineValid ? rc.fine.energy : (coarseValid ? rc.coarse.energy : nan),
                     });
                 }
@@ -1042,6 +1051,7 @@ void Application::UpdateCacheCurves() {
                 coarseValid ? (float) rc.coarse.numSamples : nan,
                 fineValid ? rc.fine.fluence : (coarseValid ? rc.coarse.fluence : nan),
                 fineValid ? rc.fine.risk : (coarseValid ? rc.coarse.risk : nan),
+                fineValid ? rc.fine.tValue : (coarseValid ? rc.coarse.tValue : nan),
                 fineValid ? rc.fine.energy : (coarseValid ? rc.coarse.energy : nan),
             });
         }
@@ -1548,17 +1558,24 @@ void Application::SpatialSubdivisionSettings() {
                 m_radianceView->UpdateBasisBuffer();
             }
         }
-        _(), ImGui::Combo("Split Criterion", reinterpret_cast<int *>(&m_subdivCfg.splitCriterion), "Relative L1\0L1\0One-sample t-test\0Welch's t-test\0");
+        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0One-sample t-test\0Welch's t-test\0");
         _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
-        _(), ImGui::DragFloat("Std Multiplier", &m_subdivCfg.stdMultiplier, 0.2f, 0, 10);
-        _(), ImGui::DragFloat("Risk Tolerance", &m_subdivCfg.riskTolerance, 0.2f, 0, 2.0);
+        _(), ImGui::InputFloat("Std Multiplier", &m_subdivCfg.stdMultiplier);
+        switch (m_subdivCfg.confidenceType) {
+            case PGL_SPATIAL_CONFIDENCE_RISK:
+                _(), ImGui::InputFloat("Risk Tolerance", &m_subdivCfg.riskTolerance); break;
+            case PGL_SPATIAL_CONFIDENCE_ONE_SAMPLE_TTEST:
+            case PGL_SPATIAL_CONFIDENCE_WELCH_TTEST:
+                _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold); break;
+            default: break;
+        }
         _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");
         switch (m_subdivCfg.filterType) {
             case PGL_SPATIAL_FILTER_PERCENTAGE:
-                _(), ImGui::DragFloat("Inlier Percent", &m_subdivCfg.inlierPercent, 0.1f, 0, 1.0); break;
+                _(), ImGui::InputFloat("Inlier Percent", &m_subdivCfg.inlierPercent); break;
             case PGL_SPATIAL_FILTER_DBOR:
             case PGL_SPATIAL_FILTER_DBOR_ACCUM:
-                _(), ImGui::DragFloat("DBOR Std Multiplier", &m_subdivCfg.DBORstdMultiplier, 0.2f, 0, 5.0); break;
+                _(), ImGui::InputFloat("DBOR Std Multiplier", &m_subdivCfg.DBORstdMultiplier); break;
             case PGL_SPATIAL_FILTER_NONE:
             default: break;
         }
@@ -1583,6 +1600,10 @@ void Application::CacheMonitorViews() {
 
     if (ImGui::Begin("Fluence Curve"))
         m_cacheMonitor.fluence->Draw();
+    ImGui::End();
+
+    if (ImGui::Begin("T-Value Curve"))
+        m_cacheMonitor.tValue->Draw();
     ImGui::End();
 
     if (ImGui::Begin("Depth Curve"))

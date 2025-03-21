@@ -15,7 +15,7 @@ struct ColormapPanel : public View {
 
     void Draw() override;
 
-    std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c, bool showFine) const;
+    std::pair<float, float> GetMinMaxFromFilm(SelectedChannel c) const;
 
     pbrt::Film film;
     const pstd::optional<pbrt::Image> &reference;
@@ -27,6 +27,7 @@ struct ColormapPanel : public View {
         bool firstNormalized = false;  // whether to trigger normalize when switching to this channel
     };
     ShaderData shaderData[Channel_Count];
+    ShaderData shaderDataTValue;
     std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRAE);
 
     bool isHovered = false;

@@ -14,8 +14,8 @@
 enum SelectedChannel {
     Channel_Radiance = 0,
     Channel_CacheID,
-    Channel_Energy,
     Channel_Fluence,
+    Channel_Energy,
     Channel_Risk,
     Channel_Samples,
     // Channel_ZeroSamples,

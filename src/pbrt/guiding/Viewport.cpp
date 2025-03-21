@@ -52,6 +52,7 @@ Viewport::~Viewport() {
 
 void Viewport::UpdateCPUBufferFromFilm() {
     if (m_isMultiChannel) {
+        bool showTValue = m_parent->IsShowingTValue();
         auto *gFilm = m_film.Cast<GuidedGBufferFilm>();
         // Update all channels
         ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {
@@ -71,7 +72,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
                 m_cpuBuffer.cacheID.fine[index] = m_cpuBuffer.cacheID.coarse[index];
             }
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
-            m_cpuBuffer.risk[index] = pixel.guidingData.risk;
+            m_cpuBuffer.risk[index] = showTValue ? pixel.guidingData.tValue : pixel.guidingData.risk;
             m_cpuBuffer.signatureDist[index] = pixel.guidingData.energy;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;

@@ -76,12 +76,18 @@ void CacheMonitor::Plot::Draw() {
         if (m_type == PlotType_Risk && m_monitor.m_showHorizontal) {  // Plot the risk threshold
             double risk = m_parent->GetRiskTolerance();
             ImPlot::DragLineY(0, &risk, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
-            ImPlot::Annotation(0, risk, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, "Tolerance");
+            // ImPlot::Annotation(0, risk, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, "Tolerance");
+        }
+        if (m_type == PlotType_TValue && m_monitor.m_showHorizontal) {  // Plot the t value threshold
+            double ths = m_parent->GetTValueThreshold(), _ths = -ths;
+            ImPlot::DragLineY(0, &ths, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+            ImPlot::DragLineY(0, &_ths, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
+            // ImPlot::Annotation(0, ths, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, "Tolerance");
         }
         if (m_type == PlotType_Energy && m_monitor.m_showHorizontal) {  // Plot energy threshold
             double ths = m_parent->GetEnergyThreshold();
             ImPlot::DragLineY(0, &ths, ImVec4(1, 1, 0, 0.4), 1, ImPlotDragToolFlags_NoInputs);
-            ImPlot::Annotation(0, ths, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, "Threshold");
+            // ImPlot::Annotation(0, ths, ImVec4(0, 0, 0, 0), ImVec2(0, -4), true, "Threshold");
         }
         ImPlot::EndPlot();
     }

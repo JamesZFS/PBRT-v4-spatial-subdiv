@@ -38,8 +38,8 @@
 	url = https://github.com/glfw/glfw.git
 [submodule "src/ext/openpgl"]
 	path = src/ext/openpgl
-	url = https://github.com/OpenPathGuidingLibrary/openpgl.git
-	branch = devel
+	url = git@github.com:JamesZFS/OpenPGL-spatial-subdiv.git
+	branch = zfs
 [submodule "src/ext/oidn"]
 	path = src/ext/oidn
 	url = https://github.com/OpenImageDenoise/oidn.git

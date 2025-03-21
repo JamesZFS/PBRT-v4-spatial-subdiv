@@ -269,14 +269,15 @@ class GuidedPathIntegrator : public RayIntegrator {
         int treesamplecountthreshold {PGL_TREE_MAX_SAMPLE_PER_LEAF};
         int treeforcedsamplecountthreshold {-1};
         int treeminsamplescandidatesplit {1000};
-        int treeminsamplespromotion {8000};
+        int treeminsamplespromotion {1000};
         int treemaxdepth {32};
         int treeinitializingiters {1};
         int treelookaheaddepth {3};
-        float treeadaptivethreshold {0.1f};
+        float treeadaptivethreshold {0.05f};
         float treestdmultiplier {1.0f};
         float treecedecay {0.0f};
-        float treerisktolerance {100.f};
+        float treerisktolerance {0.1f};
+        float treetvaluethreshold {3.0f};
         float treeinlierpercent {1.0f};
         float treedborstdmultiplier {3.0f};
         bool treeenablepromotion {true};
@@ -285,6 +286,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool treenonrecursive {false};
         bool treesinglepromotion {false};
         bool treeoptimizesignature {false};
+        PGL_SPATIAL_CONFIDENCE_TYPE treeconfidencetype {PGL_SPATIAL_CONFIDENCE_NONE};
         PGL_SPATIAL_CONTRIB_TYPE treecontribtype {PGL_SPATIAL_CONTRIB_NN};
         PGL_SPATIAL_DEFENSIVE_TYPE treedefensivetype {PGL_SPATIAL_DEFENSIVE_FIXED};
         PGL_SPATIAL_FILTER_TYPE treefiltertype {PGL_SPATIAL_FILTER_NONE};
