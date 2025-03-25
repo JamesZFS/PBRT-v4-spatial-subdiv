@@ -57,7 +57,8 @@ private:
     Colormap m_cmap = CMap_Inferno;
     bool m_showIntegratedSignature = false;
     bool m_showStd = true;
-    bool m_showMultipliedStd = true;
+    bool m_showMultipliedStd = false;
+    bool m_showTValue = false;
     bool m_hasStoredSignature = false;
     int m_lookaheadDepth = 0;
 

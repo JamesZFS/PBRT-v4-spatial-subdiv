@@ -47,7 +47,7 @@ public:
     int GetSPP() const { return m_spp; }
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
-    bool IsShowingTValue() const { return m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_ONE_SAMPLE_TTEST || m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_WELCH_TTEST; }
+    bool IsShowingTValue() const { return m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST; }
     double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
     float GetEnergyThreshold() const { return m_subdivCfg.signatureDistanceThreshold; }
     float GetRiskTolerance() const { return m_subdivCfg.riskTolerance; }
