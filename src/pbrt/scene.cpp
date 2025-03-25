@@ -90,7 +90,7 @@ BasicSceneBuilder::BasicSceneBuilder(BasicScene *scene)
 {
     // Set scene defaults
     camera.name = SceneEntity::internedStrings.Lookup("perspective");
-    sampler.name = SceneEntity::internedStrings.Lookup("zsobol");
+    sampler.name = SceneEntity::internedStrings.Lookup("independent");
     filter.name = SceneEntity::internedStrings.Lookup("gaussian");
     integrator.name = SceneEntity::internedStrings.Lookup("volpath");
     accelerator.name = SceneEntity::internedStrings.Lookup("bvh");
