@@ -101,6 +101,32 @@ static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirecti
     return denom == 0 ? 0 : 2.0f * num / denom;
 }
 
+static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier, float tvalueThreshold) {
+    float num = 0, denom = 0;
+    for (uint8_t i = 0; i < pglGetSignatureSize(); i++) {
+        float ai = a.signature[i], bi = b.signature[i];
+        float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
+        float sigma = std::sqrt(a.std[i] * a.std[i] + b.std[i] * b.std[i]);
+        float t = sigma == 0 ? 0 : (ai - bi) / sigma;
+        if (std::abs(t) > tvalueThreshold) {
+            // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
+            if (ai - a_std > bi + b_std)
+                num += ai - bi - a_std - b_std;
+            else if (ai + a_std < bi - b_std)
+                num += bi - ai - a_std - b_std;
+        }
+        denom += ai + bi;
+    }
+    return denom == 0 ? 0 : 2.0f * num / denom;
+}
+
+static float getWelchT(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, uint8_t idx) {
+    if ((a.signature[idx] == 0 && a.std[idx] == 0) || (b.signature[idx] == 0 || b.std[idx] == 0)) return 0;
+    float num = a.signature[idx] - b.signature[idx];
+    float denom = std::sqrt(a.std[idx] * a.std[idx] + b.std[idx] * b.std[idx]);
+    return denom == 0 ? 0 : num / denom;
+}
+
 void SignatureView::DrawColored() {
     ImGui::SetNextItemWidth(80);
     if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
@@ -253,6 +279,8 @@ void SignatureView::DrawPC() {
     ImGui::SameLine();
     ImGui::Checkbox("Std", &m_showStd);
     ImGui::SameLine();
+    ImGui::Checkbox("T Value", &m_showTValue);
+    ImGui::SameLine();
     ImGui::Checkbox("Multiplied Std", &m_showMultipliedStd);
 
     static float child_std[PGL_SIGNATURE_MAX_SIZE], parent_std[PGL_SIGNATURE_MAX_SIZE];
@@ -281,6 +309,13 @@ void SignatureView::DrawPC() {
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar();
         }
+        if (m_showTValue) {
+            for (int i = 0; i < pglGetSignatureSize(); ++i) {
+                float t = getWelchT(m_cachedSignature, m_cachedSignatureParent, i);
+                ImVec4 col = (std::isnan(t) || std::abs(t) <= m_parent->GetTValueThreshold()) ? ImVec4(0, 0, 0, 0) : ImVec4(1, 1, 0, 0.7);
+                ImPlot::Annotation(m_barXs[i], m_cachedSignature.signature[i], col, ImVec2(0, -10), false, "%.2f", t);
+            }
+        }
 
         BinInteraction();
         ImPlot::EndPlot();
@@ -289,13 +324,21 @@ void SignatureView::DrawPC() {
     ImGui::Text("Number of samples child / parent: %s / %s",
         FormatInteger((int) m_cachedSignature.numSamples).c_str(),
         FormatInteger((int) m_cachedSignatureParent.numSamples).c_str());
+    bool isTTestPerBin = m_parent->GetSubdivCfg().confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
+    bool isTTest = m_parent->GetSubdivCfg().confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST;
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Child / std: %.4f / %.2e, parent / std: %.4f / %.3e",
-            m_cachedSignature.signature[idx], m_cachedSignature.std[idx],
-            m_cachedSignatureParent.signature[idx], m_cachedSignatureParent.std[idx]);
+        if (isTTest || isTTestPerBin)
+            ImGui::Text("Child / std: %.4f / %.2e, parent / std: %.4f / %.2e,  T: %.3f",
+                m_cachedSignature.signature[idx], m_cachedSignature.std[idx],
+                m_cachedSignatureParent.signature[idx], m_cachedSignatureParent.std[idx],
+                getWelchT(m_cachedSignature, m_cachedSignatureParent, idx));
+        else
+            ImGui::Text("Child / std: %.4f / %.2e, parent / std: %.4f / %.2e",
+                m_cachedSignature.signature[idx], m_cachedSignature.std[idx],
+                m_cachedSignatureParent.signature[idx], m_cachedSignatureParent.std[idx]);
     } else {
-        float energy = getDistanceSMAPE(m_cachedSignature, m_cachedSignatureParent, m_parent->GetSignatureStdMultiplier());
+        float energy = isTTestPerBin ? getDistanceTTest(m_cachedSignature, m_cachedSignatureParent, m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) : getDistanceSMAPE(m_cachedSignature, m_cachedSignatureParent, m_parent->GetSignatureStdMultiplier());
         if (m_splitDim == 3) {
             ImGui::Text("Invalid");
         } else {
@@ -352,7 +395,7 @@ void SignatureView::DrawLR() {
         FormatInteger((int) m_cachedSignaturesLR.second.numSamples).c_str());
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.3e",
+        ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.2e",
             m_cachedSignaturesLR.first.signature[idx], m_cachedSignaturesLR.first.std[idx],
             m_cachedSignaturesLR.second.signature[idx], m_cachedSignaturesLR.second.std[idx]);
     } else {

@@ -1558,14 +1558,14 @@ void Application::SpatialSubdivisionSettings() {
                 m_radianceView->UpdateBasisBuffer();
             }
         }
-        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0One-sample t-test\0Welch's t-test\0");
+        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0");
         _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
         _(), ImGui::InputFloat("Std Multiplier", &m_subdivCfg.stdMultiplier);
         switch (m_subdivCfg.confidenceType) {
             case PGL_SPATIAL_CONFIDENCE_RISK:
                 _(), ImGui::InputFloat("Risk Tolerance", &m_subdivCfg.riskTolerance); break;
-            case PGL_SPATIAL_CONFIDENCE_ONE_SAMPLE_TTEST:
-            case PGL_SPATIAL_CONFIDENCE_WELCH_TTEST:
+            case PGL_SPATIAL_CONFIDENCE_TTEST:
+            case PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN:
                 _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold); break;
             default: break;
         }
