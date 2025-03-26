@@ -39,8 +39,8 @@ void Film::AddSplat(Point2f p, SampledSpectrum v, const SampledWavelengths &lamb
     return Dispatch(splat);
 }
 
-void Film::WriteImage(ImageMetadata metadata, Float splatScale) {
-    auto write = [&](auto ptr) { return ptr->WriteImage(metadata, splatScale); };
+void Film::WriteImage(ImageMetadata metadata, Float splatScale, bool isPartial) {
+    auto write = [&](auto ptr) { return ptr->WriteImage(metadata, splatScale, isPartial); };
     return DispatchCPU(write);
 }
 
@@ -528,10 +528,10 @@ void RGBFilm::AddSplat(Point2f p, SampledSpectrum L, const SampledWavelengths &l
     }
 }
 
-void RGBFilm::WriteImage(ImageMetadata metadata, Float splatScale) {
+void RGBFilm::WriteImage(ImageMetadata metadata, Float splatScale, bool isPartial) {
     Image image = GetImage(&metadata, splatScale);
     LOG_VERBOSE("Writing image %s with bounds %s", filename, pixelBounds);
-    image.Write(filename, metadata);
+    image.Write(filename, metadata, isPartial);
 }
 
 Image RGBFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
@@ -687,10 +687,10 @@ void GBufferFilm::AddSplat(Point2f p, SampledSpectrum v,
     }
 }
 
-void GBufferFilm::WriteImage(ImageMetadata metadata, Float splatScale) {
+void GBufferFilm::WriteImage(ImageMetadata metadata, Float splatScale, bool isPartial) {
     Image image = GetImage(&metadata, splatScale);
     LOG_VERBOSE("Writing image %s with bounds %s", filename, pixelBounds);
-    image.Write(filename, metadata);
+    image.Write(filename, metadata, isPartial);
 }
 
 Image GBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
@@ -928,10 +928,10 @@ void GuidedGBufferFilm::AddSplat(Point2f p, SampledSpectrum v,
     }
 }
 
-void GuidedGBufferFilm::WriteImage(ImageMetadata metadata, Float splatScale) {
+void GuidedGBufferFilm::WriteImage(ImageMetadata metadata, Float splatScale, bool isPartial) {
     Image image = GetImage(&metadata, splatScale);
     LOG_VERBOSE("Writing image %s with bounds %s", filename, pixelBounds);
-    image.Write(filename, metadata);
+    image.Write(filename, metadata, isPartial);
 }
 
 Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
@@ -1193,10 +1193,10 @@ void SpectralFilm::AddSplat(Point2f p, SampledSpectrum L,
     }
 }
 
-void SpectralFilm::WriteImage(ImageMetadata metadata, Float splatScale) {
+void SpectralFilm::WriteImage(ImageMetadata metadata, Float splatScale, bool isPartial) {
     Image image = GetImage(&metadata, splatScale);
     LOG_VERBOSE("Writing image %s with bounds %s", filename, pixelBounds);
-    image.Write(filename, metadata);
+    image.Write(filename, metadata, isPartial);
 }
 
 Image SpectralFilm::GetImage(ImageMetadata *metadata, Float splatScale) {

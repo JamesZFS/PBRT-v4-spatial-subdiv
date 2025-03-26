@@ -57,6 +57,10 @@ bool HasExtension(std::string filename, std::string e) {
                       [](char a, char b) { return std::tolower(a) == std::tolower(b); });
 }
 
+std::string ExtractExtension(std::string filename) {
+    return filesystem::path(filename).extension();
+}
+
 std::string RemoveExtension(std::string filename) {
     std::string ext = filesystem::path(filename).extension();
     if (ext.empty())

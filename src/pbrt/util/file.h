@@ -28,6 +28,7 @@ std::string ResolveFilename(std::string filename);
 void SetSearchDirectory(std::string filename);
 
 bool HasExtension(std::string filename, std::string ext);
+std::string ExtractExtension(std::string filename);
 std::string RemoveExtension(std::string filename);
 
 std::vector<std::string> MatchingFilenames(std::string filename);
