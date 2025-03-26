@@ -344,7 +344,7 @@ class Image {
     static ImageAndMetadata Read(std::string filename, Allocator alloc = {},
                                  ColorEncoding encoding = nullptr);
 
-    bool Write(std::string name, const ImageMetadata &metadata = {}) const;
+    bool Write(std::string name, const ImageMetadata &metadata = {}, bool isPartial = false) const;
 
     Image ConvertToFormat(PixelFormat format, ColorEncoding encoding = nullptr) const;
 

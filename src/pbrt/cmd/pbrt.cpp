@@ -83,8 +83,9 @@ Rendering options:
   --guiding-viewer              Interactive cache visualizer for guided path tracer.)"
 #endif
             R"(
-  --write-partial-images        Periodically write the current image to disk, rather
-                                than waiting for the end of rendering. Default: disabled.
+  --write-partial-images        Periodically write the current image to disk at power of
+                                two iterations, rather than waiting for the end of rendering.
+                                Default: disabled.
 
 Logging options:
   --log-file <filename>         Filename to write logging messages to. Default: none;

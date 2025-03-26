@@ -317,7 +317,7 @@ class RGBFilm : public FilmBase {
     PBRT_CPU_GPU
     void AddSplat(Point2f p, SampledSpectrum v, const SampledWavelengths &lambda);
 
-    void WriteImage(ImageMetadata metadata, Float splatScale = 1);
+    void WriteImage(ImageMetadata metadata, Float splatScale = 1, bool isPartial = false);
     Image GetImage(ImageMetadata *metadata, Float splatScale = 1);
 
     std::string ToString() const;
@@ -397,7 +397,7 @@ class GBufferFilm : public FilmBase {
         return rgb;
     }
 
-    void WriteImage(ImageMetadata metadata, Float splatScale = 1);
+    void WriteImage(ImageMetadata metadata, Float splatScale = 1, bool isPartial = false);
     Image GetImage(ImageMetadata *metadata, Float splatScale = 1);
 
     std::string ToString() const;
@@ -479,7 +479,7 @@ class GuidedGBufferFilm : public FilmBase {
         return rgb;
     }
 
-    void WriteImage(ImageMetadata metadata, Float splatScale = 1);
+    void WriteImage(ImageMetadata metadata, Float splatScale = 1, bool isPartial = false);
     Image GetImage(ImageMetadata *metadata, Float splatScale = 1);
 
     std::string ToString() const;
@@ -590,7 +590,7 @@ class SpectralFilm : public FilmBase {
     PBRT_CPU_GPU
     void AddSplat(Point2f p, SampledSpectrum v, const SampledWavelengths &lambda);
 
-    void WriteImage(ImageMetadata metadata, Float splatScale = 1);
+    void WriteImage(ImageMetadata metadata, Float splatScale = 1, bool isPartial = false);
 
     // Returns an image with both RGB and spectral components, following
     // the layout proposed in "An OpenEXR Layout for Sepctral Images" by

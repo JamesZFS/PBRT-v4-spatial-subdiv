@@ -146,7 +146,7 @@ void RenderThread::Run() {
             }
             m_forwarding = false;
         }
-        if (renderedSomething && (Options->writePartialImages || m_waveStart == m_parent->GetSPP())) {
+        if (renderedSomething && ((Options->writePartialImages && IsPowerOf2(m_waveStart)) || m_waveStart == m_parent->GetSPP())) {
             m_saveImage(m_waveStart);
         }
         m_state = WaveEnd;

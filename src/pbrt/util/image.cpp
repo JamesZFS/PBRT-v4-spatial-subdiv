@@ -949,7 +949,11 @@ ImageAndMetadata Image::Read(std::string name, Allocator alloc, ColorEncoding en
     }
 }
 
-bool Image::Write(std::string name, const ImageMetadata &metadata) const {
+bool Image::Write(std::string name, const ImageMetadata &metadata, bool isPartial) const {
+    if (isPartial) {  // change the name from xxx.ext to xxx-ispp.ext
+        name = StringPrintf("%s-%dspp.%s", RemoveExtension(name).c_str(), metadata.samplesPerPixel.value(), ExtractExtension(name).c_str());
+    }
+
     if (metadata.pixelBounds)
         CHECK_EQ(metadata.pixelBounds->Area(), size_t(resolution.x) * size_t(resolution.y));
 
