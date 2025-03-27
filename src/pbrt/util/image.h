@@ -330,6 +330,8 @@ class Image {
                             Image *mraeImage = nullptr) const;
     ImageChannelValues MRSE(const ImageChannelDesc &desc, const Image &ref,
                             Image *mrseImage = nullptr) const;
+    ImageChannelValues RobustMRAE(const ImageChannelDesc &desc, const Image &ref, float inlierPercent = 0.95f) const;
+    ImageChannelValues RobustMRSE(const ImageChannelDesc &desc, const Image &ref, float inlierPercent = 0.95f) const;
 
     Image GaussianFilter(const ImageChannelDesc &desc, int halfWidth, Float sigma) const;
 

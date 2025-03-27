@@ -629,10 +629,10 @@ ImageChannelValues Image::MRAE(const ImageChannelDesc &desc, const Image &ref, I
             }
         }
 
-    ImageChannelValues mrse(desc.size());
+    ImageChannelValues mrae(desc.size());
     for (int c = 0; c < desc.size(); ++c)
-        mrse[c] = sumRAE[c] / (Float(Resolution().x) * Float(Resolution().y));
-    return mrse;
+        mrae[c] = sumRAE[c] / (Float(Resolution().x) * Float(Resolution().y));
+    return mrae;
 }
 
 ImageChannelValues Image::MRSE(const ImageChannelDesc &desc, const Image &ref,
@@ -665,6 +665,76 @@ ImageChannelValues Image::MRSE(const ImageChannelDesc &desc, const Image &ref,
     for (int c = 0; c < desc.size(); ++c)
         mrse[c] = sumRSE[c] / (Float(Resolution().x) * Float(Resolution().y));
     return mrse;
+}
+
+ImageChannelValues Image::RobustMRAE(const ImageChannelDesc &desc, const Image &ref, float inlierPercent) const {
+    const size_t N = Resolution().x * Resolution().y;
+    std::vector<std::vector<Float>> errors(desc.size(), std::vector<Float>(N));  // C x HW
+
+    ImageChannelDesc refDesc = ref.GetChannelDesc(ChannelNames(desc));
+    CHECK((bool)refDesc);
+    CHECK_EQ(Resolution(), ref.Resolution());
+
+    for (int y = 0; y < Resolution().y; ++y)
+        for (int x = 0; x < Resolution().x; ++x) {
+            ImageChannelValues v = GetChannels({x, y}, desc);
+            ImageChannelValues vref = ref.GetChannels({x, y}, refDesc);
+
+            for (int c = 0; c < desc.size(); ++c) {
+                Float err = std::abs(Float(v[c]) - Float(vref[c])) / (vref[c] + 0.01);
+                errors[c][y * Resolution().x + x] = err;
+            }
+        }
+
+    ImageChannelValues ret(desc.size());
+    const size_t inliers = std::min((size_t) (inlierPercent * N), N);
+    
+    for (int c = 0; c < desc.size(); ++c) {
+        auto pivot = errors[c].begin() + inliers;
+        std::nth_element(errors[c].begin(), pivot, errors[c].end());
+        // After the partial sorting, [errors[c].begin(), pivot) are the inliers
+        double sum = 0;
+        for (auto it = errors[c].begin(); it != pivot; ++it)
+            sum += *it;
+        ret[c] = sum / Float(inliers);
+    }
+
+    return ret;
+}
+
+ImageChannelValues Image::RobustMRSE(const ImageChannelDesc &desc, const Image &ref, float inlierPercent) const {
+    const size_t N = Resolution().x * Resolution().y;
+    std::vector<std::vector<Float>> errors(desc.size(), std::vector<Float>(N));  // C x HW
+
+    ImageChannelDesc refDesc = ref.GetChannelDesc(ChannelNames(desc));
+    CHECK((bool)refDesc);
+    CHECK_EQ(Resolution(), ref.Resolution());
+
+    for (int y = 0; y < Resolution().y; ++y)
+        for (int x = 0; x < Resolution().x; ++x) {
+            ImageChannelValues v = GetChannels({x, y}, desc);
+            ImageChannelValues vref = ref.GetChannels({x, y}, refDesc);
+
+            for (int c = 0; c < desc.size(); ++c) {
+                Float err = Sqr(Float(v[c]) - Float(vref[c])) / Sqr(vref[c] + 0.01);
+                errors[c][y * Resolution().x + x] = err;
+            }
+        }
+
+    ImageChannelValues ret(desc.size());
+    const size_t inliers = std::min((size_t) (inlierPercent * N), N);
+    
+    for (int c = 0; c < desc.size(); ++c) {
+        auto pivot = errors[c].begin() + inliers;
+        std::nth_element(errors[c].begin(), pivot, errors[c].end());
+        // After the partial sorting, [errors[c].begin(), pivot) are the inliers
+        double sum = 0;
+        for (auto it = errors[c].begin(); it != pivot; ++it)
+            sum += *it;
+        ret[c] = sum / Float(inliers);
+    }
+
+    return ret;
 }
 
 ImageChannelValues Image::Average(const ImageChannelDesc &desc) const {
