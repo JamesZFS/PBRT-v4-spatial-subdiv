@@ -159,6 +159,8 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             settings.minRRDepth = 1;
         }
 
+        guidingCacheUpdateTime = 0;
+
       }
 
 GuidedPathIntegrator::~GuidedPathIntegrator() {
@@ -306,9 +308,9 @@ void GuidedPathIntegrator::PostProcessWave() {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() + guiding_sampleStorage->GetSizeVolume();
         std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t numValidSamples: " << numValidSamples << std::endl;
         if(numValidSamples > 128) {
-            Timer guidingFiledUpdateTimer;
+            Timer guidingFieldUpdateTimer;
             guiding_field->Update(*guiding_sampleStorage);
-            guidingCacheUpdateTime += guidingFiledUpdateTimer.ElapsedSeconds();
+            guidingCacheUpdateTime += guidingFieldUpdateTimer.ElapsedSeconds();
             if(guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
                 guideSettings.enableTraining = false;
             }
