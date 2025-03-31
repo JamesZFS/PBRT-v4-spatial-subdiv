@@ -99,6 +99,7 @@ private:
     void SaveSamples(std::string path);
     void LoadSamples(std::string path);
     void SaveSamplesNpy(std::string dir);
+    void SaveRadianceView(std::string path);
 
     void CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionStatistics &fine);
     void AppendToRayCastingHistory(const RayCastingData &rc);
@@ -227,6 +228,7 @@ private:
     } m_waveStats;
 
     std::string m_recordSamplesDir = "./samples";
+    std::string m_saveRadianceDir = ".";
     std::function<void(const std::string&, const std::string&)> m_fileDialogCallback;
 };
 
