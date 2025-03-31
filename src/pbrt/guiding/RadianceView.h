@@ -49,6 +49,8 @@ public:
 
     PGLDirectionalSignature integratedSignature{};  // integrated signature vector with the radiance map
 
+    pbrt::Image GetImage() const;
+
 private:
     void EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler, pbrt::ScratchBuffer &scratchBuffer);
 

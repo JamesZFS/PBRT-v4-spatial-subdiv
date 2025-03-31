@@ -224,7 +224,12 @@ void SignatureView::DrawComp() {
     }
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Current: %.4f  Stored: %.4f", m_integratedSignature.signature[idx], m_storedSignature.signature[idx]);
+        if (m_hasStoredSignature) {
+            float distance = getDistanceSMAPE(m_integratedSignature, m_storedSignature, 0.0f);
+            ImGui::Text("Current: %.4f  Stored: %.4f  Distance: %.4f", m_integratedSignature.signature[idx], m_storedSignature.signature[idx], distance);
+        } else {
+            ImGui::Text("Current: %.4f  Stored: %.4f", m_integratedSignature.signature[idx], m_storedSignature.signature[idx]);
+        }
     } else if (m_hasStoredSignature) {
         // Show the distance
         float distance = getDistanceSMAPE(m_integratedSignature, m_storedSignature, 0.0f);

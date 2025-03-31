@@ -398,6 +398,28 @@ void RadianceView::SetResolution(const pbrt::Point2i &resolution) {
     }
 }
 
+Image RadianceView::GetImage() const {
+    CHECK(!IsRendering());
+    Image image(PixelFormat::Float, m_resolution, {"R", "G", "B"});
+
+    ParallelFor2D(Bounds2i({0, 0}, m_resolution), [&](Point2i p) {
+        RGB rgb = m_cpuBuffer[p.y * m_resolution.x + p.x];
+
+        if (std::max({rgb.r, rgb.g, rgb.b}) > 65504) {  // Clamping
+            if (rgb.r > 65504)
+                rgb.r = 65504;
+            if (rgb.g > 65504)
+                rgb.g = 65504;
+            if (rgb.b > 65504)
+                rgb.b = 65504;
+        }
+
+        image.SetChannels(p, {rgb[0], rgb[1], rgb[2]});
+    });
+
+    return image;
+}
+
 void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pbrt::Sampler sampler,
                                        pbrt::ScratchBuffer &scratchBuffer) {
     // Sample wavelengths for the ray
@@ -523,7 +545,7 @@ void RadianceView::Draw() {
     ImGui::TextDisabled("(?)");
     ImGui::SameLine();
     ImGui::SetItemTooltip("The radiance view will automatically render when there is left click on the viewport and the render thread is not busy.");
-    ImGui::ProgressBar((float) m_numSamples / (float) m_spp, {ImGui::GetContentRegionAvail().x, 0}, m_numSamples >= m_spp ? "Done" : StringPrintf("%d/%d SPP", m_numSamples, m_spp).c_str());
+    ImGui::ProgressBar((float) m_numSamples / (float) m_spp, {ImGui::GetContentRegionAvail().x, 0}, m_numSamples >= m_spp ? StringPrintf("%d SPP Done", m_spp).c_str() : StringPrintf("%d/%d SPP", m_numSamples, m_spp).c_str());
     bool needsRestart = false;
     needsRestart |= ImGui::Checkbox("Local Frame", &m_localFrame);
     needsRestart |= m_localFrame != m_prev.localFrame;
@@ -536,7 +558,10 @@ void RadianceView::Draw() {
     ImGui::SetItemTooltip("Normalize the radiance to the ground truth distribution.");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(30);
-    needsRestart |= ImGui::DragInt("SPP", &m_spp, 0.2, 1, 1024);
+    auto oldSpp = m_spp;
+    if (ImGui::DragInt("SPP", &m_spp, 0.2, 1, 1024)) {
+        if (m_spp < oldSpp) needsRestart = true;
+    }
     ImGui::SameLine();
     ImGui::SetNextItemWidth(30);
     needsRestart |= ImGui::DragInt("Max Depth", &m_maxDepth, 0.1, 0, 128);

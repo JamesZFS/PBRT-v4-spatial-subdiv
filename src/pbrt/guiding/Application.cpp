@@ -743,6 +743,17 @@ void Application::SaveSamplesNpy(std::string dir) {
     dumpSampleStorage(dir, &m_sampleStorage, GetCurrentWave() - 1);
 }
 
+void Application::SaveRadianceView(std::string path) {
+    // Save the current radiance view to an exr file
+    auto image = m_radianceView->GetImage();
+    bool ret = image.Write(path);
+    if (ret) {
+        std::cout << "Save radiance view to " << path << std::endl;
+    } else {
+        std::cerr << "Failed to save radiance view to " << path << std::endl;
+    }
+}
+
 void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionStatistics &fine) {
     bool coarseIsValid = coarse.id != -1, fineIsValid = fine.id != -1;
     if (!coarseIsValid) {
@@ -1130,6 +1141,7 @@ void Application::UpdateSignatureView() {
 void Application::MainMenu() {
     static std::string layoutNames[Layout_Count] = {"Default", "Compact", "Probe Views", "Cache Monitor", "Histograms"};
     bool openChangeResolutionPopup = false;
+    bool openSaveRadianceFileDialog = false;
     auto openFileDialog = [&](bool write, const std::string &defaultPath, const std::string &title, const std::string &ext, const std::function<void(const std::string&, const std::string&)> &action) {
         IGFD::FileDialogConfig config;
         config.filePathName = defaultPath;
@@ -1225,6 +1237,10 @@ void Application::MainMenu() {
                 m_rcSDREHistory.clear();
                 m_rcSDRE.valid = false;
             }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Save Radiance Map To...", "F3", false, !m_radianceView->IsRendering())) {
+                openSaveRadianceFileDialog = true;
+            }
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Tools")) {
@@ -1242,6 +1258,13 @@ void Application::MainMenu() {
             ImGui::EndMenu();
         }
         ImGui::EndMainMenuBar();
+    }
+    if (!m_radianceView->IsRendering() && IsKeyPressed(ImGuiKey_F3, false)) {
+        openSaveRadianceFileDialog = true;
+    }
+    if (openSaveRadianceFileDialog) {
+        openFileDialog(true, m_saveRadianceDir, "Save Radiance Map To...", ".exr",
+                    [this](auto dir, auto path) { m_saveRadianceDir = dir; SaveRadianceView(path); });
     }
     // Dialogs
     if (ImGuiFileDialog::Instance()->Display("fileDialog")) {
