@@ -1602,6 +1602,7 @@ void Application::SpatialSubdivisionSettings() {
             case PGL_SPATIAL_FILTER_NONE:
             default: break;
         }
+        _(), ImGui::Combo("Where To Split", reinterpret_cast<int *>(&m_subdivCfg.splitType), "Baseline\0Variance Scan\0Information-Gain Scan\0Fluence Scan\0");
         if (ImGui::Button("Clear Signatures")) {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearSignatures();
