@@ -100,6 +100,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.nonRecursive = guideSettings.treenonrecursive;
         guiding_fieldSubdivConfig.singlePromotion = guideSettings.treesinglepromotion;
         guiding_fieldSubdivConfig.optimizeSignature = guideSettings.treeoptimizesignature;
+        guiding_fieldSubdivConfig.splitType = guideSettings.treesplittype;
         guiding_fieldSubdivConfig.confidenceType = guideSettings.treeconfidencetype;
         guiding_fieldSubdivConfig.contribType = guideSettings.treecontribtype;
         guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
@@ -693,6 +694,13 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treenonrecursive = parameters.GetOneBool("treenonrecursive", settings.treenonrecursive);
     settings.treesinglepromotion = parameters.GetOneBool("treesinglepromotion", settings.treesinglepromotion);
     settings.treeoptimizesignature = parameters.GetOneBool("treeoptimizesignature", settings.treeoptimizesignature);
+    auto splittype = parameters.GetOneString("treesplittype", "baseline");
+    if (splittype == "baseline") settings.treesplittype = PGL_SPATIAL_SPLIT_BASELINE;
+    else if (splittype == "vs") settings.treesplittype = PGL_SPATIAL_SPLIT_VS;
+    else if (splittype == "igs") settings.treesplittype = PGL_SPATIAL_SPLIT_IGS;
+    else if (splittype == "fs") settings.treesplittype = PGL_SPATIAL_SPLIT_FS;
+    else throw std::runtime_error("Unknown treesplittype: " + splittype);
+
     auto confidencetype = parameters.GetOneString("treeconfidencetype", "none");
     if (confidencetype == "none") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_NONE;
     else if (confidencetype == "risk") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_RISK;

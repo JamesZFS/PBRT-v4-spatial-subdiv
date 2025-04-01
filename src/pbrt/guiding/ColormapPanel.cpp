@@ -13,6 +13,8 @@ ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const p
         shaderData[c].firstNormalized = true;
     }
     shaderDataTValue.firstNormalized = true;
+    shaderData[Channel_Energy].firstNormalized = true;
+    shaderData[Channel_Energy].scale = 0.9f / m_parent->GetEnergyThreshold();  // Such that the threshold is at 0.9
     for (auto c: {Channel_Energy, Channel_Fluence, Channel_Risk, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
         shaderData[c].cmap = CMap_Viridis;
     }
