@@ -784,7 +784,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
     if (IsShowingFine() && fineIsValid) f(fine);
     else f(coarse);
     // ImGui::Text("Sample Mean: (%.4f, %.4f, %.4f)", coarse.sampleMean[0], coarse.sampleMean[1], coarse.sampleMean[2]);
-    // ImGui::Text("Sample Variance: (%.4f, %.4f, %.4f)", coarse.sampleVariance[0], coarse.sampleVariance[1], coarse.sampleVariance[2]);
+    ImGui::Text("Sample Variance: (%.4f, %.4f, %.4f)", coarse.sampleVariance[0], coarse.sampleVariance[1], coarse.sampleVariance[2]);
 }
 
 void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
@@ -1589,7 +1589,8 @@ void Application::SpatialSubdivisionSettings() {
                 _(), ImGui::InputFloat("Risk Tolerance", &m_subdivCfg.riskTolerance); break;
             case PGL_SPATIAL_CONFIDENCE_TTEST:
             case PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN:
-                _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold); break;
+                _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold);
+                _(), ImGui::InputFloat("T Eps", &m_subdivCfg.teps, 0, 0, "%.2e"); break;
             default: break;
         }
         _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");
@@ -1602,7 +1603,10 @@ void Application::SpatialSubdivisionSettings() {
             case PGL_SPATIAL_FILTER_NONE:
             default: break;
         }
-        _(), ImGui::Combo("Where To Split", reinterpret_cast<int *>(&m_subdivCfg.splitType), "Baseline\0Variance Scan\0Information-Gain Scan\0Fluence Scan\0");
+        _(), ImGui::Combo("Where To Split", reinterpret_cast<int *>(&m_subdivCfg.splitType), "Mean and Longest\0Variance Scan\0Information-Gain Scan\0Fluence Scan\0");
+        if (m_subdivCfg.splitType != PGL_SPATIAL_SPLIT_BASELINE) {
+            _(), ImGui::InputFloat("Variance Threshold", &m_subdivCfg.varianceThreshold, 0, 0, "%.2e");
+        }
         if (ImGui::Button("Clear Signatures")) {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearSignatures();
