@@ -12,14 +12,15 @@ ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const p
     for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Energy, Channel_Reference, Channel_Error}) {
         shaderData[c].firstNormalized = true;
     }
-    shaderDataTValue.firstNormalized = true;
     shaderData[Channel_Energy].firstNormalized = true;
     shaderData[Channel_Energy].scale = 0.9f / m_parent->GetEnergyThreshold();  // Such that the threshold is at 0.9
     for (auto c: {Channel_Energy, Channel_Fluence, Channel_Risk, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
         shaderData[c].cmap = CMap_Viridis;
     }
+    shaderDataTValue.firstNormalized = true;
     shaderDataTValue.cmap = CMap_RdYlGn;
-    shaderDataTValue.offset = 0.5f;
+    shaderDataTValue.scale = (0.95f - 0.5f) / m_parent->GetTValueThreshold();  // Such that the threshold is at 0.95
+    shaderDataTValue.offset = 0.5f / shaderDataTValue.scale;  // to make sure that white maps to 0
     for (auto c: {Channel_Radiance, Channel_Reference}) {
         shaderData[c].boundary = true;
     }

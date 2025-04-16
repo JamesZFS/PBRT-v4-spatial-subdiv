@@ -197,11 +197,11 @@ void SignatureView::DrawColored() {
 }
 
 void SignatureView::DrawComp() {
-    if (ImGui::Button("Store") || IsKeyPressed(ImGuiKey_F3, false)) {
+    if (ImGui::Button("Store") || IsKeyPressed(ImGuiKey_F2, false)) {
         m_storedSignature = m_integratedSignature;
         m_hasStoredSignature = true;
     }
-    ImGui::SetItemTooltip("(F3) This will update the orange bars");
+    ImGui::SetItemTooltip("(F2) This will update the orange bars");
     ImGui::SameLine();
     if (ImGui::Button("Clear")) {
         m_storedSignature = {};

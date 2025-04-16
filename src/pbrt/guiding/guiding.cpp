@@ -93,6 +93,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.filterType = guideSettings.treefiltertype;
         guiding_fieldSubdivConfig.inlierPercent = guideSettings.treeinlierpercent;
         guiding_fieldSubdivConfig.DBORstdMultiplier = guideSettings.treedborstdmultiplier;
+        guiding_fieldSubdivConfig.tEpsK = guideSettings.treetepsk;
         guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
         guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
@@ -687,6 +688,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treetvaluethreshold = parameters.GetOneFloat("treetvaluethreshold", settings.treetvaluethreshold);
     settings.treeinlierpercent = parameters.GetOneFloat("treeinlierpercent", settings.treeinlierpercent);
     settings.treedborstdmultiplier = parameters.GetOneFloat("treedborstdmultiplier", settings.treedborstdmultiplier);
+    settings.treetepsk = parameters.GetOneFloat("treetepsk", settings.treetepsk);
     settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
     settings.treemultiplycosine = parameters.GetOneBool("treemultiplycosine", settings.treemultiplycosine);

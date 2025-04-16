@@ -1590,7 +1590,7 @@ void Application::SpatialSubdivisionSettings() {
             case PGL_SPATIAL_CONFIDENCE_TTEST:
             case PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN:
                 _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold);
-                _(), ImGui::InputFloat("T Eps", &m_subdivCfg.teps, 0, 0, "%.2e"); break;
+                _(), ImGui::InputFloat("T Eps K", &m_subdivCfg.tEpsK, 0, 0, "%.2e"); break;
             default: break;
         }
         _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");
