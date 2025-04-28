@@ -7,12 +7,14 @@ uniform sampler2D image_tex;
 uniform sampler2D basis_map;
 uniform uint selected_bin_index;
 
+#define INVALID 255 // (uint8_t) -1
+
 in vec2 tex_coord;
 
 void main()
 {
 	vec3 color = texture(image_tex, tex_coord).rgb;
-	if (selected_bin_index < 8) {
+	if (selected_bin_index != INVALID) {
 		float mask = texture(basis_map, tex_coord).r;
 		color = mix(color, vec3(1.0, 0.0, 0.0), mask);  // tint red
 	}

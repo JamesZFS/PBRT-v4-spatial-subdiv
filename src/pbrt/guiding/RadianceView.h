@@ -43,7 +43,7 @@ public:
 
     uint8_t GetSelectedBinIndex() const { return m_selectedBinIndex; }
 
-    void ResetSelectedBinIndex() { m_selectedBinIndex = PGL_SIGNATURE_MAX_SIZE; }
+    void ResetSelectedBinIndex() { m_selectedBinIndex = -1; }
 
     bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_SIGNATURE_MAX_SIZE; }
 
@@ -70,7 +70,7 @@ private:
     double m_normalizer = 1;
     int m_numSamples = 0;
     int m_spp = 16;
-    uint8_t m_selectedBinIndex = PGL_SIGNATURE_MAX_SIZE;  // valid index is [0, PGL_SIGNATURE_SIZE)
+    uint8_t m_selectedBinIndex = -1;  // valid index is [0, PGL_SIGNATURE_SIZE)
     std::atomic_bool m_cpuBufferUpdated = false;
 
     struct {
