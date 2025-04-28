@@ -1534,7 +1534,7 @@ void Application::SpatialSubdivisionSettings() {
         // _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         _();
-        if (ImGui::Combo("Mask Function Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis\0Basis Xi\0")) {
+        if (ImGui::Combo("Mask Function Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis\0Basis Xi\0Latitude Longitude\0")) {
             if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
         }
         if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_NN || m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
@@ -1552,7 +1552,7 @@ void Application::SpatialSubdivisionSettings() {
                     if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
                 }
             }
-        } else {  // Basis function
+        } else if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_BASIS || m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_BASIS_XI) {  // Basis function
             int octaveMin = (int) pglGetOctaveMin();
             int octaveMax = (int) pglGetOctaveMax();
             float octaveGamma = pglGetOctaveGamma();
@@ -1569,6 +1569,13 @@ void Application::SpatialSubdivisionSettings() {
             _();
             if (ImGui::SliderFloat("Octave Gamma", &octaveGamma, 0.05f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
                 pglSetOctaveGamma(octaveGamma);
+                if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
+            }
+        } else {  // Latitude longitude bases
+            int res = (int) pglGetOctahedralResolution();
+            _();
+            if (ImGui::SliderInt("Resolution", &res, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
+                pglSetOctahedralResolution(res);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
         }

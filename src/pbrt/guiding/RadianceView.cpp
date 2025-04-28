@@ -62,6 +62,14 @@ void RadianceView::RenderStart() {
     UpdateBasisBuffer();
 }
 
+static pgl_vec2f dir_to_spherical(const pgl_direction &dir) {
+    auto cartesian = pgl_vec3f(dir);
+    float theta = std::acos(cartesian.z);
+    float phi = std::atan2(cartesian.y, cartesian.x);
+    if (phi < 0) phi += 2 * M_PI;
+    return {theta / M_PIf, phi / (2 * M_PIf)};
+}
+
 //A pseudorandom number generator with a seed consisting of 3 uints
 static uint32_t pcg_3d(uint32_t x, uint32_t y, uint32_t z) {
     x ^= 12312u;
@@ -188,6 +196,7 @@ void RadianceView::UpdateBasisBuffer() {
     auto frame = Frame::FromZ(m_prev.normal);
     const auto contribType = m_parent->GetSubdivCfg().contribType;
     const uint8_t S = pglGetSignatureSize();
+    const uint8_t halfS = S >> 1;
     const uint8_t log2_bin_count = (uint8_t) std::log2(S);
     if (contribType == PGL_SPATIAL_CONTRIB_BASIS_XI) {
         if (S != (1 << log2_bin_count)) {
@@ -281,6 +290,21 @@ void RadianceView::UpdateBasisBuffer() {
             // for (uint8_t j = 0; j < S; ++j)
             //     sum += m_basisBuffer[j][pixel_index];
             // CHECK(std::abs(sum - 1.0) < 1e-5);
+        } else if (contribType == PGL_SPATIAL_CONTRIB_LATITUDE_LONGITUDE) {
+            auto uv = dir_to_spherical(pglDir);
+
+            float u = fract(uv.x * oct_res);  // latitude
+            float v = fract(uv.y * 2 * oct_res);  // longitude
+
+            for (uint8_t j = 0; j < S; ++j) {
+                float x = M_PI_2f * (float(halfS) * (j < halfS ? u : v) - float(j < halfS ? j : j - halfS));
+                float b = 0.0;
+                if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * halfS && x - M_PI_2f * halfS < M_PI_2f)) {
+                    b = std::cos(x);
+                    b *= b;
+                }
+                m_basisBuffer[j][pixel_index] = b;
+            }
         } else if (contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
             // Find octahedral map coordinate
             auto uv = pgl_vec2f(pglDir);  // [-1, 1]
