@@ -103,16 +103,37 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.optimizeSignature = guideSettings.treeoptimizesignature;
         guiding_fieldSubdivConfig.splitType = guideSettings.treesplittype;
         guiding_fieldSubdivConfig.confidenceType = guideSettings.treeconfidencetype;
-        guiding_fieldSubdivConfig.basisType = guideSettings.treebasistype;
+        // TODO: support multiple models
+            {
+                auto &cfg = guiding_fieldSubdivConfig.signatureEnsembleConfig[0];
+                cfg.basisType = guideSettings.treebasistype;
+                switch (cfg.basisType) {
+                    case PGL_BASIS_FUNC_NN:
+                        cfg.setResolution(guideSettings.octahedralresolution);
+                        break;
+                    case PGL_BASIS_FUNC_SPLAT:
+                        cfg.setResolution(guideSettings.octahedralresolution);
+                        cfg.setSplatSigma(guideSettings.splatSigma);
+                        break;
+                    case PGL_BASIS_FUNC_DON_PCG:
+                    case PGL_BASIS_FUNC_DON_XI:
+                        cfg.setOctaveMin(guideSettings.octavemin);
+                        cfg.setOctaveMax(guideSettings.octavemax);
+                        cfg.setDONGamma(guideSettings.octaveGamma);
+                        break;
+                        break;
+                    case PGL_BASIS_FUNC_LATITUDE:
+                        cfg.setResolution(guideSettings.latituderesolution);
+                        break;
+                    case PGL_BASIS_FUNC_LONGITUDE:
+                        cfg.setResolution(guideSettings.longituderesolution);
+                        break;
+                }
+
+            }
         guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
         guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
         guiding_fieldSubdivConfig.tValueThreshold = guideSettings.treetvaluethreshold;
-        pglSetOctahedralResolution(guideSettings.octahedralresolution);
-        pglSetSignatureSize(guideSettings.numbins);
-        pglSetSplatSigma(guideSettings.splatSigma);
-        pglSetOctaveMin(guideSettings.octavemin);
-        pglSetOctaveMax(guideSettings.octavemax);
-        pglSetOctaveGamma(guideSettings.octaveGamma);
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -730,18 +751,24 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (filtertype == "dbor_accum") settings.treefiltertype = PGL_SPATIAL_FILTER_DBOR_ACCUM;
     else throw std::runtime_error("Unknown treefiltertype: " + filtertype);
 
-    settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
-    if (settings.octahedralresolution < 0)
-        ErrorExit(loc, "Invalid octahedral resolution %d: only positive values are supported.", settings.octahedralresolution);
     settings.numbins = parameters.GetOneInt("numbins", settings.numbins);
     if (settings.numbins <= 0 || settings.numbins > 8)
         ErrorExit(loc, "Invalid number of bins %d: only 1-8 are supported.", settings.numbins);
+    settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
+    if (settings.octahedralresolution < 0)
+        ErrorExit(loc, "Invalid octahedral resolution %d: only positive values are supported.", settings.octahedralresolution);
     settings.splatSigma = parameters.GetOneFloat("splatsigma", settings.splatSigma);
     settings.octavemin = parameters.GetOneInt("octavemin", settings.octavemin);
     settings.octavemax = parameters.GetOneInt("octavemax", settings.octavemax);
     if (settings.octavemin <= 0 || settings.octavemax <= 0 || settings.octavemin > settings.octavemax)
         ErrorExit(loc, "Invalid octave range [%d, %d].", settings.octavemin, settings.octavemax);
     settings.octaveGamma = parameters.GetOneFloat("octavegamma", settings.octaveGamma);
+    settings.latituderesolution = parameters.GetOneInt("latituderesolution", settings.latituderesolution);
+    if (settings.latituderesolution <= 0)
+        ErrorExit(loc, "Invalid latitude resolution %d: only positive values are supported.", settings.latituderesolution);
+    settings.longituderesolution = parameters.GetOneInt("longituderesolution", settings.longituderesolution);
+    if (settings.longituderesolution <= 0)
+        ErrorExit(loc, "Invalid longitude resolution %d: only positive values are supported.", settings.longituderesolution);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);

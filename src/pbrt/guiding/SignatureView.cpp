@@ -13,9 +13,9 @@ constexpr float barSize = 0.4;
 
 SignatureView::SignatureView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView)
     : View(parent), m_field(field), m_radianceView(radianceView), m_integratedSignature(radianceView.integratedSignature),
-      m_cachedSignatureFramebuffer(pglGetSignatureSize(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_integratedSignatureFramebuffer(pglGetSignatureSize(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_selectionFramebuffer(pglGetSignatureSize(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+      m_cachedSignatureFramebuffer(NumBins(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_integratedSignatureFramebuffer(NumBins(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_selectionFramebuffer(NumBins(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     glGenTextures(1, &m_cachedSignatureTex);
     glGenTextures(1, &m_integratedSignatureTex);
     glGenTextures(1, &m_selectionTex);
@@ -36,15 +36,16 @@ void SignatureView::Update(const pbrt::Point3f &pos) {
 }
 
 void SignatureView::Rescale() {
-    m_cachedSignatureFramebuffer.rescale(pglGetSignatureSize(), 1);
-    m_integratedSignatureFramebuffer.rescale(pglGetSignatureSize(), 1);
-    m_selectionFramebuffer.rescale(pglGetSignatureSize(), 1);
+    m_cachedSignatureFramebuffer.rescale(NumBins(), 1);
+    m_integratedSignatureFramebuffer.rescale(NumBins(), 1);
+    m_selectionFramebuffer.rescale(NumBins(), 1);
 }
 
 void SignatureView::Update() {
     pgl_point3f pglP = {m_prev.pos.x, m_prev.pos.y, m_prev.pos.z};
-    m_cachedSignatureParent = m_field.GetDirectionalSignatures(pglP, 0, m_splitDim, m_isRight).first;
-    m_cachedSignaturesLR = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, m_splitDim, m_isRight);
+    // TODO: support selecting different models
+    m_cachedSignatureParent = m_field.GetDirectionalSignatures(pglP, 0, 0, m_splitDim, m_isRight).first;
+    m_cachedSignaturesLR = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, 0, m_splitDim, m_isRight);
     m_cachedSignature = m_isRight ? m_cachedSignaturesLR.second : m_cachedSignaturesLR.first;
 }
 
@@ -88,7 +89,7 @@ void SignatureView::Draw() {
 // Needs to align with Signature.h
 static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier) {
     float num = 0, denom = 0;
-    for (uint8_t i = 0; i < pglGetSignatureSize(); i++) {
+    for (uint8_t i = 0; i < PGL_SIGNATURE_MAX_SIZE; i++) {
         float ai = a.signature[i], bi = b.signature[i];
         float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
         // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
@@ -103,7 +104,7 @@ static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirecti
 
 static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier, float tvalueThreshold) {
     float num = 0, denom = 0;
-    for (uint8_t i = 0; i < pglGetSignatureSize(); i++) {
+    for (uint8_t i = 0; i < PGL_SIGNATURE_MAX_SIZE; i++) {
         float ai = a.signature[i], bi = b.signature[i];
         float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
         float sigma = std::sqrt(a.std[i] * a.std[i] + b.std[i] * b.std[i]);
@@ -167,7 +168,7 @@ void SignatureView::DrawColored() {
         if (ImGui::IsItemHovered()) {
             auto pos = ImGui::GetMousePos();
             float x = (pos.x - leftTop.x) / ImGui::GetColumnWidth();
-            uint8_t idx = std::min((uint8_t) (x * pglGetSignatureSize()), (uint8_t) (pglGetSignatureSize() - 1));
+            uint8_t idx = std::min((uint8_t) (x * NumBins()), (uint8_t) (NumBins() - 1));
             if (ImGui::BeginTooltip()) {
                 ImGui::Text("Bin index: %d", idx);
                 ImGui::Text("%s value: %.4f", label, signature.signature[idx]);
@@ -209,15 +210,16 @@ void SignatureView::DrawComp() {
     }
     ImGui::SetItemTooltip("This will clear the orange bars");
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+    uint8_t S = NumBins();
     if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
         ImPlot::SetNextFillStyle(ImPlot::GetColormapColor(2));  // Green
-        ImPlot::PlotBars("Current", m_integratedSignature.signature, pglGetSignatureSize(), barSize);
+        ImPlot::PlotBars("Current", m_integratedSignature.signature, S, barSize);
         ImPlot::SetNextFillStyle(ImPlot::GetColormapColor(1));  // Orange
-        ImPlot::PlotBars("Stored", m_storedSignature.signature, pglGetSignatureSize(), barSize, barSize);
+        ImPlot::PlotBars("Stored", m_storedSignature.signature, S, barSize, barSize);
 
         BinInteraction();
         ImPlot::EndPlot();
@@ -236,7 +238,7 @@ void SignatureView::DrawComp() {
         ImGui::Text("Distance: %.4f", distance);
     } else {
         float sum = 0.0f;
-        for (uint8_t i = 0; i < pglGetSignatureSize(); i++) {
+        for (uint8_t i = 0; i < S; i++) {
             sum += m_integratedSignature.signature[i];
         }
         ImGui::Text("Sum of bin value: %.4f", sum);
@@ -254,17 +256,18 @@ void SignatureView::DrawBars() {
     ImGui::SameLine();
     ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+    uint8_t S = NumBins();
     if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
-        ImPlot::PlotBars("Cached", m_cachedSignature.signature, pglGetSignatureSize(), barSize);
+        ImPlot::PlotBars("Cached", m_cachedSignature.signature, S, barSize);
         if (m_showStd) {
-            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, S);
         }
         if (m_showIntegratedSignature)
-            ImPlot::PlotBars("Integrated", m_integratedSignature.signature, pglGetSignatureSize(), barSize, barSize);
+            ImPlot::PlotBars("Integrated", m_integratedSignature.signature, S, barSize, barSize);
 
         BinInteraction();
         ImPlot::EndPlot();
@@ -290,32 +293,34 @@ void SignatureView::DrawPC() {
 
     static float child_std[PGL_SIGNATURE_MAX_SIZE], parent_std[PGL_SIGNATURE_MAX_SIZE];
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+    uint8_t S = NumBins();
+    PGLDirectionalSignature childSignature = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignature;
     if (ImPlot::BeginPlot("Child/Parent Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
-        ImPlot::PlotBars("Child", m_cachedSignature.signature, pglGetSignatureSize(), barSize);
-        ImPlot::PlotBars("Parent", m_cachedSignatureParent.signature, pglGetSignatureSize(), barSize, barSize);
+        ImPlot::PlotBars("Child", childSignature.signature, S, barSize);
+        ImPlot::PlotBars("Parent", m_cachedSignatureParent.signature, S, barSize, barSize);
         if (m_showStd) {
-            ImPlot::PlotErrorBars("Child-std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, pglGetSignatureSize());
-            ImPlot::PlotErrorBars("Parent-std", m_barRXs, m_cachedSignatureParent.signature, m_cachedSignatureParent.std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Child-std", m_barXs, childSignature.signature, childSignature.std, S);
+            ImPlot::PlotErrorBars("Parent-std", m_barRXs, m_cachedSignatureParent.signature, m_cachedSignatureParent.std, S);
         }
         if (m_showMultipliedStd) {
             float multiplier = m_parent->GetSignatureStdMultiplier();
-            for (int i = 0; i < pglGetSignatureSize(); ++i) {
-                child_std[i] = m_cachedSignature.std[i] * multiplier;
+            for (int i = 0; i < S; ++i) {
+                child_std[i] = childSignature.std[i] * multiplier;
                 parent_std[i] = m_cachedSignatureParent.std[i] * multiplier;
             }
             ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
             ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
-            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignature.signature, child_std, pglGetSignatureSize());
-            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignatureParent.signature, parent_std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Left-std-", m_barXs, childSignature.signature, child_std, S);
+            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignatureParent.signature, parent_std, S);
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar();
         }
         if (m_showTValue) {
-            for (int i = 0; i < pglGetSignatureSize(); ++i) {
+            for (int i = 0; i < S; ++i) {
                 float t = getWelchT(m_cachedSignature, m_cachedSignatureParent, i);
                 ImVec4 col = (std::isnan(t) || std::abs(t) <= m_parent->GetTValueThreshold()) ? ImVec4(0, 0, 0, 0) : ImVec4(1, 1, 0, 0.7);
                 ImPlot::Annotation(m_barXs[i], m_cachedSignature.signature[i], col, ImVec2(0, -10), false, "%.2f", t);
@@ -366,27 +371,28 @@ void SignatureView::DrawLR() {
 
     static float left_std[PGL_SIGNATURE_MAX_SIZE], right_std[PGL_SIGNATURE_MAX_SIZE];
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+    uint8_t S = NumBins();
     if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, pglGetSignatureSize() - 1 + 1.5*barSize, ImGuiCond_Always);
+        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
-        ImPlot::PlotBars("Left", m_cachedSignaturesLR.first.signature, pglGetSignatureSize(), barSize);
-        ImPlot::PlotBars("Right", m_cachedSignaturesLR.second.signature, pglGetSignatureSize(), barSize, barSize);
+        ImPlot::PlotBars("Left", m_cachedSignaturesLR.first.signature, S, barSize);
+        ImPlot::PlotBars("Right", m_cachedSignaturesLR.second.signature, S, barSize, barSize);
         if (m_showStd) {
-            ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, m_cachedSignaturesLR.first.std, pglGetSignatureSize());
-            ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, m_cachedSignaturesLR.second.std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, m_cachedSignaturesLR.first.std, S);
+            ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, m_cachedSignaturesLR.second.std, S);
         }
         if (m_showMultipliedStd) {
             float multiplier = m_parent->GetSignatureStdMultiplier();
-            for (int i = 0; i < pglGetSignatureSize(); ++i) {
+            for (int i = 0; i < S; ++i) {
                 left_std[i] = m_cachedSignaturesLR.first.std[i] * multiplier;
                 right_std[i] = m_cachedSignaturesLR.second.std[i] * multiplier;
             }
             ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
             ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
-            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignaturesLR.first.signature, left_std, pglGetSignatureSize());
-            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignaturesLR.second.signature, right_std, pglGetSignatureSize());
+            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignaturesLR.first.signature, left_std, S);
+            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignaturesLR.second.signature, right_std, S);
             ImPlot::PopStyleColor();
             ImPlot::PopStyleVar();
         }
@@ -418,7 +424,7 @@ void SignatureView::BinInteraction() {
     // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
     if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         double x = ImPlot::GetPlotMousePos().x + barSize / 2;
-        if (x >= 0 && x < pglGetSignatureSize()) {
+        if (x >= 0 && x < NumBins()) {
             if (m_radianceView.GetSelectedBinIndex() == (uint8_t) x) {
                 m_radianceView.ResetSelectedBinIndex();
             } else {
@@ -434,7 +440,7 @@ void SignatureView::BinInteraction() {
 
 void SignatureView::UpdateFramebuffer() {
     auto render = [&](Framebuffer &fb, GLuint tex, const PGLDirectionalSignature &signature) {
-        UpdateTextureFromFloatData(tex, signature.signature, pglGetSignatureSize(), 1, false);
+        UpdateTextureFromFloatData(tex, signature.signature, NumBins(), 1, false);
         fb.bind();
         fb.clear();
         Shader &shader = fb.getShader();
@@ -455,14 +461,14 @@ void SignatureView::UpdateFramebuffer() {
         render(m_integratedSignatureFramebuffer, m_integratedSignatureTex, m_integratedSignature);
 
     // Selection buffer
-    for (int i = 0; i < pglGetSignatureSize(); ++i) {
+    for (int i = 0; i < NumBins(); ++i) {
         if (m_radianceView.GetSelectedBinIndex() == i) {
             m_selectionBuffer[i] = RGB(1, 0, 0);
         } else {
             m_selectionBuffer[i] = RGB(0, 0, 0);
         }
     }
-    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, pglGetSignatureSize(), 1, false);
+    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, NumBins(), 1, false);
 
     m_selectionFramebuffer.bind();
     m_selectionFramebuffer.clear();
@@ -474,4 +480,8 @@ void SignatureView::UpdateFramebuffer() {
                            });
     m_selectionFramebuffer.draw();
     m_selectionFramebuffer.unbind();
+}
+
+uint8_t SignatureView::NumBins() const {  // TODO: just an adhoc solution
+    return m_parent->GetSubdivCfg().signatureEnsembleConfig[0].numBins;
 }

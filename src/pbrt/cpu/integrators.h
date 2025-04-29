@@ -293,12 +293,14 @@ class GuidedPathIntegrator : public RayIntegrator {
         PGL_SPATIAL_DEFENSIVE_TYPE treedefensivetype {PGL_SPATIAL_DEFENSIVE_FIXED};
         PGL_SPATIAL_FILTER_TYPE treefiltertype {PGL_SPATIAL_FILTER_NONE};
 
-        int octahedralresolution {(int)pglGetOctahedralResolution()};
-        int numbins {(int)pglGetSignatureSize()};
-        float splatSigma {pglGetSplatSigma()};
-        int octavemin {(int)pglGetOctaveMin()};
-        int octavemax {(int)pglGetOctaveMax()};
-        float octaveGamma {pglGetOctaveGamma()};
+        int numbins {8};
+        int octahedralresolution {64};
+        int latituderesolution {2};
+        int longituderesolution {2};
+        int octavemin {3};
+        int octavemax {7};
+        float octaveGamma {0.5};
+        float splatSigma {1.0};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};

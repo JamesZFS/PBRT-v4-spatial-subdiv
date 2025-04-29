@@ -140,6 +140,8 @@ private:
     void CacheHistogramViews();
     void PlotsView();
 
+    uint8_t NumBins() const;
+
     Camera m_camera;
     Film m_film;
     pstd::optional<Image> m_reference;

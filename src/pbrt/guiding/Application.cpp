@@ -804,16 +804,16 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             rc.hit.x, rc.hit.y, rc.hit.z,
             rc.normal.x, rc.normal.y, rc.normal.z,
             rc.uv.x, rc.uv.y);
-        auto printDS = [](const PGLDirectionalSignature &ds) -> std::string {
+        auto printDS = [this](const PGLDirectionalSignature &ds) -> std::string {
             std::string s = StringPrintf("(%.4f", ds.signature[0]);
-            for (int i = 1; i < (int) pglGetSignatureSize(); ++i)
+            for (int i = 1; i < (int) NumBins(); ++i)
                 s += StringPrintf(", %.4f", ds.signature[i]);
             s += ")";
             return s;
         };
-        auto printDSV = [](const PGLDirectionalSignature &ds) -> std::string {
+        auto printDSV = [this](const PGLDirectionalSignature &ds) -> std::string {
             std::string s = StringPrintf("(%.2e", ds.std[0]);
-            for (int i = 1; i < (int) pglGetSignatureSize(); ++i)
+            for (int i = 1; i < (int) NumBins(); ++i)
                 s += StringPrintf(", %.2e", ds.std[i]);
             s += ")";
             return s;
@@ -841,7 +841,7 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
         pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
         uint8_t splitDim;
         bool isRight;
-        auto signatures = m_field.GetDirectionalSignatures(pglP, 1, splitDim, isRight);
+        auto signatures = m_field.GetDirectionalSignatures(pglP, 1, 0, splitDim, isRight);  // TODO: support multiple models
         auto ds = isRight ? signatures.second : signatures.first;
         m_rcHistory += "Directional Signature:\n"
             "  Mean: " + printDS(ds) + "\n"
@@ -1534,57 +1534,53 @@ void Application::SpatialSubdivisionSettings() {
         // _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         _();
-        if (ImGui::Combo("Basis Function Type", reinterpret_cast<int *>(&m_subdivCfg.basisType), "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0")) {
+        // TODO: support ensemble config
+        int basisType = m_subdivCfg.signatureEnsembleConfig[0].basisType;
+        if (ImGui::Combo("Basis Function Type", &basisType, "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0")) {
+            m_subdivCfg.signatureEnsembleConfig[0].setType((PGL_BASIS_FUNC_TYPE) basisType);
             if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
         }
         _();
-        int signatureSize = (int) pglGetSignatureSize();
+        int signatureSize = m_subdivCfg.signatureEnsembleConfig[0].numBins;
         if (ImGui::SliderInt("Number of Bins", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
-            pglSetSignatureSize(signatureSize);
+            m_subdivCfg.signatureEnsembleConfig[0].numBins = signatureSize;
             m_signatureView->Rescale();
             if (m_enableRadianceView && m_radianceView->HasStarted()) {
                 m_radianceView->UpdateBasisBuffer();
             }
         }
-        if (m_subdivCfg.basisType == PGL_BASIS_FUNC_NN || m_subdivCfg.basisType == PGL_BASIS_FUNC_SPLAT) {
+        if (basisType == PGL_BASIS_FUNC_NN || basisType == PGL_BASIS_FUNC_SPLAT || basisType == PGL_BASIS_FUNC_LATITUDE || basisType == PGL_BASIS_FUNC_LONGITUDE) {
             _();
-            int octahedralRes = (int) pglGetOctahedralResolution();
-            if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
-                pglSetOctahedralResolution(octahedralRes);
+            int resolution = m_subdivCfg.signatureEnsembleConfig[0].getResolution();
+            if (ImGui::SliderInt("Resolution", &resolution, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
+                m_subdivCfg.signatureEnsembleConfig[0].setResolution(resolution);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
-            if (m_subdivCfg.basisType == PGL_BASIS_FUNC_SPLAT) {
+            if (basisType == PGL_BASIS_FUNC_SPLAT) {
                 _();
-                float splatSigma = pglGetSplatSigma();
+                float splatSigma = m_subdivCfg.signatureEnsembleConfig[0].getSplatSigma();
                 if (ImGui::SliderFloat("Splat Sigma", &splatSigma, 0.05f, 5.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-                    pglSetSplatSigma(splatSigma);
+                    m_subdivCfg.signatureEnsembleConfig[0].setSplatSigma(splatSigma);
                     if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
                 }
             }
-        } else if (m_subdivCfg.basisType == PGL_BASIS_FUNC_DON_PCG || m_subdivCfg.basisType == PGL_BASIS_FUNC_DON_XI) {  // Basis function
-            int octaveMin = (int) pglGetOctaveMin();
-            int octaveMax = (int) pglGetOctaveMax();
-            float octaveGamma = pglGetOctaveGamma();
+        } else if (basisType == PGL_BASIS_FUNC_DON_PCG || basisType == PGL_BASIS_FUNC_DON_XI) {  // DON
+            int octaveMin = m_subdivCfg.signatureEnsembleConfig[0].getOctaveMin();
+            int octaveMax = m_subdivCfg.signatureEnsembleConfig[0].getOctaveMax();
+            float octaveGamma = m_subdivCfg.signatureEnsembleConfig[0].getDONGamma();
             _();
             if (ImGui::SliderInt("Octave Min", &octaveMin, 1, octaveMax)) {
-                pglSetOctaveMin(octaveMin);
+                m_subdivCfg.signatureEnsembleConfig[0].setOctaveMin(octaveMin);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
             _();
             if (ImGui::SliderInt("Octave Max", &octaveMax, octaveMin, 10)) {
-                pglSetOctaveMax(octaveMax);
+                m_subdivCfg.signatureEnsembleConfig[0].setOctaveMax(octaveMax);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
             _();
             if (ImGui::SliderFloat("Octave Gamma", &octaveGamma, 0.05f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-                pglSetOctaveGamma(octaveGamma);
-                if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
-            }
-        } else {  // Latitude longitude bases
-            int res = (int) pglGetOctahedralResolution();
-            _();
-            if (ImGui::SliderInt("Resolution", &res, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
-                pglSetOctahedralResolution(res);
+                m_subdivCfg.signatureEnsembleConfig[0].setDONGamma(octaveGamma);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
         }
@@ -1706,6 +1702,10 @@ void Application::PlotsView() {
     if (ImGui::Begin("Avg Path Length Plot"))
         m_plots.avgPathLength->Draw();
     ImGui::End();
+}
+
+uint8_t Application::NumBins() const {  // TODO: just an adhoc solution
+    return GetSubdivCfg().signatureEnsembleConfig[0].numBins;
 }
 
 }
