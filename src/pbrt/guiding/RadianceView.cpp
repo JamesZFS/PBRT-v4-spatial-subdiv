@@ -191,176 +191,255 @@ inline static void wrap_splat(int &x, int &y, uint32_t res) {
     }
 }
 
+inline static uint8_t get_signature_index_nn(const pgl_direction &dir, uint32_t res, uint8_t S) {
+    // 1. Convert the sample.direction into [0, 1] representation
+    auto uv_ = pgl_vec2f(dir);  // [-1, 1]
+    float x = uv_.x * 0.5f + 0.5f;  // [0, 1]
+    float y = uv_.y * 0.5f + 0.5f;
+
+    // 2. Find the histogram bin on the (conceptual) octahedral map
+    uint32_t ix = std::clamp((uint32_t)(x * res), 0u, res - 1);
+    uint32_t iy = std::clamp((uint32_t)(y * res), 0u, res - 1);
+
+    // 3. Hash (ix, iy) to a single index between 0 and PGL_SIGNATURE_SIZE - 1
+    // uint32_t hash = (2654435761 * ix) ^ (805459861 * iy);  // Instant-NGP
+    uint32_t hash = pgl_pcg2d(ix, iy).first;
+    return hash % S;
+}
+
 void RadianceView::UpdateBasisBuffer() {
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     auto frame = Frame::FromZ(m_prev.normal);
-    const auto basisType = m_parent->GetSubdivCfg().basisType;
-    const uint8_t S = pglGetSignatureSize();
-    const uint8_t halfS = S >> 1;
-    const uint8_t log2_bin_count = (uint8_t) std::log2(S);
-    if (basisType == PGL_BASIS_FUNC_DON_XI) {
-        if (S != (1 << log2_bin_count)) {
-            std::cerr << "Signature size must be a power of 2" << std::endl;
-            return;
+    const SignatureArguments &config = m_parent->GetSubdivCfg().signatureEnsembleConfig[0];  // TODO: support ensemble
+    const auto basisType = config.basisType;
+    const uint8_t S = config.numBins;
+
+    switch (basisType) {
+        case PGL_BASIS_FUNC_NN: {
+            const uint32_t res = config.getResolution();
+            for (Point2i p: pixelBounds) {
+                float theta = m_stepTheta * (0.5f + float(p.y));
+                float phi = m_stepPhi * (0.5f + float(p.x));
+
+                Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+                if (m_localFrame)
+                    dir = frame.FromLocal(dir);
+                pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
+                const size_t pixel_index = p.y * m_resolution.x + p.x;
+
+                for (uint8_t j = 0; j < S; ++j)
+                    m_basisBuffer[j][pixel_index] = 0.0;
+                m_basisBuffer[get_signature_index_nn(pglDir, res, S)][pixel_index] = 1.0;
+            }
+            break;
         }
-    }
-    const uint32_t oct_res = pglGetOctahedralResolution();
-    const uint8_t octave_min = pglGetOctaveMin(), octave_max = pglGetOctaveMax();
-    const float sigma = pglGetSplatSigma();
-    // const float basis_normalizer = pow(2.0, 1.0 - float(octave_min)) - pow(0.5, float(octave_max));
-    const float gamma = pglGetOctaveGamma();
-    const float alpha = -0.5f / (sigma*sigma);
-    const float kernel_lb = std::exp(alpha);
-    for (Point2i p: pixelBounds) {
-        float theta = m_stepTheta * (0.5f + float(p.y));
-        float phi = m_stepPhi * (0.5f + float(p.x));
+        case PGL_BASIS_FUNC_SPLAT: {
+            const uint32_t res = config.getResolution();
+            const float sigma = config.getSplatSigma();
+            const float alpha = -0.5f / (sigma * sigma);
+            const float kernel_lb = std::exp(alpha);
+            for (Point2i p: pixelBounds) {
+                float theta = m_stepTheta * (0.5f + float(p.y));
+                float phi = m_stepPhi * (0.5f + float(p.x));
 
-        Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
-        if (m_localFrame)
-            dir = frame.FromLocal(dir);
-        pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
-        const size_t pixel_index = p.y * m_resolution.x + p.x;
+                Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+                if (m_localFrame)
+                    dir = frame.FromLocal(dir);
+                pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
+                const size_t pixel_index = p.y * m_resolution.x + p.x;
 
-        if (basisType == PGL_BASIS_FUNC_DON_PCG || basisType == PGL_BASIS_FUNC_DON_XI) {
-            // Find octahedral map coordinate
-            auto uv = pgl_vec2f(pglDir);  // [-1, 1]
-            uv.x = uv.x * 0.5 + 0.5;
-            uv.y = uv.y * 0.5 + 0.5;   // to [0, 1]
+                // Find octahedral map coordinate
+                auto uv = pgl_vec2f(pglDir);  // [-1, 1]
+                uv.x = uv.x * 0.5 + 0.5;
+                uv.y = uv.y * 0.5 + 0.5;   // to [0, 1]
 
-            // uv = {float(p.x) / m_resolution.x, float(p.y) / m_resolution.y};  // debug
+                // Splatting
+                // 3x3 Gaussian kernel
+                constexpr pgl_vec2i offsets[9] = {
+                    {-1, -1}, {0, -1}, {+1, -1},
+                    {-1,  0}, {0,  0}, {+1,  0},
+                    {-1, +1}, {0, +1}, {+1, +1}
+                };
 
-            // * Evaluates all basis functions at the given coordinate
-            for (uint8_t j = 0; j < S; ++j)
-                m_basisBuffer[j][pixel_index] = 0.0;
-            float normalizer = 0.0;
-            // Iterate over all octaves
-            for (uint8_t k = octave_min; k <= octave_max; ++k) {
-                const uint32_t res = 1 << k;
-                const float weight = pow(gamma, float(k));
-                normalizer += weight;
-                // Discretize uv at the appropriate resolution
-                pgl_vec2f octave_uv = {uv.x * float(res), uv.y * float(res)};
-                uint32_t x00 = uint32_t(octave_uv.x), y00 = uint32_t(octave_uv.y);
-                // Generate offsets
-                uint32_t x01 = x00, y01 = y00 + 1;
-                uint32_t x10 = x00 + 1, y10 = y00;
-                uint32_t x11 = x00 + 1, y11 = y00 + 1;
-                // Apply wrapping to ensure continuity on the sphere domain
-                wrap(x00, y00, res);
-                wrap(x01, y01, res);
-                wrap(x10, y10, res);
-                wrap(x11, y11, res);
-                uint8_t h00;
-                uint8_t h01;
-                uint8_t h10;
-                uint8_t h11;
-                if (basisType == PGL_BASIS_FUNC_DON_PCG) {
-                    h00 = pcg_3d(x00, y00, k) % S;
-                    h01 = pcg_3d(x01, y01, k) % S;
-                    h10 = pcg_3d(x10, y10, k) % S;
-                    h11 = pcg_3d(x11, y11, k) % S;
-                } else {
-                    // using Xi-seq for lower discrepancy and less clumping
-                    h00 = get_bin(x00, y00, k, log2_bin_count);
-                    h01 = get_bin(x01, y01, k, log2_bin_count);
-                    h10 = get_bin(x10, y10, k, log2_bin_count);
-                    h11 = get_bin(x11, y11, k, log2_bin_count);
+                pgl_vec2i pi{
+                    std::clamp((int)(uv.x * res), 0, (int)res - 1),
+                    std::clamp((int)(uv.y * res), 0, (int)res - 1)
+                };  // {0, .., oct_res-1}
+
+                // Dynamically compute kernel weights of each neighbor's center
+                for (uint8_t j = 0; j < S; ++j)
+                    m_basisBuffer[j][pixel_index] = 0.0;
+
+                float sumCoeff = 0;
+                for (int i = 0; i < 9; ++i) {
+                    pgl_vec2i qi = {pi.x + offsets[i].x, pi.y + offsets[i].y};
+                    // pgl_vec2f delta = {(float)(pi.x - qi.x), (float)(pi.y - qi.y)}; // old approach: static weights
+                    pgl_vec2f delta = {uv.x * res - (qi.x + 0.5f), uv.y * res - (qi.y + 0.5f)};
+                    float coeff = std::max(std::exp(alpha * (delta.x*delta.x + delta.y*delta.y)) - kernel_lb, 0.0f);
+                    sumCoeff += coeff;
+
+                    // uint8_t j = pcg_2d(qi.x, qi.y) % S;  // hash to bin
+                    wrap_splat(qi.x, qi.y, res);
+                    uint8_t j = pcg_2d(qi.x, qi.y) % S;  // hash to bin
+                    m_basisBuffer[j][pixel_index] += coeff;
+                }
+
+                // Normalize weights
+                for (uint8_t j = 0; j < S; ++j)
+                    m_basisBuffer[j][pixel_index] /= sumCoeff;
+            }
+            break;
+        }
+        case PGL_BASIS_FUNC_DON_PCG:
+        case PGL_BASIS_FUNC_DON_XI: {
+            const uint8_t log2_bin_count = (uint8_t) std::log2(S);
+            const uint8_t octave_min = config.getOctaveMin(), octave_max = config.getOctaveMax();
+            const float gamma = config.getDONGamma();
+            if (basisType == PGL_BASIS_FUNC_DON_XI) {
+                if (S != (1 << log2_bin_count)) {
+                    std::cerr << "Signature size must be a power of 2" << std::endl;
+                    return;
+                }
+            }
+
+            for (Point2i p: pixelBounds) {
+                float theta = m_stepTheta * (0.5f + float(p.y));
+                float phi = m_stepPhi * (0.5f + float(p.x));
+
+                Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+                if (m_localFrame)
+                    dir = frame.FromLocal(dir);
+                pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
+                const size_t pixel_index = p.y * m_resolution.x + p.x;
+
+                // Find octahedral map coordinate
+                auto uv = pgl_vec2f(pglDir);  // [-1, 1]
+                uv.x = uv.x * 0.5 + 0.5;
+                uv.y = uv.y * 0.5 + 0.5;   // to [0, 1]
+
+                // uv = {float(p.x) / m_resolution.x, float(p.y) / m_resolution.y};  // debug
+
+                // * Evaluates all basis functions at the given coordinate
+                for (uint8_t j = 0; j < S; ++j)
+                    m_basisBuffer[j][pixel_index] = 0.0;
+                float normalizer = 0.0;
+                // Iterate over all octaves
+                for (uint8_t k = octave_min; k <= octave_max; ++k) {
+                    const uint32_t res = 1 << k;
+                    const float weight = pow(gamma, float(k));
+                    normalizer += weight;
+                    // Discretize uv at the appropriate resolution
+                    pgl_vec2f octave_uv = {uv.x * float(res), uv.y * float(res)};
+                    uint32_t x00 = uint32_t(octave_uv.x), y00 = uint32_t(octave_uv.y);
+                    // Generate offsets
+                    uint32_t x01 = x00, y01 = y00 + 1;
+                    uint32_t x10 = x00 + 1, y10 = y00;
+                    uint32_t x11 = x00 + 1, y11 = y00 + 1;
+                    // Apply wrapping to ensure continuity on the sphere domain
+                    wrap(x00, y00, res);
+                    wrap(x01, y01, res);
+                    wrap(x10, y10, res);
+                    wrap(x11, y11, res);
+                    uint8_t h00;
+                    uint8_t h01;
+                    uint8_t h10;
+                    uint8_t h11;
+                    if (basisType == PGL_BASIS_FUNC_DON_PCG) {
+                        h00 = pcg_3d(x00, y00, k) % S;
+                        h01 = pcg_3d(x01, y01, k) % S;
+                        h10 = pcg_3d(x10, y10, k) % S;
+                        h11 = pcg_3d(x11, y11, k) % S;
+                    } else {
+                        // using Xi-seq for lower discrepancy and less clumping
+                        h00 = get_bin(x00, y00, k, log2_bin_count);
+                        h01 = get_bin(x01, y01, k, log2_bin_count);
+                        h10 = get_bin(x10, y10, k, log2_bin_count);
+                        h11 = get_bin(x11, y11, k, log2_bin_count);
+                    }
+
+                    for (uint8_t j = 0; j < S; ++j) {
+                        // Determine whether this bin gets the sample
+                        float M00 = (h00 == j) ? 1.0 : 0.0;
+                        float M01 = (h01 == j) ? 1.0 : 0.0;
+                        float M10 = (h10 == j) ? 1.0 : 0.0;
+                        float M11 = (h11 == j) ? 1.0 : 0.0;
+                        // Perform bilinear interpolation
+                        float M0 = mix(M00, M01, fract(octave_uv.y));
+                        float M1 = mix(M10, M11, fract(octave_uv.y));
+                        float M = mix(M0, M1, fract(octave_uv.x));
+                        // Accumulate into the result
+                        m_basisBuffer[j][pixel_index] += weight * M;
+                    }
                 }
 
                 for (uint8_t j = 0; j < S; ++j) {
-                    // Determine whether this bin gets the sample
-                    float M00 = (h00 == j) ? 1.0 : 0.0;
-                    float M01 = (h01 == j) ? 1.0 : 0.0;
-                    float M10 = (h10 == j) ? 1.0 : 0.0;
-                    float M11 = (h11 == j) ? 1.0 : 0.0;
-                    // Perform bilinear interpolation
-                    float M0 = mix(M00, M01, fract(octave_uv.y));
-                    float M1 = mix(M10, M11, fract(octave_uv.y));
-                    float M = mix(M0, M1, fract(octave_uv.x));
-                    // Accumulate into the result
-                    m_basisBuffer[j][pixel_index] += weight * M;
+                    m_basisBuffer[j][pixel_index] /= normalizer;
                 }
+                // // Check sum
+                // float sum = 0;
+                // for (uint8_t j = 0; j < S; ++j)
+                //     sum += m_basisBuffer[j][pixel_index];
+                // CHECK(std::abs(sum - 1.0) < 1e-5);
             }
 
-            for (uint8_t j = 0; j < S; ++j) {
-                m_basisBuffer[j][pixel_index] /= normalizer;
-            }
-            // // Check sum
-            // float sum = 0;
-            // for (uint8_t j = 0; j < S; ++j)
-            //     sum += m_basisBuffer[j][pixel_index];
-            // CHECK(std::abs(sum - 1.0) < 1e-5);
-        } else if (basisType == PGL_BASIS_FUNC_LATITUDE) {
-            auto uv = dir_to_spherical(pglDir);
-            float u = fract(uv.x * oct_res);  // latitude
-
-            for (uint8_t j = 0; j < S; ++j) {
-                float x = M_PI_2f * (float(S) * u - float(j));
-                float b = 0.0;
-                if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * float(S) && x - M_PI_2f * float(S) < M_PI_2f)) {
-                    b = std::cos(x);
-                    b *= b;
-                }
-                m_basisBuffer[j][pixel_index] = b;
-            }
-        } else if (basisType == PGL_BASIS_FUNC_LONGITUDE) {
-            auto uv = dir_to_spherical(pglDir);
-            float v = fract(uv.y * 2 * oct_res);  // longitude
-
-            for (uint8_t j = 0; j < S; ++j) {
-                float x = M_PI_2f * (float(S) * v - float(j));
-                float b = 0.0;
-                if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * float(S) && x - M_PI_2f * float(S) < M_PI_2f)) {
-                    b = std::cos(x);
-                    b *= b;
-                }
-                m_basisBuffer[j][pixel_index] = b;
-            }
-        } else if (basisType == PGL_BASIS_FUNC_SPLAT) {
-            // Find octahedral map coordinate
-            auto uv = pgl_vec2f(pglDir);  // [-1, 1]
-            uv.x = uv.x * 0.5 + 0.5;
-            uv.y = uv.y * 0.5 + 0.5;   // to [0, 1]
-
-            // Splatting
-            // 3x3 Gaussian kernel
-            constexpr pgl_vec2i offsets[9] = {
-                {-1, -1}, {0, -1}, {+1, -1},
-                {-1,  0}, {0,  0}, {+1,  0},
-                {-1, +1}, {0, +1}, {+1, +1}
-            };
-
-            pgl_vec2i pi{
-                std::clamp((int)(uv.x * oct_res), 0, (int)oct_res - 1),
-                std::clamp((int)(uv.y * oct_res), 0, (int)oct_res - 1)
-            };  // {0, .., oct_res-1}
-
-            // Dynamically compute kernel weights of each neighbor's center
-            for (uint8_t j = 0; j < S; ++j)
-                m_basisBuffer[j][pixel_index] = 0.0;
-
-            float sumCoeff = 0;
-            for (int i = 0; i < 9; ++i) {
-                pgl_vec2i qi = {pi.x + offsets[i].x, pi.y + offsets[i].y};
-                // pgl_vec2f delta = {(float)(pi.x - qi.x), (float)(pi.y - qi.y)}; // old approach: static weights
-                pgl_vec2f delta = {uv.x * oct_res - (qi.x + 0.5f), uv.y * oct_res - (qi.y + 0.5f)};
-                float coeff = std::max(std::exp(alpha * (delta.x*delta.x + delta.y*delta.y)) - kernel_lb, 0.0f);
-                sumCoeff += coeff;
-                
-                // uint8_t j = pcg_2d(qi.x, qi.y) % S;  // hash to bin
-                wrap_splat(qi.x, qi.y, oct_res);
-                uint8_t j = pcg_2d(qi.x, qi.y) % S;  // hash to bin
-                m_basisBuffer[j][pixel_index] += coeff;
-            }
-
-            // Normalize weights
-            for (uint8_t j = 0; j < S; ++j)
-                m_basisBuffer[j][pixel_index] /= sumCoeff;
-        } else {  // NN
-            for (uint8_t j = 0; j < S; ++j)
-                m_basisBuffer[j][pixel_index] = 0.0;
-            m_basisBuffer[pglGetSignatureIndex(pglDir)][pixel_index] = 1.0;
+            break;
         }
+        case PGL_BASIS_FUNC_LATITUDE: {
+            const uint32_t res = config.getResolution();
+            for (Point2i p: pixelBounds) {
+                float theta = m_stepTheta * (0.5f + float(p.y));
+                float phi = m_stepPhi * (0.5f + float(p.x));
+
+                Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+                if (m_localFrame)
+                    dir = frame.FromLocal(dir);
+                pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
+                const size_t pixel_index = p.y * m_resolution.x + p.x;
+
+                auto uv = dir_to_spherical(pglDir);
+                float u = fract(uv.x * res);  // latitude
+
+                for (uint8_t j = 0; j < S; ++j) {
+                    float x = M_PI_2f * (float(S) * u - float(j));
+                    float b = 0.0;
+                    if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * float(S) && x - M_PI_2f * float(S) < M_PI_2f)) {
+                        b = std::cos(x);
+                        b *= b;
+                    }
+                    m_basisBuffer[j][pixel_index] = b;
+                }
+            }
+            break;
+        }
+        case PGL_BASIS_FUNC_LONGITUDE: {
+            const uint32_t res = config.getResolution();
+            for (Point2i p: pixelBounds) {
+                float theta = m_stepTheta * (0.5f + float(p.y));
+                float phi = m_stepPhi * (0.5f + float(p.x));
+
+                Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+                if (m_localFrame)
+                    dir = frame.FromLocal(dir);
+                pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
+                const size_t pixel_index = p.y * m_resolution.x + p.x;
+
+                auto uv = dir_to_spherical(pglDir);
+                float v = fract(uv.y * res);  // longitude
+
+                for (uint8_t j = 0; j < S; ++j) {
+                    float x = M_PI_2f * (float(S) * v - float(j));
+                    float b = 0.0;
+                    if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * float(S) && x - M_PI_2f * float(S) < M_PI_2f)) {
+                        b = std::cos(x);
+                        b *= b;
+                    }
+                    m_basisBuffer[j][pixel_index] = b;
+                }
+            }
+            break;
+        }
+
+        default: throw std::runtime_error("Unknown basis type");
     }
 
     for (uint8_t j = 0; j < S; ++j)
@@ -393,7 +472,7 @@ void RadianceView::RenderStep() {
         {
             std::lock_guard lock(mutex);
             normalizer += thread_normalizer;
-            for (size_t i = 0; i < pglGetSignatureSize(); i++) {
+            for (size_t i = 0; i < PGL_SIGNATURE_MAX_SIZE; i++) {
                 signature.signature[i] += thread_signature.signature[i];
             }
         }
@@ -517,7 +596,7 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
             else cosTheta = d.z;
             float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
             thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
-            for (uint8_t j = 0; j < pglGetSignatureSize(); ++j) {
+            for (uint8_t j = 0; j < PGL_SIGNATURE_MAX_SIZE; ++j) {
                 thread_signature.signature[j] += val * sinTheta * m_stepPhi * m_stepTheta * m_basisBuffer[j][index] * (m_parent->GetSubdivCfg().multiplyCosine ? cosineTerm : 1.0f);
             }
         }
@@ -639,7 +718,7 @@ void RadianceView::Draw() {
             // Select the bin index with the largest basis function value
             uint8_t jmax = PGL_SIGNATURE_MAX_SIZE;
             float maxVal = 0;
-            for (uint8_t j = 0; j < pglGetSignatureSize(); ++j) {
+            for (uint8_t j = 0; j < PGL_SIGNATURE_MAX_SIZE; ++j) {
                 if (m_basisBuffer[j][idx] > maxVal) {
                     maxVal = m_basisBuffer[j][idx];
                     jmax = j;

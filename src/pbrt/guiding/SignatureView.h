@@ -38,6 +38,8 @@ public:
     void UpdateFramebuffer();
 
 private:
+    uint8_t NumBins() const;
+
     void Update();
 
     void BinInteraction();
