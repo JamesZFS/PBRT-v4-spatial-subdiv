@@ -194,11 +194,11 @@ inline static void wrap_splat(int &x, int &y, uint32_t res) {
 void RadianceView::UpdateBasisBuffer() {
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     auto frame = Frame::FromZ(m_prev.normal);
-    const auto contribType = m_parent->GetSubdivCfg().contribType;
+    const auto basisType = m_parent->GetSubdivCfg().basisType;
     const uint8_t S = pglGetSignatureSize();
     const uint8_t halfS = S >> 1;
     const uint8_t log2_bin_count = (uint8_t) std::log2(S);
-    if (contribType == PGL_SPATIAL_CONTRIB_BASIS_XI) {
+    if (basisType == PGL_BASIS_FUNC_DON_XI) {
         if (S != (1 << log2_bin_count)) {
             std::cerr << "Signature size must be a power of 2" << std::endl;
             return;
@@ -221,7 +221,7 @@ void RadianceView::UpdateBasisBuffer() {
         pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
         const size_t pixel_index = p.y * m_resolution.x + p.x;
 
-        if (contribType == PGL_SPATIAL_CONTRIB_BASIS || contribType == PGL_SPATIAL_CONTRIB_BASIS_XI) {
+        if (basisType == PGL_BASIS_FUNC_DON_PCG || basisType == PGL_BASIS_FUNC_DON_XI) {
             // Find octahedral map coordinate
             auto uv = pgl_vec2f(pglDir);  // [-1, 1]
             uv.x = uv.x * 0.5 + 0.5;
@@ -254,7 +254,7 @@ void RadianceView::UpdateBasisBuffer() {
                 uint8_t h01;
                 uint8_t h10;
                 uint8_t h11;
-                if (contribType == PGL_SPATIAL_CONTRIB_BASIS) {
+                if (basisType == PGL_BASIS_FUNC_DON_PCG) {
                     h00 = pcg_3d(x00, y00, k) % S;
                     h01 = pcg_3d(x01, y01, k) % S;
                     h10 = pcg_3d(x10, y10, k) % S;
@@ -290,22 +290,33 @@ void RadianceView::UpdateBasisBuffer() {
             // for (uint8_t j = 0; j < S; ++j)
             //     sum += m_basisBuffer[j][pixel_index];
             // CHECK(std::abs(sum - 1.0) < 1e-5);
-        } else if (contribType == PGL_SPATIAL_CONTRIB_LATITUDE_LONGITUDE) {
+        } else if (basisType == PGL_BASIS_FUNC_LATITUDE) {
             auto uv = dir_to_spherical(pglDir);
-
             float u = fract(uv.x * oct_res);  // latitude
-            float v = fract(uv.y * 2 * oct_res);  // longitude
 
             for (uint8_t j = 0; j < S; ++j) {
-                float x = M_PI_2f * (float(halfS) * (j < halfS ? u : v) - float(j < halfS ? j : j - halfS));
+                float x = M_PI_2f * (float(S) * u - float(j));
                 float b = 0.0;
-                if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * halfS && x - M_PI_2f * halfS < M_PI_2f)) {
+                if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * float(S) && x - M_PI_2f * float(S) < M_PI_2f)) {
                     b = std::cos(x);
                     b *= b;
                 }
                 m_basisBuffer[j][pixel_index] = b;
             }
-        } else if (contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
+        } else if (basisType == PGL_BASIS_FUNC_LONGITUDE) {
+            auto uv = dir_to_spherical(pglDir);
+            float v = fract(uv.y * 2 * oct_res);  // longitude
+
+            for (uint8_t j = 0; j < S; ++j) {
+                float x = M_PI_2f * (float(S) * v - float(j));
+                float b = 0.0;
+                if ((-M_PI_2f <= x && x < M_PI_2f) || (-M_PI_2f <= x - M_PI_2f * float(S) && x - M_PI_2f * float(S) < M_PI_2f)) {
+                    b = std::cos(x);
+                    b *= b;
+                }
+                m_basisBuffer[j][pixel_index] = b;
+            }
+        } else if (basisType == PGL_BASIS_FUNC_SPLAT) {
             // Find octahedral map coordinate
             auto uv = pgl_vec2f(pglDir);  // [-1, 1]
             uv.x = uv.x * 0.5 + 0.5;
