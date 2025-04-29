@@ -103,7 +103,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.optimizeSignature = guideSettings.treeoptimizesignature;
         guiding_fieldSubdivConfig.splitType = guideSettings.treesplittype;
         guiding_fieldSubdivConfig.confidenceType = guideSettings.treeconfidencetype;
-        guiding_fieldSubdivConfig.contribType = guideSettings.treecontribtype;
+        guiding_fieldSubdivConfig.basisType = guideSettings.treebasistype;
         guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
         guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
         guiding_fieldSubdivConfig.tValueThreshold = guideSettings.treetvaluethreshold;
@@ -710,12 +710,12 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (confidencetype == "ttest_per_bin") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
     else throw std::runtime_error("Unknown treeconfidencetype: " + confidencetype);
 
-    auto contribtype = parameters.GetOneString("treecontribtype", "nn");
-    if (contribtype == "nn") settings.treecontribtype = PGL_SPATIAL_CONTRIB_NN;
-    else if (contribtype == "splat") settings.treecontribtype = PGL_SPATIAL_CONTRIB_SPLAT;
-    else if (contribtype == "basis") settings.treecontribtype = PGL_SPATIAL_CONTRIB_BASIS;
-    else if (contribtype == "basis_xi") settings.treecontribtype = PGL_SPATIAL_CONTRIB_BASIS_XI;
-    else throw std::runtime_error("Unknown treecontribtype: " + contribtype);
+    auto basistype = parameters.GetOneString("treebasistype", "nn");
+    if (basistype == "nn") settings.treebasistype = PGL_BASIS_FUNC_NN;
+    else if (basistype == "splat") settings.treebasistype = PGL_BASIS_FUNC_SPLAT;
+    else if (basistype == "don_pcg") settings.treebasistype = PGL_BASIS_FUNC_DON_PCG;
+    else if (basistype == "don_xi") settings.treebasistype = PGL_BASIS_FUNC_DON_XI;
+    else throw std::runtime_error("Unknown treecontribtype: " + basistype);
 
     auto defensivetype = parameters.GetOneString("treedefensivetype", "fixed");
     if (defensivetype == "fixed") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_FIXED;

@@ -1534,17 +1534,26 @@ void Application::SpatialSubdivisionSettings() {
         // _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
         _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
         _();
-        if (ImGui::Combo("Mask Function Type", reinterpret_cast<int *>(&m_subdivCfg.contribType), "Nearest Neighbor\0Splat\0Basis\0Basis Xi\0Latitude Longitude\0")) {
+        if (ImGui::Combo("Basis Function Type", reinterpret_cast<int *>(&m_subdivCfg.basisType), "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0")) {
             if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
         }
-        if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_NN || m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
+        _();
+        int signatureSize = (int) pglGetSignatureSize();
+        if (ImGui::SliderInt("Number of Bins", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
+            pglSetSignatureSize(signatureSize);
+            m_signatureView->Rescale();
+            if (m_enableRadianceView && m_radianceView->HasStarted()) {
+                m_radianceView->UpdateBasisBuffer();
+            }
+        }
+        if (m_subdivCfg.basisType == PGL_BASIS_FUNC_NN || m_subdivCfg.basisType == PGL_BASIS_FUNC_SPLAT) {
             _();
             int octahedralRes = (int) pglGetOctahedralResolution();
             if (ImGui::SliderInt("Octahedral Resolution", &octahedralRes, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
                 pglSetOctahedralResolution(octahedralRes);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
             }
-            if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_SPLAT) {
+            if (m_subdivCfg.basisType == PGL_BASIS_FUNC_SPLAT) {
                 _();
                 float splatSigma = pglGetSplatSigma();
                 if (ImGui::SliderFloat("Splat Sigma", &splatSigma, 0.05f, 5.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
@@ -1552,7 +1561,7 @@ void Application::SpatialSubdivisionSettings() {
                     if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
                 }
             }
-        } else if (m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_BASIS || m_subdivCfg.contribType == PGL_SPATIAL_CONTRIB_BASIS_XI) {  // Basis function
+        } else if (m_subdivCfg.basisType == PGL_BASIS_FUNC_DON_PCG || m_subdivCfg.basisType == PGL_BASIS_FUNC_DON_XI) {  // Basis function
             int octaveMin = (int) pglGetOctaveMin();
             int octaveMax = (int) pglGetOctaveMax();
             float octaveGamma = pglGetOctaveGamma();
@@ -1577,15 +1586,6 @@ void Application::SpatialSubdivisionSettings() {
             if (ImGui::SliderInt("Resolution", &res, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
                 pglSetOctahedralResolution(res);
                 if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
-            }
-        }
-        _();
-        int signatureSize = (int) pglGetSignatureSize();
-        if (ImGui::SliderInt("Signature Size", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
-            pglSetSignatureSize(signatureSize);
-            m_signatureView->Rescale();
-            if (m_enableRadianceView && m_radianceView->HasStarted()) {
-                m_radianceView->UpdateBasisBuffer();
             }
         }
         _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0");
