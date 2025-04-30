@@ -904,9 +904,6 @@ void Application::SDREViewInteraction() {
             hasUpdate = true;
             m_rcSDRE = RayCast(pixel);
             m_rcSDREHistory.push_back(m_rcSDRE);
-            UpdateSamplingDistributionView();
-            NewRadianceViewRendering();
-            UpdateSignatureView();
         }
         if (hasUpdate) {
             UpdateSamplingDistributionView();
@@ -1130,8 +1127,8 @@ void Application::RadianceViewRenderStep() {
 }
 
 void Application::UpdateSignatureView() {
+    std::lock_guard lock(m_mtx.field);
     if (m_rcSDRE.valid) {
-        std::lock_guard lock(m_mtx.field);
         m_signatureView->Update(m_rcSDRE.hit);
     } else {
         m_signatureView->Clear();

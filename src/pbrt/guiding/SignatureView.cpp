@@ -50,6 +50,7 @@ void SignatureView::Update() {
         Rescale();
     }
     m_cachedSignatureParent.resize(numSignatures);
+    m_cachedSignaturesLR.resize(numSignatures);
     m_cachedSignatureChild.resize(numSignatures);
     for (int i = 0; i < numSignatures; ++i) {
         m_cachedSignatureParent[i] = m_field.GetDirectionalSignatures(pglP, 0, i, m_splitDim, m_isRight).first;
@@ -60,7 +61,6 @@ void SignatureView::Update() {
 
 void SignatureView::Clear() {
     m_prev.valid = false;
-    int numSignatures = m_cachedSignatureParent.size();
     m_cachedSignatureParent.resize(1);
     m_cachedSignaturesLR.resize(1);
     m_cachedSignatureChild.resize(1);
