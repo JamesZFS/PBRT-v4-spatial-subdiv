@@ -13,9 +13,9 @@ constexpr float barSize = 0.4;
 
 SignatureView::SignatureView(pbrt::Application *parent, const openpgl::cpp::Field &field, RadianceView &radianceView)
     : View(parent), m_field(field), m_radianceView(radianceView), m_integratedSignature(radianceView.integratedSignature),
-      m_cachedSignatureFramebuffer(NumBins(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_integratedSignatureFramebuffer(NumBins(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_selectionFramebuffer(NumBins(), 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
+      m_cachedSignatureFramebuffer(8, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_integratedSignatureFramebuffer(8, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
+      m_selectionFramebuffer(8, 1,PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag") {
     glGenTextures(1, &m_cachedSignatureTex);
     glGenTextures(1, &m_integratedSignatureTex);
     glGenTextures(1, &m_selectionTex);
@@ -36,28 +36,42 @@ void SignatureView::Update(const pbrt::Point3f &pos) {
 }
 
 void SignatureView::Rescale() {
-    m_cachedSignatureFramebuffer.rescale(NumBins(), 1);
-    m_integratedSignatureFramebuffer.rescale(NumBins(), 1);
-    m_selectionFramebuffer.rescale(NumBins(), 1);
+    m_cachedSignatureFramebuffer.rescale(m_numBins, 1);
+    m_integratedSignatureFramebuffer.rescale(m_numBins, 1);
+    m_selectionFramebuffer.rescale(m_numBins, 1);
 }
 
 void SignatureView::Update() {
     pgl_point3f pglP = {m_prev.pos.x, m_prev.pos.y, m_prev.pos.z};
-    int modelIndex = m_parent->SelectedModelIndex();
-    m_cachedSignatureParent = m_field.GetDirectionalSignatures(pglP, 0, modelIndex, m_splitDim, m_isRight).first;
-    m_cachedSignaturesLR = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, modelIndex, m_splitDim, m_isRight);
-    m_cachedSignature = m_isRight ? m_cachedSignaturesLR.second : m_cachedSignaturesLR.first;
+    int numSignatures = m_parent->GetSubdivCfg().signatureEnsembleConfig.size();
+    int newNumBins = m_parent->GetSubdivCfg().signatureEnsembleConfig[m_parent->SelectedModelIndex()].numBins;
+    if (newNumBins != m_numBins) {
+        m_numBins = newNumBins;
+        Rescale();
+    }
+    m_cachedSignatureParent.resize(numSignatures);
+    m_cachedSignatureChild.resize(numSignatures);
+    for (int i = 0; i < numSignatures; ++i) {
+        m_cachedSignatureParent[i] = m_field.GetDirectionalSignatures(pglP, 0, i, m_splitDim, m_isRight).first;
+        m_cachedSignaturesLR[i] = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, i, m_splitDim, m_isRight);
+        m_cachedSignatureChild[i] = m_isRight ? m_cachedSignaturesLR[i].second : m_cachedSignaturesLR[i].first;
+    }
 }
 
 void SignatureView::Clear() {
     m_prev.valid = false;
-    m_cachedSignatureParent = {};
-    m_cachedSignaturesLR = {};
-    m_cachedSignature = {};
+    int numSignatures = m_cachedSignatureParent.size();
+    m_cachedSignatureParent.resize(1);
+    m_cachedSignaturesLR.resize(1);
+    m_cachedSignatureChild.resize(1);
+    m_cachedSignatureParent[0] = {};
+    m_cachedSignaturesLR[0] = {};
+    m_cachedSignatureChild[0] = {};
     m_storedSignature = {};
     m_hasStoredSignature = false;
     m_splitDim = 3;
     m_isRight = false;
+    m_numBins = 0;
 }
 
 void SignatureView::Draw() {
@@ -129,6 +143,7 @@ static float getWelchT(const PGLDirectionalSignature &a, const PGLDirectionalSig
 }
 
 void SignatureView::DrawColored() {
+    int i = m_parent->SelectedModelIndex();
     ImGui::SetNextItemWidth(80);
     if (ImGui::InputInt("Depth", &m_lookaheadDepth, 1, 10)) {
         m_lookaheadDepth = std::clamp(m_lookaheadDepth, 0, (int) m_parent->GetSubdivCfg().lookaheadDepth);
@@ -141,7 +156,7 @@ void SignatureView::DrawColored() {
     ImGui::SameLine();
     if (ImGui::Button("Normalize")) {
         float emax = -std::numeric_limits<float>::infinity();
-        for (const auto &e : m_cachedSignature.signature) {
+        for (const auto &e : m_cachedSignatureChild[i].signature) {
             emax = std::max(emax, e);
         }
         m_scale = 1.0f / std::max(1e-6f, emax);
@@ -168,7 +183,7 @@ void SignatureView::DrawColored() {
         if (ImGui::IsItemHovered()) {
             auto pos = ImGui::GetMousePos();
             float x = (pos.x - leftTop.x) / ImGui::GetColumnWidth();
-            uint8_t idx = std::min((uint8_t) (x * NumBins()), (uint8_t) (NumBins() - 1));
+            uint8_t idx = std::min((uint8_t) (x * m_numBins), (uint8_t) (m_numBins - 1));
             if (ImGui::BeginTooltip()) {
                 ImGui::Text("Bin index: %d", idx);
                 ImGui::Text("%s value: %.4f", label, signature.signature[idx]);
@@ -185,7 +200,7 @@ void SignatureView::DrawColored() {
     };
 
     // Cached Signature
-    drawSignature("Cached", m_cachedSignatureFramebuffer, m_cachedSignature);
+    drawSignature("Cached", m_cachedSignatureFramebuffer, m_cachedSignatureChild[i]);
 
     // Integrated Signature
     if (m_showIntegratedSignature)
@@ -193,7 +208,7 @@ void SignatureView::DrawColored() {
 
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Cached: %.4f  Std: %.2e  Integrated: %.4f", m_cachedSignature.signature[idx], m_cachedSignature.std[idx], m_integratedSignature.signature[idx]);
+        ImGui::Text("Cached: %.4f  Std: %.2e  Integrated: %.4f", m_cachedSignatureChild[i].signature[idx], m_cachedSignatureChild[i].std[idx], m_integratedSignature.signature[idx]);
     }
 }
 
@@ -210,7 +225,7 @@ void SignatureView::DrawComp() {
     }
     ImGui::SetItemTooltip("This will clear the orange bars");
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
-    uint8_t S = NumBins();
+    uint8_t S = m_numBins;
     if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
         ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
@@ -221,7 +236,7 @@ void SignatureView::DrawComp() {
         ImPlot::SetNextFillStyle(ImPlot::GetColormapColor(1));  // Orange
         ImPlot::PlotBars("Stored", m_storedSignature.signature, S, barSize, barSize);
 
-        BinInteraction();
+        BinInteraction(m_parent->SelectedModelIndex());
         ImPlot::EndPlot();
     }
     if (m_radianceView.HasSelectedBinIndex()) {
@@ -256,25 +271,26 @@ void SignatureView::DrawBars() {
     ImGui::SameLine();
     ImGui::Checkbox("Integrated Signature", &m_showIntegratedSignature);
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
-    uint8_t S = NumBins();
+    uint8_t S = m_numBins;
+    int i = m_parent->SelectedModelIndex();
     if (ImPlot::BeginPlot("Signature Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), flags)) {
         ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
         ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
         ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
-        ImPlot::PlotBars("Cached", m_cachedSignature.signature, S, barSize);
+        ImPlot::PlotBars("Cached", m_cachedSignatureChild[i].signature, S, barSize);
         if (m_showStd) {
-            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignature.signature, m_cachedSignature.std, S);
+            ImPlot::PlotErrorBars("Std", m_barXs, m_cachedSignatureChild[i].signature, m_cachedSignatureChild[i].std, S);
         }
         if (m_showIntegratedSignature)
             ImPlot::PlotBars("Integrated", m_integratedSignature.signature, S, barSize, barSize);
 
-        BinInteraction();
+        BinInteraction(i);
         ImPlot::EndPlot();
     }
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Cached: %.4f  Std: %.2e  Integrated: %.4f", m_cachedSignature.signature[idx], m_cachedSignature.std[idx], m_integratedSignature.signature[idx]);
+        ImGui::Text("Cached: %.4f  Std: %.2e  Integrated: %.4f", m_cachedSignatureChild[i].signature[idx], m_cachedSignatureChild[i].std[idx], m_integratedSignature.signature[idx]);
     }
 }
 
@@ -291,69 +307,106 @@ void SignatureView::DrawPC() {
     ImGui::SameLine();
     ImGui::Checkbox("Multiplied Std", &m_showMultipliedStd);
 
-    static float child_std[PGL_SIGNATURE_MAX_SIZE], parent_std[PGL_SIGNATURE_MAX_SIZE];
-    auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
-    uint8_t S = NumBins();
-    PGLDirectionalSignature childSignature = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignature;
-    if (ImPlot::BeginPlot("Child/Parent Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
-        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
-        ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
-
-        ImPlot::PlotBars("Child", childSignature.signature, S, barSize);
-        ImPlot::PlotBars("Parent", m_cachedSignatureParent.signature, S, barSize, barSize);
-        if (m_showStd) {
-            ImPlot::PlotErrorBars("Child-std", m_barXs, childSignature.signature, childSignature.std, S);
-            ImPlot::PlotErrorBars("Parent-std", m_barRXs, m_cachedSignatureParent.signature, m_cachedSignatureParent.std, S);
-        }
-        if (m_showMultipliedStd) {
-            float multiplier = m_parent->GetSignatureStdMultiplier();
-            for (int i = 0; i < S; ++i) {
-                child_std[i] = childSignature.std[i] * multiplier;
-                parent_std[i] = m_cachedSignatureParent.std[i] * multiplier;
-            }
-            ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
-            ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
-            ImPlot::PlotErrorBars("Left-std-", m_barXs, childSignature.signature, child_std, S);
-            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignatureParent.signature, parent_std, S);
-            ImPlot::PopStyleColor();
-            ImPlot::PopStyleVar();
-        }
-        if (m_showTValue) {
-            for (int i = 0; i < S; ++i) {
-                float t = getWelchT(m_cachedSignature, m_cachedSignatureParent, i);
-                ImVec4 col = (std::isnan(t) || std::abs(t) <= m_parent->GetTValueThreshold()) ? ImVec4(0, 0, 0, 0) : ImVec4(1, 1, 0, 0.7);
-                ImPlot::Annotation(m_barXs[i], m_cachedSignature.signature[i], col, ImVec2(0, -10), false, "%.2f", t);
-            }
-        }
-
-        BinInteraction();
-        ImPlot::EndPlot();
-    }
-    // Compute distance
-    ImGui::Text("Number of samples child / parent: %s / %s",
-        FormatInteger((int) m_cachedSignature.numSamples).c_str(),
-        FormatInteger((int) m_cachedSignatureParent.numSamples).c_str());
     bool isTTestPerBin = m_parent->GetSubdivCfg().confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
     bool isTTest = m_parent->GetSubdivCfg().confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST;
+    auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
+
+    // Plot all signatures in a table
+    int numSignatures = m_cachedSignatureParent.size();
+    float plotVSize = ImGui::GetContentRegionAvail().y;
+    ImVec2 padding = ImGui::GetStyle().CellPadding;
+    plotVSize = (plotVSize - padding.y * 2 * numSignatures - 2.5 * ImGui::GetFrameHeightWithSpacing()) / numSignatures;
+    
+    if (ImGui::BeginTable("##PC-Table", 3, ImGuiTableFlags_BordersV | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
+        ImGui::TableSetupColumn("Model", ImGuiTableColumnFlags_WidthFixed, 50.0f);
+        ImGui::TableSetupColumn("Energy", ImGuiTableColumnFlags_WidthFixed, 50.0f);
+        ImGui::TableSetupColumn("Signature");
+        ImGui::TableHeadersRow();
+
+        for (int i = 0; i < numSignatures; ++i) {
+            uint8_t S = m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins;
+            PGLDirectionalSignature childSignature = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignatureChild[i];
+
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", i+1);
+
+            ImGui::TableNextColumn();
+            // Compute energy of the current signature
+            float energy = isTTestPerBin ? 
+                getDistanceTTest(m_cachedSignatureChild[i], m_cachedSignatureParent[i], m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) :
+                getDistanceSMAPE(m_cachedSignatureChild[i], m_cachedSignatureParent[i], m_parent->GetSignatureStdMultiplier());
+
+            if (m_splitDim == 3)
+                ImGui::Text(" "); // invalid
+            else
+                ImGui::Text("%.4f", energy);
+
+            ImGui::TableNextColumn();
+            ImGui::PushID(i);
+            if (ImPlot::BeginPlot("Child/Parent Signatures Plot", ImVec2(-1, plotVSize), flags)) {
+                ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
+                ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
+
+                ImPlot::PlotBars("Child", childSignature.signature, S, barSize);
+                ImPlot::PlotBars("Parent", m_cachedSignatureParent[i].signature, S, barSize, barSize);
+                if (m_showStd) {
+                    ImPlot::PlotErrorBars("Child-std", m_barXs, childSignature.signature, childSignature.std, S);
+                    ImPlot::PlotErrorBars("Parent-std", m_barRXs, m_cachedSignatureParent[i].signature, m_cachedSignatureParent[i].std, S);
+                }
+                if (m_showMultipliedStd) {
+                    float multiplier = m_parent->GetSignatureStdMultiplier();
+                    static float child_std[PGL_SIGNATURE_MAX_SIZE], parent_std[PGL_SIGNATURE_MAX_SIZE];
+                    for (int j = 0; j < S; ++j) {
+                        child_std[j] = childSignature.std[j] * multiplier;
+                        parent_std[j] = m_cachedSignatureParent[i].std[j] * multiplier;
+                    }
+                    ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
+                    ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
+                    ImPlot::PlotErrorBars("Child-std-", m_barXs, childSignature.signature, child_std, S);
+                    ImPlot::PlotErrorBars("Parent-std-", m_barRXs, m_cachedSignatureParent[i].signature, parent_std, S);
+                    ImPlot::PopStyleColor();
+                    ImPlot::PopStyleVar();
+                }
+                if (m_showTValue) {
+                    for (int j = 0; j < S; ++j) {
+                        float t = getWelchT(m_cachedSignatureChild[i], m_cachedSignatureParent[i], j);
+                        ImVec4 col = (std::isnan(t) || std::abs(t) <= m_parent->GetTValueThreshold()) ? ImVec4(0, 0, 0, 0) : ImVec4(1, 1, 0, 0.7);
+                        ImPlot::Annotation(m_barXs[j], m_cachedSignatureChild[i].signature[j], col, ImVec2(0, -10), false, "%.2f", t);
+                    }
+                }
+
+                BinInteraction(i);
+                ImPlot::EndPlot();
+            }
+            ImGui::PopID();
+        }
+
+        ImGui::EndTable();
+    }
+    
+    // Meta information
+    int i = m_parent->SelectedModelIndex();
+    ImGui::Text("Number of samples child / parent: %s / %s",
+        FormatInteger((int) m_cachedSignatureChild[i].numSamples).c_str(),
+        FormatInteger((int) m_cachedSignatureParent[i].numSamples).c_str());
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
         if (isTTest || isTTestPerBin)
             ImGui::Text("Child / std: %.4f / %.2e, parent / std: %.4f / %.2e,  T: %.3f",
-                m_cachedSignature.signature[idx], m_cachedSignature.std[idx],
-                m_cachedSignatureParent.signature[idx], m_cachedSignatureParent.std[idx],
-                getWelchT(m_cachedSignature, m_cachedSignatureParent, idx));
+                m_cachedSignatureChild[i].signature[idx], m_cachedSignatureChild[i].std[idx],
+                m_cachedSignatureParent[i].signature[idx], m_cachedSignatureParent[i].std[idx],
+                getWelchT(m_cachedSignatureChild[i], m_cachedSignatureParent[i], idx));
         else
             ImGui::Text("Child / std: %.4f / %.2e, parent / std: %.4f / %.2e",
-                m_cachedSignature.signature[idx], m_cachedSignature.std[idx],
-                m_cachedSignatureParent.signature[idx], m_cachedSignatureParent.std[idx]);
+                m_cachedSignatureChild[i].signature[idx], m_cachedSignatureChild[i].std[idx],
+                m_cachedSignatureParent[i].signature[idx], m_cachedSignatureParent[i].std[idx]);
     } else {
-        float energy = isTTestPerBin ? getDistanceTTest(m_cachedSignature, m_cachedSignatureParent, m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) : getDistanceSMAPE(m_cachedSignature, m_cachedSignatureParent, m_parent->GetSignatureStdMultiplier());
         if (m_splitDim == 3) {
             ImGui::Text("Invalid");
         } else {
             static const char dim_ch[] = {'x', 'y', 'z'};
-            ImGui::Text("Dimension: %c  Energy: %.4f", dim_ch[m_splitDim], energy);
+            ImGui::Text("Dimension: %c", dim_ch[m_splitDim]);
         }
     }
 }
@@ -369,70 +422,127 @@ void SignatureView::DrawLR() {
     ImGui::SameLine();
     ImGui::Checkbox("Multiplied Std", &m_showMultipliedStd);
 
-    static float left_std[PGL_SIGNATURE_MAX_SIZE], right_std[PGL_SIGNATURE_MAX_SIZE];
+    bool isTTestPerBin = m_parent->GetSubdivCfg().confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
+    bool isTTest = m_parent->GetSubdivCfg().confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST;
     auto flags = ImPlotFlags_NoLegend | ImPlotFlags_NoTitle;
-    uint8_t S = NumBins();
-    if (ImPlot::BeginPlot("LR Signatures Plot", ImVec2(-1, ImGui::GetContentRegionAvail().y - 2 * ImGui::GetFrameHeightWithSpacing()), flags)) {
-        ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
-        ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
-        ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
-        ImPlot::PlotBars("Left", m_cachedSignaturesLR.first.signature, S, barSize);
-        ImPlot::PlotBars("Right", m_cachedSignaturesLR.second.signature, S, barSize, barSize);
-        if (m_showStd) {
-            ImPlot::PlotErrorBars("Left-std", m_barXs, m_cachedSignaturesLR.first.signature, m_cachedSignaturesLR.first.std, S);
-            ImPlot::PlotErrorBars("Right-std", m_barRXs, m_cachedSignaturesLR.second.signature, m_cachedSignaturesLR.second.std, S);
-        }
-        if (m_showMultipliedStd) {
-            float multiplier = m_parent->GetSignatureStdMultiplier();
-            for (int i = 0; i < S; ++i) {
-                left_std[i] = m_cachedSignaturesLR.first.std[i] * multiplier;
-                right_std[i] = m_cachedSignaturesLR.second.std[i] * multiplier;
+    // Plot all signatures in a table
+    int numSignatures = m_cachedSignatureParent.size();
+    float plotVSize = ImGui::GetContentRegionAvail().y;
+    ImVec2 padding = ImGui::GetStyle().CellPadding;
+    plotVSize = (plotVSize - padding.y * 2 * numSignatures - 2.5 * ImGui::GetFrameHeightWithSpacing()) / numSignatures;
+    
+    if (ImGui::BeginTable("##PC-Table", 3, ImGuiTableFlags_BordersV | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
+        ImGui::TableSetupColumn("Model", ImGuiTableColumnFlags_WidthFixed, 50.0f);
+        ImGui::TableSetupColumn("Energy", ImGuiTableColumnFlags_WidthFixed, 50.0f);
+        ImGui::TableSetupColumn("Signature");
+        ImGui::TableHeadersRow();
+
+        for (int i = 0; i < numSignatures; ++i) {
+            uint8_t S = m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins;
+            PGLDirectionalSignature left = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignaturesLR[i].first;
+            PGLDirectionalSignature right = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignaturesLR[i].second;
+
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", i+1);
+
+            ImGui::TableNextColumn();
+            // Compute energy of the current signature
+            float energy = isTTestPerBin ? 
+                getDistanceTTest(left, right, m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) :
+                getDistanceSMAPE(left, right, m_parent->GetSignatureStdMultiplier());
+
+            if (m_splitDim == 3)
+                ImGui::Text(" "); // invalid
+            else
+                ImGui::Text("%.4f", energy);
+
+            ImGui::TableNextColumn();
+            ImGui::PushID(i);
+            if (ImPlot::BeginPlot("Left/Right Signatures Plot", ImVec2(-1, plotVSize), flags)) {
+                ImPlot::SetupAxisLimits(ImAxis_X1,-barSize/2, S - 1 + 1.5*barSize, ImGuiCond_Always);
+                ImPlot::SetupAxisLimits(ImAxis_Y1, 0, 1.0);
+                ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
+
+                ImPlot::PlotBars("Left", left.signature, S, barSize);
+                ImPlot::PlotBars("Right", right.signature, S, barSize, barSize);
+                if (m_showStd) {
+                    ImPlot::PlotErrorBars("Left-std", m_barXs, left.signature, left.std, S);
+                    ImPlot::PlotErrorBars("Right-std", m_barRXs, right.signature, right.std, S);
+                }
+                if (m_showMultipliedStd) {
+                    float multiplier = m_parent->GetSignatureStdMultiplier();
+                    static float left_std[PGL_SIGNATURE_MAX_SIZE], right_std[PGL_SIGNATURE_MAX_SIZE];
+                    for (int j = 0; j < S; ++j) {
+                        left_std[j] = left.std[j] * multiplier;
+                        right_std[j] = right.std[j] * multiplier;
+                    }
+                    ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
+                    ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
+                    ImPlot::PlotErrorBars("Left-std-", m_barXs, left.signature, left_std, S);
+                    ImPlot::PlotErrorBars("Right-std-", m_barRXs, right.signature, right_std, S);
+                    ImPlot::PopStyleColor();
+                    ImPlot::PopStyleVar();
+                }
+                if (m_showTValue) {
+                    for (int j = 0; j < S; ++j) {
+                        float t = getWelchT(left, right, j);
+                        ImVec4 col = (std::isnan(t) || std::abs(t) <= m_parent->GetTValueThreshold()) ? ImVec4(0, 0, 0, 0) : ImVec4(1, 1, 0, 0.7);
+                        ImPlot::Annotation(m_barXs[j], left.signature[j], col, ImVec2(0, -10), false, "%.2f", t);
+                    }
+                }
+
+                BinInteraction(i);
+                ImPlot::EndPlot();
             }
-            ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
-            ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
-            ImPlot::PlotErrorBars("Left-std-", m_barXs, m_cachedSignaturesLR.first.signature, left_std, S);
-            ImPlot::PlotErrorBars("Right-std-", m_barRXs, m_cachedSignaturesLR.second.signature, right_std, S);
-            ImPlot::PopStyleColor();
-            ImPlot::PopStyleVar();
+            ImGui::PopID();
         }
 
-        BinInteraction();
-        ImPlot::EndPlot();
+        ImGui::EndTable();
     }
-    // Compute distance
+    
+    // Meta information
+    int i = m_parent->SelectedModelIndex();
     ImGui::Text("Number of samples left / right: %s / %s",
-        FormatInteger((int) m_cachedSignaturesLR.first.numSamples).c_str(),
-        FormatInteger((int) m_cachedSignaturesLR.second.numSamples).c_str());
+        FormatInteger((int) m_cachedSignaturesLR[i].first.numSamples).c_str(),
+        FormatInteger((int) m_cachedSignaturesLR[i].second.numSamples).c_str());
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
-        ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.2e",
-            m_cachedSignaturesLR.first.signature[idx], m_cachedSignaturesLR.first.std[idx],
-            m_cachedSignaturesLR.second.signature[idx], m_cachedSignaturesLR.second.std[idx]);
+        if (isTTest || isTTestPerBin)
+            ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.2e,  T: %.3f",
+                m_cachedSignaturesLR[i].first.signature[idx], m_cachedSignaturesLR[i].first.std[idx],
+                m_cachedSignaturesLR[i].second.signature[idx], m_cachedSignaturesLR[i].second.std[idx],
+                getWelchT(m_cachedSignatureChild[i], m_cachedSignatureParent[i], idx));
+        else
+            ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.2e",
+                m_cachedSignaturesLR[i].first.signature[idx], m_cachedSignaturesLR[i].first.std[idx],
+                m_cachedSignaturesLR[i].second.signature[idx], m_cachedSignaturesLR[i].second.std[idx]);
     } else {
-        float energy = getDistanceSMAPE(m_cachedSignaturesLR.first, m_cachedSignaturesLR.second, m_parent->GetSignatureStdMultiplier());
         if (m_splitDim == 3) {
             ImGui::Text("Invalid");
         } else {
             static const char dim_ch[] = {'x', 'y', 'z'};
-            ImGui::Text("Dimension: %c  Energy: %.4f", dim_ch[m_splitDim], energy);
+            ImGui::Text("Dimension: %c", dim_ch[m_splitDim]);
         }
     }
 }
 
-void SignatureView::BinInteraction() {
+void SignatureView::BinInteraction(int modelIndex) {
     // Interaction: display a vertical marker at the clicked bin and select it from the radiance view
     if (ImPlot::IsAxisHovered(ImAxis_X1) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         double x = ImPlot::GetPlotMousePos().x + barSize / 2;
-        if (x >= 0 && x < NumBins()) {
-            if (m_radianceView.GetSelectedBinIndex() == (uint8_t) x) {
+        int oldModelIndex = m_parent->SelectedModelIndex();
+        if (x >= 0 && x < m_parent->GetSubdivCfg().signatureEnsembleConfig[modelIndex].numBins) {
+            // Valid click
+            if (oldModelIndex == modelIndex && m_radianceView.GetSelectedBinIndex() == (uint8_t) x) {
                 m_radianceView.ResetSelectedBinIndex();
             } else {
+                m_parent->SetSelectedModelIndex(modelIndex);
                 m_radianceView.SetSelectedBinIndex((uint8_t) x);
             }
         }
     }
-    if (m_radianceView.HasSelectedBinIndex()) {
+    if (m_radianceView.HasSelectedBinIndex() && modelIndex == m_parent->SelectedModelIndex()) {
         double x = m_radianceView.GetSelectedBinIndex();
         ImPlot::TagX(x, ImVec4(1, 0, 0, 0.5));
     }
@@ -440,7 +550,7 @@ void SignatureView::BinInteraction() {
 
 void SignatureView::UpdateFramebuffer() {
     auto render = [&](Framebuffer &fb, GLuint tex, const PGLDirectionalSignature &signature) {
-        UpdateTextureFromFloatData(tex, signature.signature, NumBins(), 1, false);
+        UpdateTextureFromFloatData(tex, signature.signature, m_numBins, 1, false);
         fb.bind();
         fb.clear();
         Shader &shader = fb.getShader();
@@ -454,21 +564,22 @@ void SignatureView::UpdateFramebuffer() {
     };
 
     // Cached signature buffer
-    render(m_cachedSignatureFramebuffer, m_cachedSignatureTex, m_cachedSignature);
+    int i = m_parent->SelectedModelIndex();
+    render(m_cachedSignatureFramebuffer, m_cachedSignatureTex, m_cachedSignatureChild[i]);
 
     // Integrated signature buffer
     if (m_showIntegratedSignature)
         render(m_integratedSignatureFramebuffer, m_integratedSignatureTex, m_integratedSignature);
 
     // Selection buffer
-    for (int i = 0; i < NumBins(); ++i) {
+    for (int i = 0; i < m_numBins; ++i) {
         if (m_radianceView.GetSelectedBinIndex() == i) {
             m_selectionBuffer[i] = RGB(1, 0, 0);
         } else {
             m_selectionBuffer[i] = RGB(0, 0, 0);
         }
     }
-    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, NumBins(), 1, false);
+    UpdateTextureFromRGBData((GLuint) (uintptr_t) m_selectionTex, m_selectionBuffer, m_numBins, 1, false);
 
     m_selectionFramebuffer.bind();
     m_selectionFramebuffer.clear();
@@ -480,8 +591,4 @@ void SignatureView::UpdateFramebuffer() {
                            });
     m_selectionFramebuffer.draw();
     m_selectionFramebuffer.unbind();
-}
-
-uint8_t SignatureView::NumBins() const {
-    return m_parent->GetSubdivCfg().signatureEnsembleConfig[m_parent->SelectedModelIndex()].numBins;
 }
