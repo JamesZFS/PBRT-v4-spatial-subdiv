@@ -43,9 +43,9 @@ void SignatureView::Rescale() {
 
 void SignatureView::Update() {
     pgl_point3f pglP = {m_prev.pos.x, m_prev.pos.y, m_prev.pos.z};
-    // TODO: support selecting different models
-    m_cachedSignatureParent = m_field.GetDirectionalSignatures(pglP, 0, 0, m_splitDim, m_isRight).first;
-    m_cachedSignaturesLR = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, 0, m_splitDim, m_isRight);
+    int modelIndex = m_parent->SelectedModelIndex();
+    m_cachedSignatureParent = m_field.GetDirectionalSignatures(pglP, 0, modelIndex, m_splitDim, m_isRight).first;
+    m_cachedSignaturesLR = m_field.GetDirectionalSignatures(pglP, m_lookaheadDepth, modelIndex, m_splitDim, m_isRight);
     m_cachedSignature = m_isRight ? m_cachedSignaturesLR.second : m_cachedSignaturesLR.first;
 }
 
@@ -482,6 +482,6 @@ void SignatureView::UpdateFramebuffer() {
     m_selectionFramebuffer.unbind();
 }
 
-uint8_t SignatureView::NumBins() const {  // TODO: just an adhoc solution
-    return m_parent->GetSubdivCfg().signatureEnsembleConfig[0].numBins;
+uint8_t SignatureView::NumBins() const {
+    return m_parent->GetSubdivCfg().signatureEnsembleConfig[m_parent->SelectedModelIndex()].numBins;
 }

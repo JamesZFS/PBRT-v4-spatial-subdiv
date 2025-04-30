@@ -56,6 +56,7 @@ public:
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
     float GetSignatureStdMultiplier() const { return m_subdivCfg.stdMultiplier; }
+    int SelectedModelIndex() const { return m_selectedModelIndex; }
 
     bool sdrLocalFrame = false;
     float sdrExposure = 1.0f;
@@ -140,8 +141,6 @@ private:
     void CacheHistogramViews();
     void PlotsView();
 
-    uint8_t NumBins() const;
-
     Camera m_camera;
     Film m_film;
     pstd::optional<Image> m_reference;
@@ -156,6 +155,7 @@ private:
     PGLKDTreeArguments m_subdivCfg;  // config for spatial subdivision
     int m_spp;
     int m_seed;
+    int m_selectedModelIndex = 0;
     Sampler m_samplerPrototype;
     ThreadLocal<Sampler> &m_samplers;
     GuidedPathIntegrator::IntegratorSettings &m_integratorSettings;  // from the integrator
