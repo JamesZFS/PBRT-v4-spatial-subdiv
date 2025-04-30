@@ -38,17 +38,15 @@ public:
     void UpdateFramebuffer();
 
 private:
-    uint8_t NumBins() const;
-
     void Update();
 
-    void BinInteraction();
+    void BinInteraction(int modelIndex);
 
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
-    std::pair<PGLDirectionalSignature, PGLDirectionalSignature> m_cachedSignaturesLR{};
-    PGLDirectionalSignature m_cachedSignatureParent{};
-    PGLDirectionalSignature m_cachedSignature{};
+    std::vector<std::pair<PGLDirectionalSignature, PGLDirectionalSignature>> m_cachedSignaturesLR{1};  // sized numSignaures
+    std::vector<PGLDirectionalSignature> m_cachedSignatureParent{1};  // sized numSignaures
+    std::vector<PGLDirectionalSignature> m_cachedSignatureChild{1};  // sized numSignaures
     uint8_t m_splitDim = 3;
     bool m_isRight;
     PGLDirectionalSignature &m_integratedSignature;
@@ -63,6 +61,7 @@ private:
     bool m_showTValue = false;
     bool m_hasStoredSignature = false;
     int m_lookaheadDepth = 0;
+    int m_numBins = 0;  // Application selected signature's numBins
 
     struct {
         bool valid = false;

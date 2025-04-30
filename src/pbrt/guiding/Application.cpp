@@ -1536,79 +1536,95 @@ void Application::SpatialSubdivisionSettings() {
 
         ImGui::Separator();
         ImGui::Text("Signature Ensemble:");
-        if (ImGui::BeginTabBar("Model Index", ImGuiTabBarFlags_NoTooltip | ImGuiTabBarFlags_AutoSelectNewTabs)) {
+        bool canUpdateRadianceView = m_enableRadianceView && m_radianceView->HasStarted();
+        int numSignatures = m_subdivCfg.signatureEnsembleConfig.size();
+        
+        // Button-style model selector to allow double binding
+        int newModelIndex = m_selectedModelIndex;
+        for (int i = 0; i < numSignatures; ++i) {
+            if (IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false) && (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)))
+                newModelIndex = i;
+        }
+        if (ImGui::BeginTabBar("Model Index")) {
             bool resizable = m_renderThread->GetState() == RenderThread::Initial;  // Only allow resizing models in the beginning of rendering
-            bool canUpdateRadianceView = m_enableRadianceView && m_radianceView->HasStarted();
             if (resizable && ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing)) {  // add a new model
                 m_subdivCfg.signatureEnsembleConfig.emplace_back();
+                newModelIndex = numSignatures++;
+                UpdateSignatureView();
             }
-            for (int i = 0; i < m_subdivCfg.signatureEnsembleConfig.size(); ++i) {
-                bool open = true;
-                if (ImGui::BeginTabItem(StringPrintf("%d", i).c_str(), resizable && m_subdivCfg.signatureEnsembleConfig.size() > 1 ? &open : nullptr)) {
-                    // Settings for model i
-                    if (i != m_selectedModelIndex) {
-                        m_selectedModelIndex = i;
-                        if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                        if (m_rcSDRE.valid) m_signatureView->Update(m_rcSDRE.hit);
-                    }
-                    SignatureArguments &config = m_subdivCfg.signatureEnsembleConfig[i];
-                    int basisType = config.basisType;
-                    _();
-                    if (ImGui::Combo("Basis Function Type", &basisType, "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0")) {
-                        config.setType((PGL_BASIS_FUNC_TYPE) basisType);
-                        if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                    }
-                    _();
-                    int signatureSize = config.numBins;
-                    if (ImGui::SliderInt("Number of Bins", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
-                        config.numBins = signatureSize;
-                        m_signatureView->Rescale();
-                        if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                    }
-                    if (basisType == PGL_BASIS_FUNC_NN || basisType == PGL_BASIS_FUNC_SPLAT || basisType == PGL_BASIS_FUNC_LATITUDE || basisType == PGL_BASIS_FUNC_LONGITUDE) {
-                        _();
-                        int resolution = config.getResolution();
-                        if (ImGui::SliderInt("Resolution", &resolution, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
-                            config.setResolution(resolution);
-                            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                        }
-                        if (basisType == PGL_BASIS_FUNC_SPLAT) {
-                            _();
-                            float splatSigma = config.getSplatSigma();
-                            if (ImGui::SliderFloat("Splat Sigma", &splatSigma, 0.05f, 5.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-                                config.setSplatSigma(splatSigma);
-                                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                            }
-                        }
-                    } else if (basisType == PGL_BASIS_FUNC_DON_PCG || basisType == PGL_BASIS_FUNC_DON_XI) {  // DON
-                        int octaveMin = config.getOctaveMin();
-                        int octaveMax = config.getOctaveMax();
-                        float octaveGamma = config.getDONGamma();
-                        _();
-                        if (ImGui::SliderInt("Octave Min", &octaveMin, 1, octaveMax)) {
-                            config.setOctaveMin(octaveMin);
-                            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                        }
-                        _();
-                        if (ImGui::SliderInt("Octave Max", &octaveMax, octaveMin, 10)) {
-                            config.setOctaveMax(octaveMax);
-                            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                        }
-                        _();
-                        if (ImGui::SliderFloat("Octave Gamma", &octaveGamma, 0.05f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-                            config.setDONGamma(octaveGamma);
-                            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                        }
-                    }
+            if (resizable && numSignatures > 1 && ImGui::TabItemButton("-", ImGuiTabItemFlags_Trailing)) {  // remove a model
+                m_subdivCfg.signatureEnsembleConfig.pop_back();
+                --numSignatures;
+                newModelIndex = std::min(newModelIndex, numSignatures - 1);
+                UpdateSignatureView();
+            }
+            for (int i = 0; i < numSignatures; ++i) {
+                if (m_selectedModelIndex == i)
+                    ImGui::PushStyleColor(ImGuiCol_Tab, ImGui::GetStyleColorVec4(ImGuiCol_TabSelected));
+                if (ImGui::TabItemButton(StringPrintf("%d", i+1).c_str())) {
+                    newModelIndex = i;
+                }
+                if (m_selectedModelIndex == i)
+                    ImGui::PopStyleColor();
+            }
 
-                    ImGui::EndTabItem();
-                }
-                if (!open) {  // remove a model
-                    m_subdivCfg.signatureEnsembleConfig.erase(m_subdivCfg.signatureEnsembleConfig.begin() + i);
-                }
-            }
             ImGui::EndTabBar();
         }
+        if (newModelIndex != m_selectedModelIndex) {
+            SetSelectedModelIndex(newModelIndex);
+        }
+
+        // Settings for the selected model
+        SignatureArguments &config = m_subdivCfg.signatureEnsembleConfig[m_selectedModelIndex];
+        int basisType = config.basisType;
+        _();
+        if (ImGui::Combo("Basis Function Type", &basisType, "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0")) {
+            config.setType((PGL_BASIS_FUNC_TYPE) basisType);
+            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
+        }
+        _();
+        int signatureSize = config.numBins;
+        if (ImGui::SliderInt("Number of Bins", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
+            config.numBins = signatureSize;
+            UpdateSignatureView();
+            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
+        }
+        if (basisType == PGL_BASIS_FUNC_NN || basisType == PGL_BASIS_FUNC_SPLAT || basisType == PGL_BASIS_FUNC_LATITUDE || basisType == PGL_BASIS_FUNC_LONGITUDE) {
+            _();
+            int resolution = config.getResolution();
+            if (ImGui::SliderInt("Resolution", &resolution, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
+                config.setResolution(resolution);
+                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
+            }
+            if (basisType == PGL_BASIS_FUNC_SPLAT) {
+                _();
+                float splatSigma = config.getSplatSigma();
+                if (ImGui::SliderFloat("Splat Sigma", &splatSigma, 0.05f, 5.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
+                    config.setSplatSigma(splatSigma);
+                    if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
+                }
+            }
+        } else if (basisType == PGL_BASIS_FUNC_DON_PCG || basisType == PGL_BASIS_FUNC_DON_XI) {  // DON
+            int octaveMin = config.getOctaveMin();
+            int octaveMax = config.getOctaveMax();
+            float octaveGamma = config.getDONGamma();
+            _();
+            if (ImGui::SliderInt("Octave Min", &octaveMin, 1, octaveMax)) {
+                config.setOctaveMin(octaveMin);
+                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
+            }
+            _();
+            if (ImGui::SliderInt("Octave Max", &octaveMax, octaveMin, 10)) {
+                config.setOctaveMax(octaveMax);
+                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
+            }
+            _();
+            if (ImGui::SliderFloat("Octave Gamma", &octaveGamma, 0.05f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
+                config.setDONGamma(octaveGamma);
+                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
+            }
+        }
+
         ImGui::Separator();
 
         _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0");
@@ -1729,6 +1745,12 @@ void Application::PlotsView() {
     if (ImGui::Begin("Avg Path Length Plot"))
         m_plots.avgPathLength->Draw();
     ImGui::End();
+}
+
+void Application::SetSelectedModelIndex(int index) {
+    m_selectedModelIndex = index;
+    if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
+    UpdateSignatureView();
 }
 
 }

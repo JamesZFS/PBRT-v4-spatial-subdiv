@@ -57,6 +57,7 @@ public:
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
     float GetSignatureStdMultiplier() const { return m_subdivCfg.stdMultiplier; }
     int SelectedModelIndex() const { return m_selectedModelIndex; }
+    void SetSelectedModelIndex(int index);
 
     bool sdrLocalFrame = false;
     float sdrExposure = 1.0f;
