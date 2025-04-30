@@ -289,18 +289,10 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool treeoptimizesignature {false};
         PGL_SPATIAL_SPLIT_TYPE treesplittype {PGL_SPATIAL_SPLIT_BASELINE};
         PGL_SPATIAL_CONFIDENCE_TYPE treeconfidencetype {PGL_SPATIAL_CONFIDENCE_NONE};
-        PGL_BASIS_FUNC_TYPE treebasistype {PGL_BASIS_FUNC_NN};
         PGL_SPATIAL_DEFENSIVE_TYPE treedefensivetype {PGL_SPATIAL_DEFENSIVE_FIXED};
         PGL_SPATIAL_FILTER_TYPE treefiltertype {PGL_SPATIAL_FILTER_NONE};
-
-        int numbins {8};
-        int octahedralresolution {64};
-        int latituderesolution {2};
-        int longituderesolution {2};
-        int octavemin {3};
-        int octavemax {7};
-        float octaveGamma {0.5};
-        float splatSigma {1.0};
+        
+        std::vector<SignatureArguments> signatureEnsembleConfig {1};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};

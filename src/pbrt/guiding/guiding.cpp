@@ -103,34 +103,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.optimizeSignature = guideSettings.treeoptimizesignature;
         guiding_fieldSubdivConfig.splitType = guideSettings.treesplittype;
         guiding_fieldSubdivConfig.confidenceType = guideSettings.treeconfidencetype;
-        // TODO: support multiple models
-            {
-                auto &cfg = guiding_fieldSubdivConfig.signatureEnsembleConfig[0];
-                cfg.basisType = guideSettings.treebasistype;
-                switch (cfg.basisType) {
-                    case PGL_BASIS_FUNC_NN:
-                        cfg.setResolution(guideSettings.octahedralresolution);
-                        break;
-                    case PGL_BASIS_FUNC_SPLAT:
-                        cfg.setResolution(guideSettings.octahedralresolution);
-                        cfg.setSplatSigma(guideSettings.splatSigma);
-                        break;
-                    case PGL_BASIS_FUNC_DON_PCG:
-                    case PGL_BASIS_FUNC_DON_XI:
-                        cfg.setOctaveMin(guideSettings.octavemin);
-                        cfg.setOctaveMax(guideSettings.octavemax);
-                        cfg.setDONGamma(guideSettings.octaveGamma);
-                        break;
-                        break;
-                    case PGL_BASIS_FUNC_LATITUDE:
-                        cfg.setResolution(guideSettings.latituderesolution);
-                        break;
-                    case PGL_BASIS_FUNC_LONGITUDE:
-                        cfg.setResolution(guideSettings.longituderesolution);
-                        break;
-                }
-
-            }
+        guiding_fieldSubdivConfig.signatureEnsembleConfig = guideSettings.signatureEnsembleConfig;
         guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
         guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
         guiding_fieldSubdivConfig.tValueThreshold = guideSettings.treetvaluethreshold;
@@ -731,13 +704,6 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (confidencetype == "ttest_per_bin") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
     else throw std::runtime_error("Unknown treeconfidencetype: " + confidencetype);
 
-    auto basistype = parameters.GetOneString("treebasistype", "nn");
-    if (basistype == "nn") settings.treebasistype = PGL_BASIS_FUNC_NN;
-    else if (basistype == "splat") settings.treebasistype = PGL_BASIS_FUNC_SPLAT;
-    else if (basistype == "don_pcg") settings.treebasistype = PGL_BASIS_FUNC_DON_PCG;
-    else if (basistype == "don_xi") settings.treebasistype = PGL_BASIS_FUNC_DON_XI;
-    else throw std::runtime_error("Unknown treecontribtype: " + basistype);
-
     auto defensivetype = parameters.GetOneString("treedefensivetype", "fixed");
     if (defensivetype == "fixed") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_FIXED;
     else if (defensivetype == "sqrt") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_SQRT;
@@ -750,25 +716,74 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (filtertype == "dbor") settings.treefiltertype = PGL_SPATIAL_FILTER_DBOR;
     else if (filtertype == "dbor_accum") settings.treefiltertype = PGL_SPATIAL_FILTER_DBOR_ACCUM;
     else throw std::runtime_error("Unknown treefiltertype: " + filtertype);
+    
+    // All of the following arrays may be empty, or have fewer elements than the number of signatures
+    //  for those cases, we use the default values for that parameter
+    auto basistype_list = parameters.GetStringArray("basistype");
+    int numSignatures = std::max(1, (int) basistype_list.size());
+    settings.signatureEnsembleConfig.resize(numSignatures);
+    auto numbins_list = parameters.GetIntArray("numbins");
+    auto resolution_list = parameters.GetIntArray("resolution");
+    auto splatsigma_list = parameters.GetFloatArray("splatsigma");
+    auto octavemin_list = parameters.GetIntArray("octavemin");
+    auto octavemax_list = parameters.GetIntArray("octavemax");
+    auto dongamma_list = parameters.GetFloatArray("dongamma");
+    auto getNextInt = [](std::vector<int> &a, int def) {
+        if (a.empty()) return def;
+        int val = a.front();
+        a.erase(a.begin());  // popfront
+        return val;
+    };
+    auto getNextFloat = [](std::vector<float> &a, float def) {
+        if (a.empty()) return def;
+        float val = a.front();
+        a.erase(a.begin());  // popfront
+        return val;
+    };
+    auto getNextString = [](std::vector<std::string> &a, const std::string &def) {
+        if (a.empty()) return def;
+        std::string val = a.front();
+        a.erase(a.begin());  // popfront
+        return val;
+    };
+    for (int i = 0; i < numSignatures; ++i) {
+        auto &c = settings.signatureEnsembleConfig[i];
+        auto numbins = getNextInt(numbins_list, c.numBins);
+        c.numBins = numbins;
+        if (numbins <= 0 || numbins > PGL_SIGNATURE_MAX_SIZE)
+            ErrorExit(loc, "Invalid number of bins %d: only 1-%d are supported.", numbins, PGL_SIGNATURE_MAX_SIZE);
 
-    settings.numbins = parameters.GetOneInt("numbins", settings.numbins);
-    if (settings.numbins <= 0 || settings.numbins > 8)
-        ErrorExit(loc, "Invalid number of bins %d: only 1-8 are supported.", settings.numbins);
-    settings.octahedralresolution = parameters.GetOneInt("octahedralresolution", settings.octahedralresolution);
-    if (settings.octahedralresolution < 0)
-        ErrorExit(loc, "Invalid octahedral resolution %d: only positive values are supported.", settings.octahedralresolution);
-    settings.splatSigma = parameters.GetOneFloat("splatsigma", settings.splatSigma);
-    settings.octavemin = parameters.GetOneInt("octavemin", settings.octavemin);
-    settings.octavemax = parameters.GetOneInt("octavemax", settings.octavemax);
-    if (settings.octavemin <= 0 || settings.octavemax <= 0 || settings.octavemin > settings.octavemax)
-        ErrorExit(loc, "Invalid octave range [%d, %d].", settings.octavemin, settings.octavemax);
-    settings.octaveGamma = parameters.GetOneFloat("octavegamma", settings.octaveGamma);
-    settings.latituderesolution = parameters.GetOneInt("latituderesolution", settings.latituderesolution);
-    if (settings.latituderesolution <= 0)
-        ErrorExit(loc, "Invalid latitude resolution %d: only positive values are supported.", settings.latituderesolution);
-    settings.longituderesolution = parameters.GetOneInt("longituderesolution", settings.longituderesolution);
-    if (settings.longituderesolution <= 0)
-        ErrorExit(loc, "Invalid longitude resolution %d: only positive values are supported.", settings.longituderesolution);
+        auto basistype = getNextString(basistype_list, "don_xi");
+        if (basistype == "nn") c.basisType = PGL_BASIS_FUNC_NN;
+        else if (basistype == "splat") c.setType(PGL_BASIS_FUNC_SPLAT);
+        else if (basistype == "don_pcg") c.setType(PGL_BASIS_FUNC_DON_PCG);
+        else if (basistype == "don_xi") c.setType(PGL_BASIS_FUNC_DON_XI);
+        else if (basistype == "latitude") c.setType(PGL_BASIS_FUNC_LATITUDE);
+        else if (basistype == "longitude") c.setType(PGL_BASIS_FUNC_LONGITUDE);
+        else throw std::runtime_error("Unknown treecontribtype: " + basistype);
+        
+        switch (c.basisType) {
+            case PGL_BASIS_FUNC_NN:
+                c.setResolution(getNextInt(resolution_list, c.getResolution()));
+                break;
+            case PGL_BASIS_FUNC_SPLAT:
+                c.setResolution(getNextInt(resolution_list, c.getResolution()));
+                c.setSplatSigma(getNextFloat(splatsigma_list, c.getSplatSigma()));
+                break;
+            case PGL_BASIS_FUNC_DON_PCG:
+            case PGL_BASIS_FUNC_DON_XI:
+                c.setOctaveMin(getNextInt(octavemin_list, c.getOctaveMin()));
+                c.setOctaveMax(getNextInt(octavemax_list, c.getOctaveMax()));
+                c.setDONGamma(getNextFloat(dongamma_list, c.getDONGamma()));
+                break;
+            case PGL_BASIS_FUNC_LATITUDE:
+                c.setResolution(getNextInt(resolution_list, c.getResolution()));
+                break;
+            case PGL_BASIS_FUNC_LONGITUDE:
+                c.setResolution(getNextInt(resolution_list, c.getResolution()));
+                break;
+        }
+    }
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);
