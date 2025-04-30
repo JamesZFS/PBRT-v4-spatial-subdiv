@@ -210,9 +210,11 @@ inline static uint8_t get_signature_index_nn(const pgl_direction &dir, uint32_t 
 void RadianceView::UpdateBasisBuffer() {
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     auto frame = Frame::FromZ(m_prev.normal);
-    const SignatureArguments &config = m_parent->GetSubdivCfg().signatureEnsembleConfig[0];  // TODO: support ensemble
+    const SignatureArguments &config = m_parent->GetSubdivCfg().signatureEnsembleConfig[m_parent->SelectedModelIndex()];
     const auto basisType = config.basisType;
     const uint8_t S = config.numBins;
+    for (int j = 0; j < PGL_SIGNATURE_MAX_SIZE; ++j)
+        std::fill(m_basisBuffer[j].begin(), m_basisBuffer[j].end(), 0.0f);  // clear
 
     switch (basisType) {
         case PGL_BASIS_FUNC_NN: {
@@ -227,8 +229,6 @@ void RadianceView::UpdateBasisBuffer() {
                 pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
                 const size_t pixel_index = p.y * m_resolution.x + p.x;
 
-                for (uint8_t j = 0; j < S; ++j)
-                    m_basisBuffer[j][pixel_index] = 0.0;
                 m_basisBuffer[get_signature_index_nn(pglDir, res, S)][pixel_index] = 1.0;
             }
             break;
@@ -267,9 +267,6 @@ void RadianceView::UpdateBasisBuffer() {
                 };  // {0, .., oct_res-1}
 
                 // Dynamically compute kernel weights of each neighbor's center
-                for (uint8_t j = 0; j < S; ++j)
-                    m_basisBuffer[j][pixel_index] = 0.0;
-
                 float sumCoeff = 0;
                 for (int i = 0; i < 9; ++i) {
                     pgl_vec2i qi = {pi.x + offsets[i].x, pi.y + offsets[i].y};
@@ -320,8 +317,6 @@ void RadianceView::UpdateBasisBuffer() {
                 // uv = {float(p.x) / m_resolution.x, float(p.y) / m_resolution.y};  // debug
 
                 // * Evaluates all basis functions at the given coordinate
-                for (uint8_t j = 0; j < S; ++j)
-                    m_basisBuffer[j][pixel_index] = 0.0;
                 float normalizer = 0.0;
                 // Iterate over all octaves
                 for (uint8_t k = octave_min; k <= octave_max; ++k) {
@@ -444,6 +439,8 @@ void RadianceView::UpdateBasisBuffer() {
 
     for (uint8_t j = 0; j < S; ++j)
         UpdateTextureFromFloatData((GLuint) (uintptr_t) m_basisTex[j], m_basisBuffer[j].data(), m_resolution.x, m_resolution.y, false);
+
+    UpdateIntegratedSignature();
 }
 
 thread_local double thread_normalizer = 0;
@@ -490,6 +487,49 @@ static inline float RGBToScalar(const RGB &rgb) {
 
 double RadianceView::GetPDF(const pbrt::Point2i &p) const {
     return RGBToScalar(m_cpuBuffer[p.y * m_resolution.x + p.x]) / m_normalizer;
+}
+
+void RadianceView::UpdateIntegratedSignature() {
+    // Recompute the integrated signature from the current radiance map
+    Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
+    PGLDirectionalSignature signature{};
+    std::mutex mutex;
+    auto frame = Frame::FromZ(m_prev.normal);
+    ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
+        thread_normalizer = 0;
+        thread_signature = {};
+        for (Point2i p : tileBounds) {
+            // Integrate over the tile
+            size_t index = p.y * m_resolution.x + p.x;
+
+            float theta = m_stepTheta * (0.5f + float(p.y));
+            float phi = m_stepPhi * (0.5f + float(p.x));
+
+            Vector3f d = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+            if (m_localFrame)
+                d = frame.FromLocal(d);
+            
+            if (float cosineTerm = Dot(d, m_prev.normal); cosineTerm >= 0) {
+                float val = RGBToScalar(m_cpuBuffer[index]);
+                float cosTheta;
+                if (m_localFrame) cosTheta = Clamp(cosineTerm, -1, 1);
+                else cosTheta = d.z;
+                float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
+                thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
+                for (uint8_t j = 0; j < PGL_SIGNATURE_MAX_SIZE; ++j) {
+                    thread_signature.signature[j] += val * sinTheta * m_stepPhi * m_stepTheta * m_basisBuffer[j][index] * (m_parent->GetSubdivCfg().multiplyCosine ? cosineTerm : 1.0f);
+                }
+            }
+        }
+        {
+            // Merge the tile integral to the final integral
+            std::lock_guard lock(mutex);
+            for (size_t i = 0; i < PGL_SIGNATURE_MAX_SIZE; i++) {
+                signature.signature[i] += thread_signature.signature[i];
+            }
+        }
+    });
+    integratedSignature = signature;
 }
 
 void RadianceView::SetResolution(const pbrt::Point2i &resolution) {

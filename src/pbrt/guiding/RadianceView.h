@@ -56,6 +56,8 @@ private:
 
     void RenderStart();
 
+    void UpdateIntegratedSignature();
+
     pbrt::Primitive m_scene;
     const std::vector<pbrt::Light> &m_lights;
     std::unique_ptr<pbrt::PathIntegrator> m_integrator;
