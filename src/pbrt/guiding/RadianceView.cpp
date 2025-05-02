@@ -67,7 +67,7 @@ static pgl_vec2f dir_to_spherical(const pgl_direction &dir) {
     float theta = std::acos(cartesian.z);
     float phi = std::atan2(cartesian.y, cartesian.x);
     if (phi < 0) phi += 2 * M_PI;
-    return {theta / M_PIf, phi / (2 * M_PIf)};
+    return {theta / M_PI, phi / (2 * M_PI)};
 }
 
 //A pseudorandom number generator with a seed consisting of 3 uints
