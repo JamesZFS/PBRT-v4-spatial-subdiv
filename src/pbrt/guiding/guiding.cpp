@@ -760,10 +760,14 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
         else if (basistype == "don_xi") c.setType(PGL_BASIS_FUNC_DON_XI);
         else if (basistype == "latitude") c.setType(PGL_BASIS_FUNC_LATITUDE);
         else if (basistype == "longitude") c.setType(PGL_BASIS_FUNC_LONGITUDE);
+        else if (basistype == "checkerboard") c.setType(PGL_BASIS_FUNC_CHECKERBOARD);
         else throw std::runtime_error("Unknown treecontribtype: " + basistype);
         
         switch (c.basisType) {
             case PGL_BASIS_FUNC_NN:
+            case PGL_BASIS_FUNC_LATITUDE:
+            case PGL_BASIS_FUNC_LONGITUDE:
+            case PGL_BASIS_FUNC_CHECKERBOARD:
                 c.setResolution(getNextInt(resolution_list, c.getResolution()));
                 break;
             case PGL_BASIS_FUNC_SPLAT:
@@ -775,12 +779,6 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
                 c.setOctaveMin(getNextInt(octavemin_list, c.getOctaveMin()));
                 c.setOctaveMax(getNextInt(octavemax_list, c.getOctaveMax()));
                 c.setDONGamma(getNextFloat(dongamma_list, c.getDONGamma()));
-                break;
-            case PGL_BASIS_FUNC_LATITUDE:
-                c.setResolution(getNextInt(resolution_list, c.getResolution()));
-                break;
-            case PGL_BASIS_FUNC_LONGITUDE:
-                c.setResolution(getNextInt(resolution_list, c.getResolution()));
                 break;
         }
     }

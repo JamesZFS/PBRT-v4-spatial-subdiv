@@ -1575,7 +1575,7 @@ void Application::SpatialSubdivisionSettings() {
         SignatureArguments &config = m_subdivCfg.signatureEnsembleConfig[m_selectedModelIndex];
         int basisType = config.basisType;
         _();
-        if (ImGui::Combo("Basis Function Type", &basisType, "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0")) {
+        if (ImGui::Combo("Basis Function Type", &basisType, "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0Checkerboard\0")) {
             config.setType((PGL_BASIS_FUNC_TYPE) basisType);
             if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
         }
@@ -1586,7 +1586,7 @@ void Application::SpatialSubdivisionSettings() {
             UpdateSignatureView();
             if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
         }
-        if (basisType == PGL_BASIS_FUNC_NN || basisType == PGL_BASIS_FUNC_SPLAT || basisType == PGL_BASIS_FUNC_LATITUDE || basisType == PGL_BASIS_FUNC_LONGITUDE) {
+        if (basisType == PGL_BASIS_FUNC_NN || basisType == PGL_BASIS_FUNC_SPLAT || basisType == PGL_BASIS_FUNC_LATITUDE || basisType == PGL_BASIS_FUNC_LONGITUDE || basisType == PGL_BASIS_FUNC_CHECKERBOARD) {
             _();
             int resolution = config.getResolution();
             if (ImGui::SliderInt("Resolution", &resolution, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
