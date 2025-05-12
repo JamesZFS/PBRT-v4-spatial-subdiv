@@ -207,6 +207,21 @@ inline static uint8_t get_signature_index_nn(const pgl_direction &dir, uint32_t 
     return hash % S;
 }
 
+inline uint8_t get_signature_index_checkerboard(const pgl_direction &dir, uint32_t res, uint8_t S) {
+    // 1. Convert the sample.direction into [0, 1] representation
+    auto uv_ = pgl_vec2f(dir);  // [-1, 1]
+    float x = uv_.x * 0.5f + 0.5f;  // [0, 1]
+    float y = uv_.y * 0.5f + 0.5f;
+
+    // 2. Find the histogram bin on the (conceptual) octahedral map
+    uint32_t ix = std::clamp((uint32_t)(x * res), 0u, res - 1);
+    uint32_t iy = std::clamp((uint32_t)(y * res), 0u, res - 1);
+
+    // 3. Hash (ix, iy) to a single index between 0 and PGL_SIGNATURE_SIZE - 1
+    uint32_t index = ix + iy * res;
+    return index % S;
+}
+
 void RadianceView::UpdateBasisBuffer() {
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     auto frame = Frame::FromZ(m_prev.normal);
@@ -430,6 +445,22 @@ void RadianceView::UpdateBasisBuffer() {
                     }
                     m_basisBuffer[j][pixel_index] = b;
                 }
+            }
+            break;
+        }
+        case PGL_BASIS_FUNC_CHECKERBOARD: {
+            const uint32_t res = config.getResolution();
+            for (Point2i p: pixelBounds) {
+                float theta = m_stepTheta * (0.5f + float(p.y));
+                float phi = m_stepPhi * (0.5f + float(p.x));
+
+                Vector3f dir = SphericalDirection(std::sin(theta), std::cos(theta), phi);
+                if (m_localFrame)
+                    dir = frame.FromLocal(dir);
+                pgl_direction pglDir = pgl_vec3f{dir.x, dir.y, dir.z};
+                const size_t pixel_index = p.y * m_resolution.x + p.x;
+
+                m_basisBuffer[get_signature_index_checkerboard(pglDir, res, S)][pixel_index] = 1.0;
             }
             break;
         }
