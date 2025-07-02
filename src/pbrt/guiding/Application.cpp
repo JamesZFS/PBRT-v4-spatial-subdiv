@@ -1624,9 +1624,10 @@ void Application::SpatialSubdivisionSettings() {
 
         ImGui::Separator();
 
-        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0");
+        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0UMVU\0");
         _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
-        _(), ImGui::InputFloat("Std Multiplier", &m_subdivCfg.stdMultiplier);
+        if (m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_UMVU)
+            _(), ImGui::InputFloat("Std Multiplier", &m_subdivCfg.stdMultiplier);
         switch (m_subdivCfg.confidenceType) {
             case PGL_SPATIAL_CONFIDENCE_RISK:
                 _(), ImGui::InputFloat("Risk Tolerance", &m_subdivCfg.riskTolerance); break;
@@ -1634,6 +1635,14 @@ void Application::SpatialSubdivisionSettings() {
             case PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN:
                 _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold);
                 _(), ImGui::InputFloat("T Eps K", &m_subdivCfg.tEpsK, 0, 0, "%.2e"); break;
+            case PGL_SPATIAL_CONFIDENCE_UMVU: {
+                static float fpProba = 0.05;  // alpha in the split statistics derivation
+                _(), ImGui::InputFloat("FP Split Probability", &fpProba);
+                fpProba = std::clamp(fpProba, 0.0f, 1.0f);
+                // m_subdivCfg.sufficientCriterionThreshold = InversePhi(1 - fpProba);
+                m_subdivCfg.sufficientCriterionThreshold = 1 - fpProba;
+                break;
+            }
             default: break;
         }
         _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");

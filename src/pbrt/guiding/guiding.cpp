@@ -702,6 +702,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (confidencetype == "risk") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_RISK;
     else if (confidencetype == "welch") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST;
     else if (confidencetype == "ttest_per_bin") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
+    else if (confidencetype == "umvu") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_UMVU;
     else throw std::runtime_error("Unknown treeconfidencetype: " + confidencetype);
 
     auto defensivetype = parameters.GetOneString("treedefensivetype", "fixed");

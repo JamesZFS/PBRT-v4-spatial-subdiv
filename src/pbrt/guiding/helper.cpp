@@ -72,6 +72,30 @@ std::function<float(const pbrt::RGB&, const pbrt::RGB&)> GetErrorFunc(ErrorMetri
     }
 }
 
+double InversePhi(double y) {
+    return std::sqrt(2) * InverseErf(2 * y - 1);
+}
+
+double InverseErf(double y) {
+    assert(x >= -1.0 && x <= 1.0);
+    double lo = -10, hi = 10, mi = 0;
+    double y_lo = std::erf(lo), y_hi = std::erf(hi), y_mi = 0;
+    if (y_hi <= y) return hi;
+    if (y <= y_lo) return lo;
+    while (hi - lo > 1e-3) {
+        if (y_mi <= y) {
+            lo = mi;
+            y_lo = y_mi;
+        } else {
+            hi = mi;
+            y_hi = y_mi;
+        }
+        mi = (lo + hi) / 2.0;
+        y_mi = std::erf(mi);
+    }
+    return mi;
+}
+
 std::string FormatInteger(int64_t v) {
     if (v < 1000) return StringPrintf("%d", v);
     if (v < 1000000) return StringPrintf("%d,%03d", int(v / 1000), int(v % 1000));
