@@ -90,6 +90,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
         guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
         guiding_fieldSubdivConfig.stdMultiplier = guideSettings.treestdmultiplier;
+        guiding_fieldSubdivConfig.sufficientCriterionThreshold = 1 - guideSettings.treefpsplitproba;
         guiding_fieldSubdivConfig.filterType = guideSettings.treefiltertype;
         guiding_fieldSubdivConfig.inlierPercent = guideSettings.treeinlierpercent;
         guiding_fieldSubdivConfig.DBORstdMultiplier = guideSettings.treedborstdmultiplier;
@@ -677,6 +678,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treeinitializingiters = parameters.GetOneInt("treeinitializingiters", settings.treeinitializingiters);
     settings.treelookaheaddepth = parameters.GetOneInt("treelookaheaddepth", settings.treelookaheaddepth);
     settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
+    settings.treefpsplitproba = parameters.GetOneFloat("treefpsplitproba", settings.treefpsplitproba);
     settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
     settings.treerisktolerance = parameters.GetOneFloat("treerisktolerance", settings.treerisktolerance);
     settings.treetvaluethreshold = parameters.GetOneFloat("treetvaluethreshold", settings.treetvaluethreshold);

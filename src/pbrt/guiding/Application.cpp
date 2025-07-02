@@ -1636,7 +1636,7 @@ void Application::SpatialSubdivisionSettings() {
                 _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold);
                 _(), ImGui::InputFloat("T Eps K", &m_subdivCfg.tEpsK, 0, 0, "%.2e"); break;
             case PGL_SPATIAL_CONFIDENCE_UMVU: {
-                static float fpProba = 0.05;  // alpha in the split statistics derivation
+                float fpProba = 1 - m_subdivCfg.sufficientCriterionThreshold;
                 _(), ImGui::InputFloat("FP Split Probability", &fpProba);
                 fpProba = std::clamp(fpProba, 0.0f, 1.0f);
                 // m_subdivCfg.sufficientCriterionThreshold = InversePhi(1 - fpProba);
