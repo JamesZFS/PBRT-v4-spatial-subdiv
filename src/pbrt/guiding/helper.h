@@ -80,6 +80,10 @@ template<> float CalcError<Metric_MRAE>(float x, float ref);
 
 std::function<float(const pbrt::RGB&, const pbrt::RGB&)> GetErrorFunc(ErrorMetric metric);
 
+double InversePhi(double y);
+
+double InverseErf(double y);
+
 std::string FormatInteger(int64_t v);
 
 GLFWwindow *InitializeImGui(const char *title, int width, int height);
