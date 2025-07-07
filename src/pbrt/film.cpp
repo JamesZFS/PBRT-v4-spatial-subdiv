@@ -865,6 +865,7 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
     Pixel &p = pixels[pFilm];
     if (visibleSurface && *visibleSurface) {
         p.gBufferWeightSum += weight;
+        p.pixelFluenceSum += weight * visibleSurface->pixelFluence;
 
         if (applyInverse) {
             p.nSum += weight * outputFromRender.ApplyInverse(visibleSurface->n,
@@ -956,6 +957,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                  "ZeroSamples",
                  "Depth",
                  "Fluence",
+                 "PixelFluence",
                  "Energy",
                  "Risk",
                  "TValue",
@@ -971,7 +973,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
     ImageChannelDesc guideDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
-            "Samples", "ZeroSamples", "Depth", "Fluence", "Energy", "Risk", "TValue",
+            "Samples", "ZeroSamples", "Depth", "Fluence", "PixelFluence", "Energy", "Risk", "TValue",
             "FineId.R", "FineId.G", "FineId.B"});
 
     std::atomic<int> nClamped{0};
@@ -996,6 +998,11 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
             rgb /= weightSum;
         }
 
+        Float pixelFluence = pixel.pixelFluenceSum;
+        if (gBufferWeightSum != 0) {
+            pixelFluence /= gBufferWeightSum;
+        }
+
         // Add splat value at pixel
         for (int c = 0; c < 3; ++c)
             rgb[c] += splatScale * pixel.rgbSplat[c] / filterIntegral;
@@ -1017,7 +1024,8 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         image.SetChannels(pOffset, guideDesc,
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                               (float) pixel.guidingData.numSamples, (float) pixel.guidingData.numZeroValueSamples, (float) pixel.guidingData.depth,
-                              pixel.guidingData.fluence, pixel.guidingData.energy, pixel.guidingData.risk, pixel.guidingData.tValue,
+                              pixel.guidingData.fluence, pixelFluence,
+                              pixel.guidingData.energy, pixel.guidingData.risk, pixel.guidingData.tValue,
                                 fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
 
         //Normal3f n =

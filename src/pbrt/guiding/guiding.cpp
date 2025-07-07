@@ -349,6 +349,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     // Declare local variables for GuidedPathIntegrator::Li()
     SampledSpectrum L(0.f), beta(1.f);
     SampledSpectrum bsdfWeight(1.f);
+    SampledSpectrum Phi(0.f), betaPhi(1.f);  // for fluence estimator
     int depth = 0;
 
     GuidedBSDF gbsdf(&sampler, guiding_field, surfaceSamplingDistribution, guideSettings.enableGuiding, guideSettings.surfaceGuidingType);
@@ -372,6 +373,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 SampledSpectrum Le = light.Le(ray, lambda);
                 if (depth == 0 || specularBounce) {
                     L += beta * Le;
+                    Phi += betaPhi * Le;
                     guiding_addInfiniteLightEmission(pathSegmentStorage, guidingInfiniteLightDistance, ray, Le, 1.0f, lambda, colorSpace);
                 } else {
                     // Compute MIS weight for infinite light
@@ -380,6 +382,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                     Float w_b = settings.useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
 
                     L += beta * w_b * Le;
+                    Phi += betaPhi * w_b * Le;
                     guiding_addInfiniteLightEmission(pathSegmentStorage, guidingInfiniteLightDistance, ray, Le, w_b, lambda, colorSpace);
                 }
             }
@@ -391,6 +394,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         if (Le) {
             if (depth == 0 || specularBounce) {
                 L += beta * Le;
+                Phi += betaPhi * Le;
                 w = 1.0f;
                 add_direct_contribution = true;
             } else {
@@ -401,6 +405,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 Float w_l = settings.useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
                 L += beta * w_l * Le;
                                 w = w_l;
+                Phi += betaPhi * w_l * Le;
                 add_direct_contribution = true;
             }
         }
@@ -503,10 +508,16 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         // Sample direct illumination from the light sources
         if (settings.useNEE && IsNonSpecular(bsdf.Flags())) {
             ++totalPaths;
-            SampledSpectrum Ld = SampleLd(isect, &gbsdf, survivalProb, lambda, sampler);
+            SampledSpectrum bsdfCosine{1.0f};
+            SampledSpectrum Ld = SampleLd(isect, &gbsdf, survivalProb, lambda, sampler, &bsdfCosine);
             if (!Ld)
                 ++zeroRadiancePaths;
             L += beta * Ld;
+            if (shouldCreateVisbleSurf) {
+                Phi += betaPhi * Ld / bsdfCosine;  // * the fluence estimator's weight is initialized differently from Li
+            } else {
+                Phi += betaPhi * Ld;
+            }
             // Guiding - add scattered contribution from NEE
             guiding_addScatteredDirectLight(pathSegmentData, Ld, lambda, colorSpace);
         }
@@ -523,6 +534,11 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         // Update path state variables after surface scattering
         bsdfWeight = bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         beta *= bsdfWeight;
+        if (shouldCreateVisbleSurf) {
+            betaPhi = SampledSpectrum(1.f / bs->pdf);  // * the fluence estimator's weight is initialized differently from Li
+        } else {
+            betaPhi *= bsdfWeight;
+        }
 
         DCHECK(!IsInf(beta.y(lambda)));
         specularBounce = bs->IsSpecular();
@@ -550,6 +566,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
             if (sampler.Get1D() < q)
                 break;
             beta /= 1 - q;
+            betaPhi /= 1 - q;
             DCHECK(!IsInf(beta.y(lambda)));
         }
 
@@ -588,12 +605,15 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     {
         pathSegmentStorage->Clear();
     }
+    if (visibleSurf) {
+        visibleSurf->pixelFluence = Luminance(Phi.ToRGB(lambda, *colorSpace));
+    }
     return L;
 }
 
 SampledSpectrum GuidedPathIntegrator::SampleLd(const SurfaceInteraction &intr, const GuidedBSDF *bsdf, const Float survivalProb,
                                          SampledWavelengths &lambda,
-                                         Sampler sampler) const {
+                                         Sampler sampler, SampledSpectrum *bsdfCosine) const {
     // Initialize _LightSampleContext_ for light sampling
     LightSampleContext ctx(intr);
     // Try to nudge the light sampling position to correct side of the surface
@@ -622,6 +642,8 @@ SampledSpectrum GuidedPathIntegrator::SampleLd(const SurfaceInteraction &intr, c
     SampledSpectrum f = bsdf->f(wo, wi) * AbsDot(wi, intr.shading.n);
     if (!f || !Unoccluded(intr, ls->pLight))
         return {};
+    if (bsdfCosine)
+        *bsdfCosine = f;
 
     // Return light's contribution to reflected radiance
     Float p_l = sampledLight->p * ls->pdf;
