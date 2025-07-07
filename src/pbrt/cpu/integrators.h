@@ -345,7 +345,7 @@ class GuidedPathIntegrator : public RayIntegrator {
   private:
     // GuidedPathIntegrator Private Methods
     SampledSpectrum SampleLd(const SurfaceInteraction &intr, const GuidedBSDF *bsdf, const Float survivalProb,
-                             SampledWavelengths &lambda, Sampler sampler) const;
+                             SampledWavelengths &lambda, Sampler sampler, SampledSpectrum *bsdfCosine = nullptr) const;
 
     const PixelSensor *sensor {nullptr};
 
