@@ -774,7 +774,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     for (int i = 0; i < numSignatures; ++i) {
         auto &c = settings.signatureEnsembleConfig[i];
         auto numbins = getNextInt(numbins_list, c.numBins);
-        c.numBins = numbins;
+        c.setNumBins(numbins);
         if (numbins <= 0 || numbins > PGL_SIGNATURE_MAX_SIZE)
             ErrorExit(loc, "Invalid number of bins %d: only 1-%d are supported.", numbins, PGL_SIGNATURE_MAX_SIZE);
 
