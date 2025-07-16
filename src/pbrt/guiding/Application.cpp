@@ -1582,7 +1582,7 @@ void Application::SpatialSubdivisionSettings() {
         _();
         int signatureSize = config.numBins;
         if (ImGui::SliderInt("Number of Bins", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
-            config.numBins = signatureSize;
+            config.setNumBins(signatureSize);
             UpdateSignatureView();
             if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
         }
