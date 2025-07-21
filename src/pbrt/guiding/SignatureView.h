@@ -37,6 +37,8 @@ public:
 
     void UpdateFramebuffer();
 
+    int lookaheadLevel() const { return m_lookaheadDepth; }
+
 private:
     void Update();
 
@@ -52,6 +54,7 @@ private:
     PGLDirectionalSignature &m_integratedSignature;
     PGLDirectionalSignature m_storedSignature{};
     pbrt::RGB m_selectionBuffer[PGL_SIGNATURE_MAX_SIZE];
+    std::atomic_bool m_shouldUpdate = false;
 
     float m_scale = 1.0f;
     Colormap m_cmap = CMap_Inferno;
