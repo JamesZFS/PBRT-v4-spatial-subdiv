@@ -227,7 +227,8 @@ void RadianceView::UpdateBasisBuffer() {
     auto frame = Frame::FromZ(m_prev.normal);
     const SignatureArguments &config = m_parent->GetSubdivCfg().signatureEnsembleConfig[m_parent->SelectedModelIndex()];
     const auto basisType = config.basisType;
-    const uint8_t S = config.numBins;
+    const int lookaheadLevel = m_parent->LookaheadLevel();
+    const uint8_t S = lookaheadLevel == 0 ? config.numBins : std::max(1, config.numBins >> (lookaheadLevel - 1));
     for (int j = 0; j < PGL_SIGNATURE_MAX_SIZE; ++j)
         std::fill(m_basisBuffer[j].begin(), m_basisBuffer[j].end(), 0.0f);  // clear
 

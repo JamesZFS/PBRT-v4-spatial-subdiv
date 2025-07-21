@@ -77,7 +77,7 @@ double InversePhi(double y) {
 }
 
 double InverseErf(double y) {
-    assert(x >= -1.0 && x <= 1.0);
+    assert(y >= -1.0 && y <= 1.0);
     double lo = -10, hi = 10, mi = 0;
     double y_lo = std::erf(lo), y_hi = std::erf(hi), y_mi = 0;
     if (y_hi <= y) return hi;

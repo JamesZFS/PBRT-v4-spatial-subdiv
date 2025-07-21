@@ -58,6 +58,8 @@ public:
     float GetSignatureStdMultiplier() const { return m_subdivCfg.stdMultiplier; }
     int SelectedModelIndex() const { return m_selectedModelIndex; }
     void SetSelectedModelIndex(int index);
+    int LookaheadLevel() const { return m_signatureView->lookaheadLevel(); }
+    void UpdateBasisBuffer() { m_radianceView->UpdateBasisBuffer(); }
 
     bool sdrLocalFrame = false;
     float sdrExposure = 1.0f;
