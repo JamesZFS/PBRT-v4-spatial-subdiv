@@ -10,6 +10,7 @@
 #include <pbrt/util/shader.h>  // Will include glad
 #include <pbrt/util/color.h>  // Will include glad
 #include <GLFW/glfw3.h> // Will drag system OpenGL headers
+#include <openpgl/defines.h>
 
 enum SelectedChannel {
     Channel_Radiance = 0,

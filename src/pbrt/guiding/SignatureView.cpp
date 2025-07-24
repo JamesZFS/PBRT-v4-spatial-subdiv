@@ -105,32 +105,19 @@ void SignatureView::Draw() {
     }
 }
 
-static std::pair<float, float> getFluenceAndStd(const PGLDirectionalSignature &a) {
-    float fluence = 0;
-    float totM2 = 0;
-    for (int i = 0; i < PGL_SIGNATURE_MAX_SIZE; ++i) {
-        fluence += a.signature[i];
-        totM2 += a.numSamples * a.std[i] * a.std[i] + a.signature[i] * a.signature[i];
-    }
-    float std = std::sqrt((totM2 - fluence * fluence) / a.numSamples);
-    return {fluence, std};
-}
-
 // Needs to align with Signature.h
-static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, uint8_t S, float stdMultiplier) {
+static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier) {
     float num = 0, denom = 0;
-    if (S == 1) {
-        auto [ai, a_std] = getFluenceAndStd(a);
-        a_std *= stdMultiplier;
-        float bi = b.signature[0];
-        float b_std = stdMultiplier * b.std[0];
+    if (b.S == 1) {
+        float ai = a.signature[a.S - 1], bi = b.signature[0];
+        float a_std = stdMultiplier * a.std[a.S - 1], b_std = stdMultiplier * b.std[0];
         // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
         if (ai - a_std > bi + b_std)
             num += ai - bi - a_std - b_std;
         else if (ai + a_std < bi - b_std)
             num += bi - ai - a_std - b_std;
         denom += ai;
-    } else for (uint8_t i = 0; i < S; i++) {
+    } else for (uint8_t i = 0; i < b.S; i++) {
         float ai = a.signature[i], bi = b.signature[i];
         float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
         // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
@@ -143,9 +130,9 @@ static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirecti
     return a.numSamples == 0 ? 0 : num / denom;
 }
 
-static float getDistanceSMAPEComp(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, uint8_t S, float stdMultiplier) {
+static float getDistanceSMAPEComp(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier) {
     float num = 0, denom = 0;
-    for (uint8_t i = 0; i < S; i++) {
+    for (uint8_t i = 0; i < b.S; i++) {
         float ai = a.signature[i], bi = b.signature[i];
         float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
         // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
@@ -158,14 +145,13 @@ static float getDistanceSMAPEComp(const PGLDirectionalSignature &a, const PGLDir
     return denom == 0 ? 0 : 2.0f * num / denom;
 }
 
-static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, uint8_t S, float stdMultiplier, float tvalueThreshold) {
+static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier, float tvalueThreshold) {
     float num = 0, denom = 0;
-    if (S == 1) {
-        auto [ai, a_std] = getFluenceAndStd(a);
-        float bi = b.signature[0];
+    if (b.S == 1) {
+        float ai = a.signature[a.S - 1], bi = b.signature[0];
+        float a_std = stdMultiplier * a.std[a.S - 1], b_std = stdMultiplier * b.std[0];
         float sigma = std::sqrt(a_std * a_std + b.std[0] * b.std[0]);
         a_std *= stdMultiplier;
-        float b_std = stdMultiplier * b.std[0];
         float t = sigma == 0 ? 0 : (ai - bi) / sigma;
         if (std::abs(t) > tvalueThreshold) {
             // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
@@ -175,7 +161,7 @@ static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirecti
                 num += bi - ai - a_std - b_std;
         }
         denom += ai + bi;
-    } else for (uint8_t i = 0; i < S; i++) {
+    } else for (uint8_t i = 0; i < b.S; i++) {
         float ai = a.signature[i], bi = b.signature[i];
         float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
         float sigma = std::sqrt(a.std[i] * a.std[i] + b.std[i] * b.std[i]);
@@ -192,9 +178,9 @@ static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirecti
     return denom == 0 ? 0 : 2.0f * num / denom;
 }
 
-static float getDistanceTTestComp(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, uint8_t S, float stdMultiplier, float tvalueThreshold) {
+static float getDistanceTTestComp(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier, float tvalueThreshold) {
     float num = 0, denom = 0;
-    for (uint8_t i = 0; i < S; i++) {
+    for (uint8_t i = 0; i < b.S; i++) {
         float ai = a.signature[i], bi = b.signature[i];
         float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
         float sigma = std::sqrt(a.std[i] * a.std[i] + b.std[i] * b.std[i]);
@@ -318,14 +304,14 @@ void SignatureView::DrawComp() {
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
         if (m_hasStoredSignature) {
-            float distance = getDistanceSMAPEComp(m_integratedSignature, m_storedSignature, S, 0.0f);
+            float distance = getDistanceSMAPEComp(m_integratedSignature, m_storedSignature, 0.0f);
             ImGui::Text("Current: %.4f  Stored: %.4f  Distance: %.4f", m_integratedSignature.signature[idx], m_storedSignature.signature[idx], distance);
         } else {
             ImGui::Text("Current: %.4f  Stored: %.4f", m_integratedSignature.signature[idx], m_storedSignature.signature[idx]);
         }
     } else if (m_hasStoredSignature) {
         // Show the distance
-        float distance = getDistanceSMAPEComp(m_integratedSignature, m_storedSignature, S, 0.0f);
+        float distance = getDistanceSMAPEComp(m_integratedSignature, m_storedSignature, 0.0f);
         ImGui::Text("Distance: %.4f", distance);
     } else {
         float sum = 0.0f;
@@ -400,10 +386,9 @@ void SignatureView::DrawPC() {
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < numSignatures; ++i) {
-            uint8_t S = m_lookaheadDepth <= PGL_SIGNATURE_FULL_RES_LEVEL ? m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins : 1;
-            auto [parentFluence, parentStd] = getFluenceAndStd(m_cachedSignatureParent[i]);
-            float *parentSignatureToPlot = S == 1 ? &parentFluence : m_cachedSignatureParent[i].signature;
-            float *parentStdToPlot = S == 1 ? &parentStd : m_cachedSignatureParent[i].std;
+            uint8_t S = m_cachedSignatureChild[i].S;
+            float *parentSignatureToPlot = S == 1 ? m_cachedSignatureParent[i].signature + m_cachedSignatureParent[i].S - 1 : m_cachedSignatureParent[i].signature;
+            float *parentStdToPlot = S == 1 ? m_cachedSignatureParent[i].std + m_cachedSignatureParent[i].S - 1 : m_cachedSignatureParent[i].std;
             PGLDirectionalSignature childSignature = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignatureChild[i];
 
             ImGui::TableNextColumn();
@@ -412,8 +397,8 @@ void SignatureView::DrawPC() {
             ImGui::TableNextColumn();
             // Compute energy of the current signature
             float energy = isTTestPerBin ? 
-                getDistanceTTest(m_cachedSignatureParent[i], m_cachedSignatureChild[i], S, m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) :
-                getDistanceSMAPE(m_cachedSignatureParent[i], m_cachedSignatureChild[i], S, m_parent->GetSignatureStdMultiplier());
+                getDistanceTTest(m_cachedSignatureParent[i], m_cachedSignatureChild[i], m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) :
+                getDistanceSMAPE(m_cachedSignatureParent[i], m_cachedSignatureChild[i], m_parent->GetSignatureStdMultiplier());
 
             if (m_splitDim == 3)
                 ImGui::Text(" "); // invalid
@@ -518,7 +503,7 @@ void SignatureView::DrawLR() {
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < numSignatures; ++i) {
-            uint8_t S = m_lookaheadDepth <= PGL_SIGNATURE_FULL_RES_LEVEL ? m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins : 1;
+            uint8_t S = m_cachedSignaturesLR[i].first.S;
             PGLDirectionalSignature left = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignaturesLR[i].first;
             PGLDirectionalSignature right = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignaturesLR[i].second;
 
@@ -528,8 +513,8 @@ void SignatureView::DrawLR() {
             ImGui::TableNextColumn();
             // Compute energy of the current signature
             float energy = isTTestPerBin ? 
-                getDistanceTTest(left, right, S, m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) :
-                getDistanceSMAPEComp(left, right, S, m_parent->GetSignatureStdMultiplier());
+                getDistanceTTestComp(left, right, m_parent->GetSignatureStdMultiplier(), m_parent->GetTValueThreshold()) :
+                getDistanceSMAPEComp(left, right, m_parent->GetSignatureStdMultiplier());
 
             if (m_splitDim == 3)
                 ImGui::Text(" "); // invalid
