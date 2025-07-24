@@ -105,18 +105,40 @@ void SignatureView::Draw() {
     }
 }
 
+static std::pair<float, float> getFluenceAndStd(const PGLDirectionalSignature &a) {
+    float fluence = 0;
+    float totM2 = 0;
+    for (int i = 0; i < PGL_SIGNATURE_MAX_SIZE; ++i) {
+        fluence += a.signature[i];
+        totM2 += a.numSamples * a.std[i] * a.std[i] + a.signature[i] * a.signature[i];
+    }
+    float std = std::sqrt((totM2 - fluence * fluence) / a.numSamples);
+    return {fluence, std};
+}
+
 // Needs to align with Signature.h
 static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, uint8_t S, float stdMultiplier) {
-    float num = 0, denom = a.signature[0];  // a[0] is the fluence estimator
-    uint8_t offset = S - 1;  // into a's bins
-    for (uint8_t i = 0; i < S; i++) {
-        float ai = a.signature[offset + i], bi = b.signature[i];
-        float a_std = stdMultiplier * a.std[offset + i], b_std = stdMultiplier * b.std[i];
+    float num = 0, denom = 0;
+    if (S == 1) {
+        auto [ai, a_std] = getFluenceAndStd(a);
+        a_std *= stdMultiplier;
+        float bi = b.signature[0];
+        float b_std = stdMultiplier * b.std[0];
         // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
         if (ai - a_std > bi + b_std)
             num += ai - bi - a_std - b_std;
         else if (ai + a_std < bi - b_std)
             num += bi - ai - a_std - b_std;
+        denom += ai;
+    } else for (uint8_t i = 0; i < S; i++) {
+        float ai = a.signature[i], bi = b.signature[i];
+        float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
+        // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
+        if (ai - a_std > bi + b_std)
+            num += ai - bi - a_std - b_std;
+        else if (ai + a_std < bi - b_std)
+            num += bi - ai - a_std - b_std;
+        denom += ai;
     }
     return a.numSamples == 0 ? 0 : num / denom;
 }
@@ -138,11 +160,25 @@ static float getDistanceSMAPEComp(const PGLDirectionalSignature &a, const PGLDir
 
 static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, uint8_t S, float stdMultiplier, float tvalueThreshold) {
     float num = 0, denom = 0;
-    uint8_t offset = S - 1;  // into parent bins
-    for (uint8_t i = 0; i < S; i++) {
-        float ai = a.signature[offset + i], bi = b.signature[i];
-        float a_std = stdMultiplier * a.std[offset + i], b_std = stdMultiplier * b.std[i];
-        float sigma = std::sqrt(a.std[offset + i] * a.std[offset + i] + b.std[i] * b.std[i]);
+    if (S == 1) {
+        auto [ai, a_std] = getFluenceAndStd(a);
+        float bi = b.signature[0];
+        float sigma = std::sqrt(a_std * a_std + b.std[0] * b.std[0]);
+        a_std *= stdMultiplier;
+        float b_std = stdMultiplier * b.std[0];
+        float t = sigma == 0 ? 0 : (ai - bi) / sigma;
+        if (std::abs(t) > tvalueThreshold) {
+            // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
+            if (ai - a_std > bi + b_std)
+                num += ai - bi - a_std - b_std;
+            else if (ai + a_std < bi - b_std)
+                num += bi - ai - a_std - b_std;
+        }
+        denom += ai + bi;
+    } else for (uint8_t i = 0; i < S; i++) {
+        float ai = a.signature[i], bi = b.signature[i];
+        float a_std = stdMultiplier * a.std[i], b_std = stdMultiplier * b.std[i];
+        float sigma = std::sqrt(a.std[i] * a.std[i] + b.std[i] * b.std[i]);
         float t = sigma == 0 ? 0 : (ai - bi) / sigma;
         if (std::abs(t) > tvalueThreshold) {
             // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
@@ -364,9 +400,10 @@ void SignatureView::DrawPC() {
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < numSignatures; ++i) {
-            uint8_t S = m_lookaheadDepth == 0 ? 2 * m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins - 1 :
-                std::max(1, m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins >> (m_lookaheadDepth - 1));
-            uint8_t offset = m_lookaheadDepth == 0 ? 0 : S - 1;
+            uint8_t S = m_lookaheadDepth <= PGL_SIGNATURE_FULL_RES_LEVEL ? m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins : 1;
+            auto [parentFluence, parentStd] = getFluenceAndStd(m_cachedSignatureParent[i]);
+            float *parentSignatureToPlot = S == 1 ? &parentFluence : m_cachedSignatureParent[i].signature;
+            float *parentStdToPlot = S == 1 ? &parentStd : m_cachedSignatureParent[i].std;
             PGLDirectionalSignature childSignature = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignatureChild[i];
 
             ImGui::TableNextColumn();
@@ -391,10 +428,10 @@ void SignatureView::DrawPC() {
                 ImPlot::SetupAxisLimitsConstraints(ImAxis_Y1, 0, INFINITY);
 
                 ImPlot::PlotBars("Child", childSignature.signature, S, barSize);
-                ImPlot::PlotBars("Parent", m_cachedSignatureParent[i].signature + offset, S, barSize, barSize);
+                ImPlot::PlotBars("Parent", parentSignatureToPlot, S, barSize, barSize);
                 if (m_showStd) {
                     ImPlot::PlotErrorBars("Child-std", m_barXs, childSignature.signature, childSignature.std, S);
-                    ImPlot::PlotErrorBars("Parent-std", m_barRXs, m_cachedSignatureParent[i].signature + offset, m_cachedSignatureParent[i].std + offset, S);
+                    ImPlot::PlotErrorBars("Parent-std", m_barRXs, parentSignatureToPlot, parentStdToPlot, S);
                 }
                 if (m_showMultipliedStd) {
                     float multiplier = m_parent->GetSignatureStdMultiplier();
@@ -406,7 +443,7 @@ void SignatureView::DrawPC() {
                     ImPlot::PushStyleVar(ImPlotStyleVar_ErrorBarSize, 8.0f);
                     ImPlot::PushStyleColor(ImPlotCol_ErrorBar, ImVec4(1, 1, 0, 1));
                     ImPlot::PlotErrorBars("Child-std-", m_barXs, childSignature.signature, child_std, S);
-                    ImPlot::PlotErrorBars("Parent-std-", m_barRXs, m_cachedSignatureParent[i].signature + offset, parent_std, S);
+                    ImPlot::PlotErrorBars("Parent-std-", m_barRXs, parentSignatureToPlot, parent_std, S);
                     ImPlot::PopStyleColor();
                     ImPlot::PopStyleVar();
                 }
@@ -481,8 +518,7 @@ void SignatureView::DrawLR() {
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < numSignatures; ++i) {
-            uint8_t S = std::max(1, m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins >> (m_lookaheadDepth - 1));
-            uint8_t offset = S - 1;
+            uint8_t S = m_lookaheadDepth <= PGL_SIGNATURE_FULL_RES_LEVEL ? m_parent->GetSubdivCfg().signatureEnsembleConfig[i].numBins : 1;
             PGLDirectionalSignature left = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignaturesLR[i].first;
             PGLDirectionalSignature right = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignaturesLR[i].second;
 
