@@ -1624,9 +1624,9 @@ void Application::SpatialSubdivisionSettings() {
 
         ImGui::Separator();
 
-        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0UMVU\0");
+        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0Simulation\0");
         _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
-        if (m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_UMVU)
+        if (m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_SIMULATION)
             _(), ImGui::InputFloat("Std Multiplier", &m_subdivCfg.stdMultiplier);
         switch (m_subdivCfg.confidenceType) {
             case PGL_SPATIAL_CONFIDENCE_RISK:
@@ -1635,12 +1635,13 @@ void Application::SpatialSubdivisionSettings() {
             case PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN:
                 _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold);
                 _(), ImGui::InputFloat("T Eps K", &m_subdivCfg.tEpsK, 0, 0, "%.2e"); break;
-            case PGL_SPATIAL_CONFIDENCE_UMVU: {
+            case PGL_SPATIAL_CONFIDENCE_SIMULATION: {
                 float fpProba = 1 - m_subdivCfg.sufficientCriterionThreshold;
                 _(), ImGui::InputFloat("FP Split Probability", &fpProba);
                 fpProba = std::clamp(fpProba, 0.0f, 1.0f);
                 // m_subdivCfg.sufficientCriterionThreshold = InversePhi(1 - fpProba);
                 m_subdivCfg.sufficientCriterionThreshold = 1 - fpProba;
+                _(), ImGui::InputInt("Simulation Samples", &m_subdivCfg.numSimulationSamples, 1000, 10000);
                 break;
             }
             default: break;
