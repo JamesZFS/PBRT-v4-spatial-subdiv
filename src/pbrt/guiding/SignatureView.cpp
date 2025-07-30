@@ -109,7 +109,7 @@ void SignatureView::Draw() {
 static float getDistanceSMAPE(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier) {
     float num = 0, denom = 0;
     if (b.S == 1) {
-        float ai = a.signature[a.S - 1], bi = b.signature[0];
+        float ai = a.signature[a.S - 1], bi = b.signature[0];  // TODO: parent fluence and std problematic
         float a_std = stdMultiplier * a.std[a.S - 1], b_std = stdMultiplier * b.std[0];
         // accumulate when interval [ai-a_std, ai+a_std] and [bi-b_std, bi+b_std] not overlap
         if (ai - a_std > bi + b_std)
@@ -148,7 +148,7 @@ static float getDistanceSMAPEComp(const PGLDirectionalSignature &a, const PGLDir
 static float getDistanceTTest(const PGLDirectionalSignature &a, const PGLDirectionalSignature &b, float stdMultiplier, float tvalueThreshold) {
     float num = 0, denom = 0;
     if (b.S == 1) {
-        float ai = a.signature[a.S - 1], bi = b.signature[0];
+        float ai = a.signature[a.S - 1], bi = b.signature[0];  // TODO: parent fluence and std problematic
         float a_std = stdMultiplier * a.std[a.S - 1], b_std = stdMultiplier * b.std[0];
         float sigma = std::sqrt(a_std * a_std + b.std[0] * b.std[0]);
         a_std *= stdMultiplier;
@@ -387,6 +387,7 @@ void SignatureView::DrawPC() {
 
         for (int i = 0; i < numSignatures; ++i) {
             uint8_t S = m_cachedSignatureChild[i].S;
+              // TODO: parent fluence and std problematic when S == 1
             float *parentSignatureToPlot = S == 1 ? m_cachedSignatureParent[i].signature + m_cachedSignatureParent[i].S - 1 : m_cachedSignatureParent[i].signature;
             float *parentStdToPlot = S == 1 ? m_cachedSignatureParent[i].std + m_cachedSignatureParent[i].S - 1 : m_cachedSignatureParent[i].std;
             PGLDirectionalSignature childSignature = m_lookaheadDepth == 0 ? PGLDirectionalSignature() : m_cachedSignatureChild[i];
