@@ -301,6 +301,7 @@ void SignatureView::DrawComp() {
         BinInteraction(m_parent->SelectedModelIndex());
         ImPlot::EndPlot();
     }
+    m_integratedSignature.S = m_storedSignature.S = S;
     if (m_radianceView.HasSelectedBinIndex()) {
         uint8_t idx = m_radianceView.GetSelectedBinIndex();
         if (m_hasStoredSignature) {
