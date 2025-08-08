@@ -378,7 +378,7 @@ void SignatureView::DrawPC() {
     int numSignatures = m_cachedSignatureParent.size();
     float plotVSize = ImGui::GetContentRegionAvail().y;
     ImVec2 padding = ImGui::GetStyle().CellPadding;
-    plotVSize = (plotVSize - padding.y * 2 * numSignatures - 2.5 * ImGui::GetFrameHeightWithSpacing()) / numSignatures;
+    plotVSize = (plotVSize - padding.y * 2 * numSignatures - 4.5 * ImGui::GetFrameHeightWithSpacing()) / numSignatures;
     
     if (ImGui::BeginTable("##PC-Table", 3, ImGuiTableFlags_BordersV | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn("Model", ImGuiTableColumnFlags_WidthFixed, 50.0f);
@@ -453,6 +453,8 @@ void SignatureView::DrawPC() {
     
     // Meta information
     int i = m_parent->SelectedModelIndex();
+    m_radianceView.directionData[0].setFromPGLData(m_cachedSignatureChild[i]);
+    m_radianceView.directionData[1].setFromPGLData(m_cachedSignatureParent[i]);
     ImGui::Text("Number of samples child / parent: %s / %s",
         FormatInteger((int) m_cachedSignatureChild[i].numSamples).c_str(),
         FormatInteger((int) m_cachedSignatureParent[i].numSamples).c_str());
@@ -475,6 +477,12 @@ void SignatureView::DrawPC() {
             ImGui::Text("Dimension: %c", dim_ch[m_splitDim]);
         }
     }
+    ImGui::Text("Mean direction of child / parent: (%.2f, %.2f, %.2f) / (%.2f, %.2f, %.2f)",
+        m_cachedSignatureChild[i].meanDir.x, m_cachedSignatureChild[i].meanDir.y, m_cachedSignatureChild[i].meanDir.z,
+        m_cachedSignatureParent[i].meanDir.x, m_cachedSignatureParent[i].meanDir.y, m_cachedSignatureParent[i].meanDir.z);
+    ImGui::Text("VMF kappa of child / parent: %.2f / %.2f, sigma: %.2e / %.2e",
+        m_cachedSignatureChild[i].kappa, m_cachedSignatureParent[i].kappa,
+        m_cachedSignatureChild[i].sigmaDir, m_cachedSignatureParent[i].sigmaDir);
 }
 
 void SignatureView::DrawLR() {
@@ -496,7 +504,7 @@ void SignatureView::DrawLR() {
     int numSignatures = m_cachedSignatureParent.size();
     float plotVSize = ImGui::GetContentRegionAvail().y;
     ImVec2 padding = ImGui::GetStyle().CellPadding;
-    plotVSize = (plotVSize - padding.y * 2 * numSignatures - 2.5 * ImGui::GetFrameHeightWithSpacing()) / numSignatures;
+    plotVSize = (plotVSize - padding.y * 2 * numSignatures - 4.5 * ImGui::GetFrameHeightWithSpacing()) / numSignatures;
     
     if (ImGui::BeginTable("##PC-Table", 3, ImGuiTableFlags_BordersV | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn("Model", ImGuiTableColumnFlags_WidthFixed, 50.0f);
@@ -569,6 +577,8 @@ void SignatureView::DrawLR() {
     
     // Meta information
     int i = m_parent->SelectedModelIndex();
+    m_radianceView.directionData[0].setFromPGLData(m_cachedSignaturesLR[i].first);
+    m_radianceView.directionData[1].setFromPGLData(m_cachedSignaturesLR[i].second);
     ImGui::Text("Number of samples left / right: %s / %s",
         FormatInteger((int) m_cachedSignaturesLR[i].first.numSamples).c_str(),
         FormatInteger((int) m_cachedSignaturesLR[i].second.numSamples).c_str());
@@ -578,7 +588,7 @@ void SignatureView::DrawLR() {
             ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.2e,  T: %.3f",
                 m_cachedSignaturesLR[i].first.signature[idx], m_cachedSignaturesLR[i].first.std[idx],
                 m_cachedSignaturesLR[i].second.signature[idx], m_cachedSignaturesLR[i].second.std[idx],
-                getWelchT(m_cachedSignatureChild[i], m_cachedSignatureParent[i], idx));
+                getWelchT(m_cachedSignaturesLR[i].first, m_cachedSignaturesLR[i].second, idx));
         else
             ImGui::Text("Left / std: %.4f / %.2e, right / std: %.4f / %.2e",
                 m_cachedSignaturesLR[i].first.signature[idx], m_cachedSignaturesLR[i].first.std[idx],
@@ -591,6 +601,12 @@ void SignatureView::DrawLR() {
             ImGui::Text("Dimension: %c", dim_ch[m_splitDim]);
         }
     }
+    ImGui::Text("Mean direction of left / right: (%.2f, %.2f, %.2f) / (%.2f, %.2f, %.2f)",
+        m_cachedSignaturesLR[i].first.meanDir.x, m_cachedSignaturesLR[i].first.meanDir.y, m_cachedSignaturesLR[i].first.meanDir.z,
+        m_cachedSignaturesLR[i].second.meanDir.x, m_cachedSignaturesLR[i].second.meanDir.y, m_cachedSignaturesLR[i].second.meanDir.z);
+    ImGui::Text("VMF kappa of left / right: %.2f / %.2f, sigma: %.2e / %.2e",
+        m_cachedSignaturesLR[i].first.kappa, m_cachedSignaturesLR[i].second.kappa,
+        m_cachedSignaturesLR[i].first.sigmaDir, m_cachedSignaturesLR[i].second.sigmaDir);
 }
 
 void SignatureView::BinInteraction(int modelIndex) {

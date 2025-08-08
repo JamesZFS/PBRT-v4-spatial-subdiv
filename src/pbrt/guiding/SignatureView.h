@@ -47,8 +47,8 @@ private:
     const openpgl::cpp::Field &m_field;
     RadianceView &m_radianceView;
     std::vector<std::pair<PGLDirectionalSignature, PGLDirectionalSignature>> m_cachedSignaturesLR{1};  // sized numSignaures
-    std::vector<PGLDirectionalSignature> m_cachedSignatureParent{1};  // sized numSignaures
-    std::vector<PGLDirectionalSignature> m_cachedSignatureChild{1};  // sized numSignaures
+    std::vector<PGLDirectionalSignature> m_cachedSignatureParent{1};  // sized numSignatures
+    std::vector<PGLDirectionalSignature> m_cachedSignatureChild{1};  // sized numSignatures
     uint8_t m_splitDim = 3;
     bool m_isRight;
     PGLDirectionalSignature &m_integratedSignature;
