@@ -15,7 +15,7 @@ RadianceView::RadianceView(pbrt::Application *parent, const pbrt::Primitive &sce
     : View(parent), m_localFrame(parent->sdrLocalFrame), m_exposure(parent->sdrExposure),
       m_scene(scene), m_lights(lights),
       m_framebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/image_tonemapped.frag"),
-      m_overlayFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_bin_index.frag") {
+      m_overlayFramebuffer(m_resolution.x, m_resolution.y, PBRT_ROOT_DIR "src/pbrt/shaders/overlay_signature.frag") {
     m_stepPhi = (2.0f * M_PI) / (float) m_resolution.x;
     m_stepTheta = (M_PI) / (float) m_resolution.y;
     m_cpuBuffer.resize(m_resolution.x * m_resolution.y);
@@ -706,7 +706,31 @@ void RadianceView::UpdateFramebuffer() {
     m_framebuffer.draw();
     m_framebuffer.unbind();
 
-    if (HasSelectedBinIndex()) {
+    if (m_showMeanDirection) {
+        // Second pass: overlay with the bin index map
+        m_overlayFramebuffer.bind();
+        m_overlayFramebuffer.clear();
+
+        Shader &shader = m_overlayFramebuffer.getShader();
+        shader.bind();
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
+        shader.setUniform1i("image_tex", 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, m_basisTex[m_selectedBinIndex]);
+        shader.setUniform1ui("show_vmf", m_showDirStd ? 3 : (m_showKappa ? 2 : 1));
+        shader.setUniform3f("mean_dir1", &directionData[0].meanDir[0]);
+        shader.setUniform3f("mean_dir2", &directionData[1].meanDir[0]);
+        shader.setUniform1f("kappa1", directionData[0].kappa);
+        shader.setUniform1f("kappa2", directionData[1].kappa);
+        shader.setUniform1f("sigma1", directionData[0].sigma);
+        shader.setUniform1f("sigma2", directionData[1].sigma);
+
+        // Render!
+        m_overlayFramebuffer.draw();
+        m_overlayFramebuffer.unbind();
+        m_isUseOverlayFramebuffer = true;
+    } else if (HasSelectedBinIndex()) {
         // Second pass: overlay with the bin index map
         m_overlayFramebuffer.bind();
         m_overlayFramebuffer.clear();
@@ -720,10 +744,14 @@ void RadianceView::UpdateFramebuffer() {
         glBindTexture(GL_TEXTURE_2D, m_basisTex[m_selectedBinIndex]);
         shader.setUniform1i("basis_map", 1);
         shader.setUniform1ui("selected_bin_index", m_selectedBinIndex);
+        shader.setUniform1ui("show_vmf", 0);
 
         // Render!
         m_overlayFramebuffer.draw();
         m_overlayFramebuffer.unbind();
+        m_isUseOverlayFramebuffer = true;
+    } else {
+        m_isUseOverlayFramebuffer = false;
     }
 }
 
@@ -743,6 +771,19 @@ void RadianceView::Draw() {
     ImGui::Checkbox("PDF", &m_pdf);
     ImGui::SetItemTooltip("Normalize the radiance to the ground truth distribution.");
     ImGui::SameLine();
+    ImGui::Checkbox("DIR", &m_showMeanDirection);
+    ImGui::SetItemTooltip("Show mean direction statistics of the signature pair.");
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Kappa", &m_showKappa)) {
+        if (m_showKappa) m_showDirStd = false;
+    }
+    ImGui::SetItemTooltip("Show the concentration parameter. (VMF)");
+    ImGui::SameLine();
+    if (ImGui::Checkbox("Standard error", &m_showDirStd)) {
+        if (m_showDirStd) m_showKappa = false; // mutually exclusive
+    }
+    ImGui::SetItemTooltip("Show 99%% confidence interval of mean direction.");
+    // ImGui::SameLine();
     ImGui::SetNextItemWidth(30);
     auto oldSpp = m_spp;
     if (ImGui::DragInt("SPP", &m_spp, 0.2, 1, 1024)) {
@@ -769,7 +810,7 @@ void RadianceView::Draw() {
     ImVec2 current = ImGui::GetCursorScreenPos();
     ImGui::SetCursorScreenPos({current.x + offset.x, current.y + offset.y});
     auto leftTop = ImGui::GetCursorScreenPos();
-    GLuint tex = HasSelectedBinIndex() ? m_overlayFramebuffer.getTexture() : m_framebuffer.getTexture();
+    GLuint tex = m_isUseOverlayFramebuffer ? m_overlayFramebuffer.getTexture() : m_framebuffer.getTexture();
     ImGui::Image((ImTextureID) (uintptr_t) tex, size);
 
     // Hovering: show value at the pixel

@@ -49,6 +49,18 @@ public:
 
     PGLDirectionalSignature integratedSignature{};  // integrated signature vector with the radiance map
 
+    struct DirectionData {
+        pgl_vec3f meanDir{0, 0, 0};
+        float kappa = 0;
+        float sigma = 0;
+
+        void setFromPGLData(const PGLDirectionalSignature &s) {
+            meanDir = s.meanDir;
+            kappa = s.kappa;
+            sigma = s.sigmaDir;
+        }
+    } directionData[2], directionIntegrated;
+
     pbrt::Image GetImage() const;
 
 private:
@@ -85,6 +97,10 @@ private:
 
     bool m_pdf = false;
     bool &m_localFrame;
+    bool m_showMeanDirection = false;
+    bool m_showKappa = false;
+    bool m_showDirStd = false;
+    bool m_isUseOverlayFramebuffer = false;
     float &m_exposure;
     float m_rayEps = 1e-3f;
     int m_maxDepth;
