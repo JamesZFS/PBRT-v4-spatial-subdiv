@@ -59,7 +59,7 @@ public:
             kappa = s.kappa;
             sigma = s.sigmaDir;
         }
-    } directionData[2], directionIntegrated;
+    } directionData[2];
 
     pbrt::Image GetImage() const;
 
@@ -100,6 +100,7 @@ private:
     bool m_showMeanDirection = false;
     bool m_showKappa = false;
     bool m_showDirStd = false;
+    bool m_showIntegrated = false;
     bool m_isUseOverlayFramebuffer = false;
     float &m_exposure;
     float m_rayEps = 1e-3f;
