@@ -483,7 +483,6 @@ void RadianceView::RenderStep() {
     CHECK_LT(m_numSamples, m_spp);
     Bounds2i pixelBounds = m_camera->GetFilm().PixelBounds();
     double normalizer = 0;
-    PGLDirectionalSignature signature{};
     std::mutex mutex;
     ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
         // Render image tile given by _tileBounds_
@@ -501,13 +500,10 @@ void RadianceView::RenderStep() {
         {
             std::lock_guard lock(mutex);
             normalizer += thread_normalizer;
-            for (size_t i = 0; i < PGL_SIGNATURE_MAX_SIZE; i++) {
-                signature.signature[i] += thread_signature.signature[i];
-            }
         }
     });
     m_normalizer = normalizer;
-    integratedSignature = signature;
+    UpdateBasisBuffer();
     m_numSamples++;
     m_cpuBufferUpdated = true;
 }
@@ -528,7 +524,6 @@ void RadianceView::UpdateIntegratedSignature() {
     std::mutex mutex;
     auto frame = Frame::FromZ(m_prev.normal);
     ParallelFor2D(pixelBounds, [&](Bounds2i tileBounds) {
-        thread_normalizer = 0;
         thread_signature = {};
         for (Point2i p : tileBounds) {
             // Integrate over the tile
@@ -547,10 +542,14 @@ void RadianceView::UpdateIntegratedSignature() {
                 if (m_localFrame) cosTheta = Clamp(cosineTerm, -1, 1);
                 else cosTheta = d.z;
                 float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
-                thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
                 for (uint8_t j = 0; j < PGL_SIGNATURE_MAX_SIZE; ++j) {
                     thread_signature.signature[j] += val * sinTheta * m_stepPhi * m_stepTheta * m_basisBuffer[j][index] * (m_parent->GetSubdivCfg().multiplyCosine ? cosineTerm : 1.0f);
                 }
+                float w = val * sinTheta * m_stepPhi * m_stepTheta;
+                thread_signature.meanDir[0] += d[0] * w;
+                thread_signature.meanDir[1] += d[1] * w;
+                thread_signature.meanDir[2] += d[2] * w;
+                thread_signature.kappa += w;  // used as total weights
             }
         }
         {
@@ -559,9 +558,22 @@ void RadianceView::UpdateIntegratedSignature() {
             for (size_t i = 0; i < PGL_SIGNATURE_MAX_SIZE; i++) {
                 signature.signature[i] += thread_signature.signature[i];
             }
+            signature.meanDir[0] += thread_signature.meanDir[0];
+            signature.meanDir[1] += thread_signature.meanDir[1];
+            signature.meanDir[2] += thread_signature.meanDir[2];
+            signature.kappa += thread_signature.kappa;
         }
     });
     integratedSignature = signature;
+    // Compute the direction statistics
+    Vector3f d_bar{signature.meanDir[0] / signature.kappa, signature.meanDir[1] / signature.kappa, signature.meanDir[2] / signature.kappa};
+    float R = Length(d_bar);
+    auto mu = d_bar / R;
+    integratedSignature.meanDir[0] = mu[0];
+    integratedSignature.meanDir[1] = mu[1];
+    integratedSignature.meanDir[2] = mu[2];
+    integratedSignature.kappa = R * (3 - R*R) / (1 - R*R);
+    integratedSignature.sigmaDir = 0;  // invalid
 }
 
 void RadianceView::SetResolution(const pbrt::Point2i &resolution) {
@@ -668,9 +680,6 @@ void RadianceView::EvaluatePixelSample(pbrt::Point2i pPixel, int sampleIndex, pb
             else cosTheta = d.z;
             float sinTheta = std::sqrt(1 - cosTheta * cosTheta);
             thread_normalizer += val * sinTheta * m_stepPhi * m_stepTheta;
-            for (uint8_t j = 0; j < PGL_SIGNATURE_MAX_SIZE; ++j) {
-                thread_signature.signature[j] += val * sinTheta * m_stepPhi * m_stepTheta * m_basisBuffer[j][index] * (m_parent->GetSubdivCfg().multiplyCosine ? cosineTerm : 1.0f);
-            }
         }
     }
 }
@@ -719,12 +728,21 @@ void RadianceView::UpdateFramebuffer() {
         glActiveTexture(GL_TEXTURE1);
         glBindTexture(GL_TEXTURE_2D, m_basisTex[m_selectedBinIndex]);
         shader.setUniform1ui("show_vmf", m_showDirStd ? 3 : (m_showKappa ? 2 : 1));
-        shader.setUniform3f("mean_dir1", &directionData[0].meanDir[0]);
-        shader.setUniform3f("mean_dir2", &directionData[1].meanDir[0]);
-        shader.setUniform1f("kappa1", directionData[0].kappa);
-        shader.setUniform1f("kappa2", directionData[1].kappa);
-        shader.setUniform1f("sigma1", directionData[0].sigma);
-        shader.setUniform1f("sigma2", directionData[1].sigma);
+        if (m_showIntegrated) {
+            shader.setUniform3f("mean_dir1", &integratedSignature.meanDir[0]);
+            shader.setUniform3f("mean_dir2", &integratedSignature.meanDir[0]);
+            shader.setUniform1f("kappa1", integratedSignature.kappa);
+            shader.setUniform1f("kappa2", integratedSignature.kappa);
+            shader.setUniform1f("sigma1", integratedSignature.sigmaDir);
+            shader.setUniform1f("sigma2", integratedSignature.sigmaDir);
+        } else {
+            shader.setUniform3f("mean_dir1", &directionData[0].meanDir[0]);
+            shader.setUniform3f("mean_dir2", &directionData[1].meanDir[0]);
+            shader.setUniform1f("kappa1", directionData[0].kappa);
+            shader.setUniform1f("kappa2", directionData[1].kappa);
+            shader.setUniform1f("sigma1", directionData[0].sigma);
+            shader.setUniform1f("sigma2", directionData[1].sigma);
+        }
 
         // Render!
         m_overlayFramebuffer.draw();
@@ -779,10 +797,16 @@ void RadianceView::Draw() {
     }
     ImGui::SetItemTooltip("Show the concentration parameter. (VMF)");
     ImGui::SameLine();
-    if (ImGui::Checkbox("Standard error", &m_showDirStd)) {
+    if (ImGui::Checkbox("Confidence", &m_showDirStd)) {
         if (m_showDirStd) m_showKappa = false; // mutually exclusive
     }
     ImGui::SetItemTooltip("Show 99%% confidence interval of mean direction.");
+    ImGui::SameLine();
+    if (IsKeyPressed(ImGuiKey_I, false)) {
+        m_showIntegrated ^= true;
+    }
+    ImGui::Checkbox("Integrated", &m_showIntegrated);
+    ImGui::SetItemTooltip("Show integrated mean direction. (I)");
     // ImGui::SameLine();
     ImGui::SetNextItemWidth(30);
     auto oldSpp = m_spp;
