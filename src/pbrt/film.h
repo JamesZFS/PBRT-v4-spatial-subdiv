@@ -159,6 +159,7 @@ class VisibleSurface {
     SampledSpectrum albedo;
     bool set = false;
     float pixelFluence = 0.0f;
+    Vector3f firstOmegaI{0, 0, 0};
 
     // Guiding
     // PGLRegionStatistics guidingData;
@@ -494,6 +495,7 @@ class GuidedGBufferFilm : public FilmBase {
         double weightSum = 0.;
         double gBufferWeightSum = 0.;
         double pixelFluenceSum = 0.;
+        Vector3f firstDirSum {0, 0, 0};
         AtomicDouble rgbSplat[3];
         // PGLRegionStatistics guidingData;
         VisibleSurface::GuidingData guidingData;
