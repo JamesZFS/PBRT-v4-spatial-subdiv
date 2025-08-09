@@ -350,6 +350,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     SampledSpectrum L(0.f), beta(1.f);
     SampledSpectrum bsdfWeight(1.f);
     SampledSpectrum Phi(0.f), betaPhi(1.f);  // for fluence estimator
+    Vector3f firstOmegaI(0, 0, 0);
     int depth = 0;
 
     GuidedBSDF gbsdf(&sampler, guiding_field, surfaceSamplingDistribution, guideSettings.enableGuiding, guideSettings.surfaceGuidingType);
@@ -536,6 +537,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         beta *= bsdfWeight;
         if (shouldCreateVisbleSurf) {
             betaPhi = SampledSpectrum(1.f / bs->pdf);  // * the fluence estimator's weight is initialized differently from Li
+            firstOmegaI = bs->wi;
         } else {
             betaPhi *= bsdfWeight;
         }
@@ -607,6 +609,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     }
     if (visibleSurf) {
         visibleSurf->pixelFluence = Luminance(Phi.ToRGB(lambda, *colorSpace));
+        visibleSurf->firstOmegaI = firstOmegaI;
     }
     return L;
 }
