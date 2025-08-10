@@ -56,13 +56,13 @@ void main()
 			if (b > 0)
 				color = mix(color, (c1 * blend1 + c2 * blend2) / (blend1 + blend2), b);
 		} else if (show_vmf == 3) {
-			// Show 99% confidence interval
+			// Show 99.99% confidence interval
 			float blend1 = 0;
 			float blend2 = 0;
-			if (dot1 > sqrt(1 + log(0.01) * sigma1*sigma1)) {
+			if (dot1 > sqrt(1 + log(0.001) * sigma1*sigma1)) {
 				blend1 = 0.5;
 			}
-			if (dot2 > sqrt(1 + log(0.01) * sigma2*sigma2)) {
+			if (dot2 > sqrt(1 + log(0.001) * sigma2*sigma2)) {
 				blend2 = 0.5;
 			}
 			float b = max(blend1, blend2);

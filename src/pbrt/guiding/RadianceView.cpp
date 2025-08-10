@@ -800,7 +800,7 @@ void RadianceView::Draw() {
     if (ImGui::Checkbox("Confidence", &m_showDirStd)) {
         if (m_showDirStd) m_showKappa = false; // mutually exclusive
     }
-    ImGui::SetItemTooltip("Show 99%% confidence interval of mean direction.");
+    ImGui::SetItemTooltip("Show 99.9%% confidence interval of mean direction.");
     ImGui::SameLine();
     if (IsKeyPressed(ImGuiKey_I, false)) {
         m_showIntegrated ^= true;

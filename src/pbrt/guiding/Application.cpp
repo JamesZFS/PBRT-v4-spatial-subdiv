@@ -1641,6 +1641,9 @@ void Application::SpatialSubdivisionSettings() {
                 fpProba = std::clamp(fpProba, 0.0f, 1.0f);
                 // m_subdivCfg.sufficientCriterionThreshold = InversePhi(1 - fpProba);
                 m_subdivCfg.sufficientCriterionThreshold = 1 - fpProba;
+                float angle = Degrees(m_subdivCfg.angularDistanceThreshold);
+                _(), ImGui::SliderFloat("Angular Distance Threshold", &angle, 0, 180, "%.2f", ImGuiSliderFlags_Logarithmic);
+                m_subdivCfg.angularDistanceThreshold = Radians(angle);
                 _(), ImGui::InputInt("Simulation Samples", &m_subdivCfg.numSimulationSamples, 1000, 10000);
                 break;
             }
