@@ -171,6 +171,7 @@ class VisibleSurface {
         uint32_t depth = 0;
         float fluence = 0;
         float energy = 0;
+        float angularDistance = 0;
         float risk = 0;
         float tValue = 0;
 
@@ -182,6 +183,7 @@ class VisibleSurface {
             depth = other.depth;
             fluence = other.fluence;
             energy = other.energy;
+            angularDistance = other.angularDistance;
             risk = other.risk;
             tValue = other.tValue;
             return *this;

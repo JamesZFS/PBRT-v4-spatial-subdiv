@@ -48,6 +48,7 @@ public:
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
     bool IsShowingTValue() const { return m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST; }
+    bool IsShowingAngularDistance() const { return m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_SIMULATION; }
     double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
     float GetEnergyThreshold() const { return m_subdivCfg.signatureDistanceThreshold; }
     float GetRiskTolerance() const { return m_subdivCfg.riskTolerance; }
