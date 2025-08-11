@@ -9,11 +9,9 @@ using namespace pbrt;
 
 ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference)
     : View(parent), film(film), reference(reference) {
-    for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Energy, Channel_Reference, Channel_Error}) {
+    for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Reference, Channel_Error}) {
         shaderData[c].firstNormalized = true;
     }
-    shaderData[Channel_Energy].firstNormalized = true;
-    shaderData[Channel_Energy].scale = 0.9f / m_parent->GetEnergyThreshold();  // Such that the threshold is at 0.9
     for (auto c: {Channel_Energy, Channel_Fluence, Channel_Risk, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
         shaderData[c].cmap = CMap_Viridis;
     }
@@ -129,6 +127,7 @@ void ColormapPanel::Draw() {
 std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) const {
     float minVal = std::numeric_limits<float>::infinity(), maxVal = -std::numeric_limits<float>::infinity();
     bool showTValue = m_parent->IsShowingTValue();
+    bool showAngular = m_parent->IsShowingAngularDistance();
     if (film.Is<GuidedGBufferFilm>()) {
         ImageChannelDesc desc;
         if (c == Channel_Reference || c == Channel_Error) {
@@ -152,7 +151,7 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) cons
                         val = pixel.guidingData.fluence;
                         break;
                     case Channel_Risk:
-                        val = showTValue ? pixel.guidingData.tValue : pixel.guidingData.risk;
+                        val = showTValue ? pixel.guidingData.tValue : showAngular ? pixel.guidingData.angularDistance : pixel.guidingData.risk;
                         break;
                     case Channel_Samples:
                         val = (float) pixel.guidingData.numSamples;

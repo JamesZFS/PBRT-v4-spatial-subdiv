@@ -496,11 +496,13 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 if (fine.id != -1) {
                     visibleSurf->guidingData.fluence = fine.fluence;
                     visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
+                    visibleSurf->guidingData.angularDistance = Degrees(fine.angularDistance);
                     visibleSurf->guidingData.risk = fine.risk;  // max risk along the path
                     visibleSurf->guidingData.tValue = fine.tValue;
                 } else {
                     visibleSurf->guidingData.fluence = coarse.fluence;
                     visibleSurf->guidingData.energy = coarse.energy;
+                    visibleSurf->guidingData.angularDistance = Degrees(coarse.angularDistance);
                     visibleSurf->guidingData.risk = coarse.risk;
                     visibleSurf->guidingData.tValue = coarse.tValue;
                 }

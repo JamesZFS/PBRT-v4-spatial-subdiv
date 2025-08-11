@@ -23,7 +23,7 @@ static std::vector<const char *> channelNames = {
     "Cache ID (2)",
     "Fluence/Irradiance (3)",
     "Energy (4)",
-    "Risk/TValue (5)",
+    "Risk/Angular (5)",
     "Samples (6)",
     // "Zero Samples (6)",
     "Depth (7)",
