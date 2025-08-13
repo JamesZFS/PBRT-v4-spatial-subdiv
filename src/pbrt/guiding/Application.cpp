@@ -772,6 +772,8 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Risk: %f", stats.risk);
         if (IsShowingTValue())
             ImGui::Text("TValue: %f", fine.tValue);
+        if (IsShowingAngularDistance())
+            ImGui::Text("Angular Distance: %f Deg", Degrees(fine.angularDistance));
         ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
         ImGui::Text("DBOR mean: %.2e, std: %.2e", stats.dborMean, stats.dborStd);
@@ -1644,6 +1646,7 @@ void Application::SpatialSubdivisionSettings() {
                 float angle = Degrees(m_subdivCfg.angularDistanceThreshold);
                 _(), ImGui::SliderFloat("Angular Distance Threshold", &angle, 0, 180, "%.2f", ImGuiSliderFlags_Logarithmic);
                 m_subdivCfg.angularDistanceThreshold = Radians(angle);
+                _(), ImGui::SliderFloat("Angular Alpha", &m_subdivCfg.angularAlpha, 0, 1, "%.2e", ImGuiSliderFlags_Logarithmic);
                 _(), ImGui::InputInt("Simulation Samples", &m_subdivCfg.numSimulationSamples, 1000, 10000);
                 break;
             }
