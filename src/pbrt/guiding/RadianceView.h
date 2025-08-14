@@ -95,7 +95,7 @@ private:
     } m_prev;
     pbrt::Frame m_frame;
 
-    bool m_pdf = false;
+    bool m_pdf = true;
     bool &m_localFrame;
     bool m_showMeanDirection = false;
     bool m_showKappa = false;
