@@ -1483,6 +1483,7 @@ void Application::GuideSettings() {
     if (ImGui::CollapsingHeader("Guide Settings")) {
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
+        ImGui::Checkbox("Improved KNN Lookup", &m_subdivCfg.improvedKNN);
         ImGui::Checkbox("Enable Training", &m_guideSettings.enableTraining);
         ImGui::Checkbox("Evaluate Only", &m_guideSettings.evaluateOnly);
         ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
