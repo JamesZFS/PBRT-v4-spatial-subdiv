@@ -1032,7 +1032,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                               (float) pixel.guidingData.numSamples, (float) pixel.guidingData.numZeroValueSamples, (float) pixel.guidingData.depth,
                               pixel.guidingData.fluence, pixelFluence, firstDir.x, firstDir.y, firstDir.z,
-                              pixel.guidingData.energy, pixel.guidingData.angularDistance, pixel.guidingData.risk, pixel.guidingData.tValue,
+                              pixel.guidingData.energy, pixel.guidingData.angularEnergy, pixel.guidingData.risk, pixel.guidingData.tValue,
                                 fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
 
         //Normal3f n =

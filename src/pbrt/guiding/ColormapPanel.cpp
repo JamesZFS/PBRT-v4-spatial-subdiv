@@ -151,7 +151,7 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) cons
                         val = pixel.guidingData.fluence;
                         break;
                     case Channel_Risk:
-                        val = showTValue ? pixel.guidingData.tValue : showAngular ? pixel.guidingData.angularDistance : pixel.guidingData.risk;
+                        val = showTValue ? pixel.guidingData.tValue : showAngular ? pixel.guidingData.angularEnergy : pixel.guidingData.risk;
                         break;
                     case Channel_Samples:
                         val = (float) pixel.guidingData.numSamples;

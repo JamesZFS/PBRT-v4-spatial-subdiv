@@ -93,6 +93,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.sufficientCriterionThreshold = 1 - guideSettings.treefpsplitproba;
         guiding_fieldSubdivConfig.angularDistanceThreshold = Radians(guideSettings.treeangulardistancethreshold);
         guiding_fieldSubdivConfig.angularAlpha = guideSettings.treeangularalpha;
+        guiding_fieldSubdivConfig.numSeriesTerms = guideSettings.treenumseriesterms;
         guiding_fieldSubdivConfig.filterType = guideSettings.treefiltertype;
         guiding_fieldSubdivConfig.inlierPercent = guideSettings.treeinlierpercent;
         guiding_fieldSubdivConfig.DBORstdMultiplier = guideSettings.treedborstdmultiplier;
@@ -497,13 +498,13 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 if (fine.id != -1) {
                     visibleSurf->guidingData.fluence = fine.fluence;
                     visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
-                    visibleSurf->guidingData.angularDistance = Degrees(fine.angularDistance);
+                    visibleSurf->guidingData.angularEnergy = Degrees(fine.angularEnergy);
                     visibleSurf->guidingData.risk = fine.risk;  // max risk along the path
                     visibleSurf->guidingData.tValue = fine.tValue;
                 } else {
                     visibleSurf->guidingData.fluence = coarse.fluence;
                     visibleSurf->guidingData.energy = coarse.energy;
-                    visibleSurf->guidingData.angularDistance = Degrees(coarse.angularDistance);
+                    visibleSurf->guidingData.angularEnergy = Degrees(coarse.angularEnergy);
                     visibleSurf->guidingData.risk = coarse.risk;
                     visibleSurf->guidingData.tValue = coarse.tValue;
                 }
@@ -710,6 +711,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treefpsplitproba = parameters.GetOneFloat("treefpsplitproba", settings.treefpsplitproba);
     settings.treeangulardistancethreshold = parameters.GetOneFloat("treeangulardistancethreshold", settings.treeangulardistancethreshold);
     settings.treeangularalpha = parameters.GetOneFloat("treeangularalpha", settings.treeangularalpha);
+    settings.treenumseriesterms = parameters.GetOneInt("treenumseriesterms", settings.treenumseriesterms);
     settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
     settings.treerisktolerance = parameters.GetOneFloat("treerisktolerance", settings.treerisktolerance);
     settings.treetvaluethreshold = parameters.GetOneFloat("treetvaluethreshold", settings.treetvaluethreshold);
@@ -736,6 +738,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (confidencetype == "welch") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST;
     else if (confidencetype == "ttest_per_bin") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
     else if (confidencetype == "simulation") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_SIMULATION;
+    else if (confidencetype == "angular_series") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_SERIES;
     else throw std::runtime_error("Unknown treeconfidencetype: " + confidencetype);
 
     auto defensivetype = parameters.GetOneString("treedefensivetype", "fixed");
