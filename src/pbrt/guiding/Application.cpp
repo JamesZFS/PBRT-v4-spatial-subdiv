@@ -773,7 +773,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         if (IsShowingTValue())
             ImGui::Text("TValue: %f", fine.tValue);
         if (IsShowingAngularDistance())
-            ImGui::Text("Angular Distance: %f Deg", Degrees(fine.angularDistance));
+            ImGui::Text("Angular Distance: %f Deg", Degrees(fine.angularEnergy));
         ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
         ImGui::Text("DBOR mean: %.2e, std: %.2e", stats.dborMean, stats.dborStd);
@@ -1627,9 +1627,9 @@ void Application::SpatialSubdivisionSettings() {
 
         ImGui::Separator();
 
-        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0Simulation\0");
+        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0Simulation+EffectiveAngle\0Simulation+SeriesAngle\0");
         _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
-        if (m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_SIMULATION)
+        if (m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_SIMULATION && m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_SERIES)
             _(), ImGui::InputFloat("Std Multiplier", &m_subdivCfg.stdMultiplier);
         switch (m_subdivCfg.confidenceType) {
             case PGL_SPATIAL_CONFIDENCE_RISK:
@@ -1638,7 +1638,8 @@ void Application::SpatialSubdivisionSettings() {
             case PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN:
                 _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold);
                 _(), ImGui::InputFloat("T Eps K", &m_subdivCfg.tEpsK, 0, 0, "%.2e"); break;
-            case PGL_SPATIAL_CONFIDENCE_SIMULATION: {
+            case PGL_SPATIAL_CONFIDENCE_SIMULATION:
+            case PGL_SPATIAL_CONFIDENCE_SERIES: {
                 float fpProba = 1 - m_subdivCfg.sufficientCriterionThreshold;
                 _(), ImGui::InputFloat("FP Split Probability", &fpProba);
                 fpProba = std::clamp(fpProba, 0.0f, 1.0f);
@@ -1652,6 +1653,9 @@ void Application::SpatialSubdivisionSettings() {
                 break;
             }
             default: break;
+        }
+        if (m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_SERIES) {
+            _(), ImGui::InputInt("Series Terms", &m_subdivCfg.numSeriesTerms, 10, 20);
         }
         _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");
         switch (m_subdivCfg.filterType) {
