@@ -291,6 +291,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool treenonrecursive {false};
         bool treesinglepromotion {false};
         bool treeoptimizesignature {false};
+        PGL_SPATIAL_KNN_TYPE treeknntype {PGL_SPATIAL_KNN_UNIFORM};
         PGL_SPATIAL_SPLIT_TYPE treesplittype {PGL_SPATIAL_SPLIT_BASELINE};
         PGL_SPATIAL_CONFIDENCE_TYPE treeconfidencetype {PGL_SPATIAL_CONFIDENCE_NONE};
         PGL_SPATIAL_DEFENSIVE_TYPE treedefensivetype {PGL_SPATIAL_DEFENSIVE_FIXED};

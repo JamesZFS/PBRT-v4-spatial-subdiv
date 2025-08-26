@@ -42,6 +42,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <pbrt/base/sampler.h>
 
 #include <pbrt/guiding/guiding.h>
 #include <pbrt/guiding/Application.h>
@@ -105,6 +106,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.nonRecursive = guideSettings.treenonrecursive;
         guiding_fieldSubdivConfig.singlePromotion = guideSettings.treesinglepromotion;
         guiding_fieldSubdivConfig.optimizeSignature = guideSettings.treeoptimizesignature;
+        guiding_fieldSubdivConfig.knnType = guideSettings.treeknntype;
         guiding_fieldSubdivConfig.splitType = guideSettings.treesplittype;
         guiding_fieldSubdivConfig.confidenceType = guideSettings.treeconfidencetype;
         guiding_fieldSubdivConfig.signatureEnsembleConfig = guideSettings.signatureEnsembleConfig;
@@ -473,7 +475,13 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         ++totalBSDFs;
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
-        Float v = guideSettings.knnLookup ? sampler.Get1D(): -1.0f;
+        Float v[3];
+        if (guideSettings.knnLookup) {
+            v[0] = sampler.Get1D();
+            v[1] = sampler.Get1D();
+            v[2] = sampler.Get1D();
+        }
+        else v[0] = -1;
         bool cacheInitialized = gbsdf.init(&bsdf, ray, si, v);
         adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);
 
@@ -725,6 +733,13 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treenonrecursive = parameters.GetOneBool("treenonrecursive", settings.treenonrecursive);
     settings.treesinglepromotion = parameters.GetOneBool("treesinglepromotion", settings.treesinglepromotion);
     settings.treeoptimizesignature = parameters.GetOneBool("treeoptimizesignature", settings.treeoptimizesignature);
+
+    auto knntype = parameters.GetOneString("treeknntype", "uniform");
+    if (knntype == "uniform") settings.treeknntype = PGL_SPATIAL_KNN_UNIFORM;
+    else if (knntype == "region_size_weighted") settings.treeknntype = PGL_SPATIAL_KNN_REGION_SIZE_WEIGHTED;
+    else if (knntype == "jitter") settings.treeknntype = PGL_SPATIAL_KNN_JITTER;
+    else throw std::runtime_error("Unknown treeknntype: " + knntype);
+
     auto splittype = parameters.GetOneString("treesplittype", "baseline");
     if (splittype == "baseline") settings.treesplittype = PGL_SPATIAL_SPLIT_BASELINE;
     else if (splittype == "vs") settings.treesplittype = PGL_SPATIAL_SPLIT_VS;
@@ -1309,7 +1324,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         }
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
-        Float v = sampler.Get1D();
+        Float v[3] = {sampler.Get1D(), sampler.Get1D(), sampler.Get1D()};
         gbsdf.init(&bsdf, ray, si, v);
         if(guideRR && guideSurfaceRR) {
             adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);

@@ -1476,18 +1476,17 @@ void Application::IntegratorSettings() {
 }
 
 void Application::GuideSettings() {
-    static const std::vector guidingTypes = {"MIS", "RIS"};
     ImGui::PushID("Guide Panel");
     // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);
     if (ImGui::CollapsingHeader("Guide Settings")) {
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
-        ImGui::Checkbox("Improved KNN Lookup", &m_subdivCfg.improvedKNN);
+        ImGui::Combo("KNN Type", reinterpret_cast<int *>(&m_subdivCfg.knnType), "Uniform\0Region-size-weighted\0Jitter\0");
         ImGui::Checkbox("Enable Training", &m_guideSettings.enableTraining);
         ImGui::Checkbox("Evaluate Only", &m_guideSettings.evaluateOnly);
         ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
-        ImGui::Combo("Guiding Type", reinterpret_cast<int *>(&m_guideSettings.surfaceGuidingType), guidingTypes.data(), guidingTypes.size());
+        ImGui::Combo("Guiding Type", reinterpret_cast<int *>(&m_guideSettings.surfaceGuidingType), "MIS\0RIS\0");
     }
     ImGui::EndDisabled();
     ImGui::PopID();
