@@ -173,7 +173,7 @@ private:
     ImVec2 m_windowSize{1500, 800};
     bool m_hasSetupLayout = false;
     bool m_hasOpenedChangeResolutionPopup = false;
-    LayoutType m_layout = Layout_ProbeViews;
+    LayoutType m_layout = Layout_Default;
     RayCastingData m_rcMouse;  // ray casting result at current mouse position
     RayCastingData m_rcSDRE;  // ray casting result at the sampling distribution / radiance view
     std::vector<RayCastingData> m_rcSDREHistory;

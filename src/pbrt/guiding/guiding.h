@@ -81,7 +81,7 @@ struct GuidedBSDF{
         m_guidingType = guidingType;
     }
 
-    bool init(const BSDF* bsdf, const RayDifferential& ray, pstd::optional<pbrt::ShapeIntersection> si, float &rand){
+    bool init(const BSDF* bsdf, const RayDifferential& ray, pstd::optional<pbrt::ShapeIntersection> si, float *rand){
         m_bsdf = bsdf;
         const Point3f p = ray.o + si->tHit * ray.d;
         pgl_point3f pglP = openpgl::cpp::Point3(p[0], p[1], p[2]);

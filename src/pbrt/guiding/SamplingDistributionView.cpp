@@ -191,10 +191,7 @@ void SamplingDistributionView::UpdateCPUBuffer() {
     pgl_point3f pglP = {pos.x, pos.y, pos.z};
     float rnd = -1;
     bool success = false;
-    if (m_prev.lookahead)
-        success = m_ssd.Init<true>(&m_field, pglP, rnd);
-    else
-        success = m_ssd.Init<false>(&m_field, pglP, rnd);
+    success = m_ssd.Init(&m_field, pglP, &rnd);
     if (success) {
         if (m_enableCosineProduct) {
             pgl_vec3f pglN = {normal.x, normal.y, normal.z};
