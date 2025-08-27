@@ -172,8 +172,6 @@ class VisibleSurface {
         float fluence = 0;
         float energy = 0;
         float angularEnergy = 0;
-        float risk = 0;
-        float tValue = 0;
 
         GuidingData &operator=(const GuidingData &other) {
             if (other.id != -1) id = other.id;
@@ -184,8 +182,6 @@ class VisibleSurface {
             fluence = other.fluence;
             energy = other.energy;
             angularEnergy = other.angularEnergy;
-            risk = other.risk;
-            tValue = other.tValue;
             return *this;
         }
     } guidingData;

@@ -21,9 +21,9 @@
 static std::vector<const char *> channelNames = {
     "Radiance (1)",
     "Cache ID (2)",
-    "Fluence/Irradiance (3)",
+    "Fluence (3)",
     "Energy (4)",
-    "Risk/Angular (5)",
+    "Angular (5)",
     "Samples (6)",
     // "Zero Samples (6)",
     "Depth (7)",
@@ -680,7 +680,7 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
 void Application::UpdateFramebuffer() {
     // Update the framebuffer when the film is updated
     SelectedChannel c = m_selectedChannel;
-    auto &sd = (c == Channel_Risk && IsShowingTValue()) ? m_colormapPanel->shaderDataTValue : m_colormapPanel->shaderData[c];
+    auto &sd = m_colormapPanel->shaderData[c];
     float clipValue = std::numeric_limits<float>::infinity();
     if (m_colormapPanel->isHovered) {
         clipValue = m_colormapPanel->hoveringValue;
@@ -760,23 +760,16 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Cache: <invalid>");
         return;
     }
-    CHECK(!coarse.removed);
-    CHECK(!fineIsValid || !fine.removed);
     if (fineIsValid)
         ImGui::Text("Cache ID Parent/Child: %u/%u", coarse.id, fine.id);
     else
         ImGui::Text("Cache ID: %u", coarse.id);
     auto f = [&](const PGLRegionStatistics &stats) {
         ImGui::Text("Fluence: %f", stats.fluence);
-        ImGui::Text("Energy: %f", fine.energy);
-        ImGui::Text("Risk: %f", stats.risk);
-        if (IsShowingTValue())
-            ImGui::Text("TValue: %f", fine.tValue);
-        if (IsShowingAngularDistance())
-            ImGui::Text("Angular Distance: %f Deg", Degrees(fine.angularEnergy));
+        ImGui::Text("Fluence Energy: %f", fine.energy);
+        ImGui::Text("Angular Energy: %f", fine.angularEnergy);
         ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
-        ImGui::Text("DBOR mean: %.2e, std: %.2e", stats.dborMean, stats.dborStd);
         if (stats.splitDim < 3) {
             static const char dim_ch[] = {'x', 'y', 'z'};
             ImGui::Text("Candidate Split Dim: %c", dim_ch[stats.splitDim]);
@@ -806,20 +799,6 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             rc.hit.x, rc.hit.y, rc.hit.z,
             rc.normal.x, rc.normal.y, rc.normal.z,
             rc.uv.x, rc.uv.y);
-        auto printDS = [this](const PGLDirectionalSignature &ds) -> std::string {
-            std::string s = StringPrintf("(%.4f", ds.signature[0]);
-            for (int j = 1; j < (int) PGL_SIGNATURE_MAX_SIZE; ++j)
-                s += StringPrintf(", %.4f", ds.signature[j]);
-            s += ")";
-            return s;
-        };
-        auto printDSV = [this](const PGLDirectionalSignature &ds) -> std::string {
-            std::string s = StringPrintf("(%.2e", ds.std[0]);
-            for (int j = 1; j < (int) PGL_SIGNATURE_MAX_SIZE; ++j)
-                s += StringPrintf(", %.2e", ds.std[j]);
-            s += ")";
-            return s;
-        };
         auto printCache = [&](const PGLRegionStatistics &s) -> std::string {
             if (s.id == -1) return "  <invalid>\n";
             std::lock_guard lock(m_mtx.field);
@@ -832,7 +811,7 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
                 "  Fluence: %f\n"
                 "  Risk:    %f\n"
                 "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, s.risk,
+                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, std::numeric_limits<float>::quiet_NaN(),
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
                 s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
         };
@@ -843,11 +822,11 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
         pgl_point3f pglP{rc.hit.x, rc.hit.y, rc.hit.z};
         uint8_t splitDim;
         bool isRight;
-        auto signatures = m_field.GetDirectionalSignatures(pglP, 1, m_selectedModelIndex, splitDim, isRight);  // TODO: support multiple models
+        auto signatures = m_field.GetDirectionalSignatures(pglP, 1, splitDim, isRight);
         auto ds = isRight ? signatures.second : signatures.first;
         m_rcHistory += "Directional Signature:\n"
-            "  Mean: " + printDS(ds) + "\n"
-            "  Std:  " + printDSV(ds) + "\n";
+            "  Mean: " + StringPrintf("%.4f", ds.signature) + "\n"
+            "  Std:  " + StringPrintf("%.4f", ds.std) + "\n";
     } else {
         m_rcHistory += "<no intersection>\n";
     }
@@ -983,8 +962,8 @@ void Application::CacheProbesInteraction() {
                         coarseValid ? (float) rc.coarse.depth : nan,
                         coarseValid ? (float) rc.coarse.numSamples : nan,
                         fineValid ? rc.fine.fluence : (coarseValid ? rc.coarse.fluence : nan),
-                        fineValid ? rc.fine.risk : (coarseValid ? rc.coarse.risk : nan),
-                        fineValid ? rc.fine.tValue : (coarseValid ? rc.coarse.tValue : nan),
+                        nan,
+                        nan,
                         fineValid ? rc.fine.energy : (coarseValid ? rc.coarse.energy : nan),
                     });
                 }
@@ -1060,8 +1039,8 @@ void Application::UpdateCacheCurves() {
                 coarseValid ? (float) rc.coarse.depth : nan,
                 coarseValid ? (float) rc.coarse.numSamples : nan,
                 fineValid ? rc.fine.fluence : (coarseValid ? rc.coarse.fluence : nan),
-                fineValid ? rc.fine.risk : (coarseValid ? rc.coarse.risk : nan),
-                fineValid ? rc.fine.tValue : (coarseValid ? rc.coarse.tValue : nan),
+                nan,
+                nan,
                 fineValid ? rc.fine.energy : (coarseValid ? rc.coarse.energy : nan),
             });
         }
@@ -1079,9 +1058,8 @@ void Application::UpdateCacheHistograms() {
         data.samples.clear();
         for (size_t i = 0; i < numRegions; ++i) {
             auto cache = m_field.GetRegionStatisticsSurface(i);
-            if (cache.removed) continue;
             data.fluence.push_back(cache.fluence);
-            data.risk.push_back(cache.risk);
+            data.risk.push_back(std::numeric_limits<float>::quiet_NaN());
             data.energy.push_back(cache.energy);
             data.depth.push_back(cache.depth);
             data.samples.push_back(cache.numSamples);
@@ -1503,173 +1481,37 @@ void Application::SpatialSubdivisionSettings() {
         int maxDepth = (int) m_subdivCfg.maxDepth;
         int initializingIters = (int) m_subdivCfg.initializingIters;
         int sampleCountThreshold = (int) m_subdivCfg.sampleCountThreshold;
-        int forcedSampleCountThreshold = m_subdivCfg.forcedSampleCountThreshold == std::numeric_limits<uint32_t>::max() ? -1 : (int) m_subdivCfg.forcedSampleCountThreshold;
         int minSamplesCandidateSplit = (int) m_subdivCfg.minSamplesCandidateSplit;
         int minSamplesPromotion = (int) m_subdivCfg.minSamplesPromotion;
         _(), ImGui::InputInt("Max Depth", &maxDepth, 1, 10);
         _(), ImGui::InputInt("Samples Count Threshold", &sampleCountThreshold, 0, 0);
-        _(), ImGui::InputInt("Defensive Samples Count", &forcedSampleCountThreshold, 0, 0);
-        _(), ImGui::Combo("Defensive Strategy", reinterpret_cast<int *>(&m_subdivCfg.defensiveType), "Fixed\0Sqrt\0PPG\0");
         _(), ImGui::InputInt("Initializing Iters", &initializingIters, 1, 10);
         _(), ImGui::InputInt("Min Samples Candidate Split", &minSamplesCandidateSplit, 0, 0);
         _(), ImGui::InputInt("Min Samples Promotion", &minSamplesPromotion, 0, 0);
         m_subdivCfg.maxDepth = std::max(1, std::min(32, maxDepth));
         m_subdivCfg.initializingIters = std::max(0, initializingIters);
         m_subdivCfg.sampleCountThreshold = std::max(0, sampleCountThreshold);
-        m_subdivCfg.forcedSampleCountThreshold = (uint32_t) std::max(-1, forcedSampleCountThreshold);
         m_subdivCfg.minSamplesCandidateSplit = std::max(0, minSamplesCandidateSplit);
         m_subdivCfg.minSamplesPromotion = std::max(0, minSamplesPromotion);
         ImGui::Checkbox("Deterministic", &m_subdivCfg.deterministic);
         ImGui::Checkbox("Enable Promotion", &m_subdivCfg.enablePromotion);
-        ImGui::Checkbox("Multiply Cosine", &m_subdivCfg.multiplyCosine);
-        ImGui::Checkbox("Reproject Samples", &m_subdivCfg.reproject);
-        ImGui::Checkbox("Non Recursive", &m_subdivCfg.nonRecursive);
-        ImGui::Checkbox("Single Promotion", &m_subdivCfg.singlePromotion);
-        ImGui::Checkbox("Optimize Signature Computation", &m_subdivCfg.optimizeSignature);
         int lookaheadDepth = (int) m_subdivCfg.lookaheadDepth;
         _(), ImGui::InputInt("Lookahead Depth", &lookaheadDepth, 1, 3);
         m_subdivCfg.lookaheadDepth = std::max(1, std::min(10, lookaheadDepth));
-        // _(), ImGui::InputFloat("CE Clamp Value", &m_subdivCfg.ceClampValue, 0, 0, "%.3e");
-        // _(), ImGui::SliderFloat("CE Decay", &m_subdivCfg.ceDecay, 0.0f, 1.0f);
-        _(), ImGui::SliderFloat("VMM Decay", &m_subdivCfg.vmmDecay, 0.0f, 1.0f);
-
-        ImGui::Separator();
-        ImGui::Text("Signature Ensemble:");
-        bool canUpdateRadianceView = m_enableRadianceView && m_radianceView->HasStarted();
-        int numSignatures = m_subdivCfg.signatureEnsembleConfig.size();
-        
-        // Button-style model selector to allow double binding
-        int newModelIndex = m_selectedModelIndex;
-        for (int i = 0; i < numSignatures; ++i) {
-            if (IsKeyPressed((ImGuiKey) (ImGuiKey_1 + i), false) && (ImGui::IsKeyDown(ImGuiKey_LeftAlt) || ImGui::IsKeyDown(ImGuiKey_RightAlt)))
-                newModelIndex = i;
-        }
-        if (ImGui::BeginTabBar("Model Index")) {
-            bool resizable = m_renderThread->GetState() == RenderThread::Initial;  // Only allow resizing models in the beginning of rendering
-            if (resizable && ImGui::TabItemButton("+", ImGuiTabItemFlags_Trailing)) {  // add a new model
-                m_subdivCfg.signatureEnsembleConfig.emplace_back();
-                newModelIndex = numSignatures++;
-                UpdateSignatureView();
-            }
-            if (resizable && numSignatures > 1 && ImGui::TabItemButton("-", ImGuiTabItemFlags_Trailing)) {  // remove a model
-                m_subdivCfg.signatureEnsembleConfig.pop_back();
-                --numSignatures;
-                newModelIndex = std::min(newModelIndex, numSignatures - 1);
-                UpdateSignatureView();
-            }
-            for (int i = 0; i < numSignatures; ++i) {
-                if (m_selectedModelIndex == i)
-                    ImGui::PushStyleColor(ImGuiCol_Tab, ImGui::GetStyleColorVec4(ImGuiCol_TabSelected));
-                if (ImGui::TabItemButton(StringPrintf("%d", i+1).c_str())) {
-                    newModelIndex = i;
-                }
-                if (m_selectedModelIndex == i)
-                    ImGui::PopStyleColor();
-            }
-
-            ImGui::EndTabBar();
-        }
-        if (newModelIndex != m_selectedModelIndex) {
-            SetSelectedModelIndex(newModelIndex);
-        }
-
-        // Settings for the selected model
-        SignatureArguments &config = m_subdivCfg.signatureEnsembleConfig[m_selectedModelIndex];
-        int basisType = config.basisType;
-        _();
-        if (ImGui::Combo("Basis Function Type", &basisType, "Nearest Neighbor\0Splat\0DON-PCG\0DON-Xi\0Latitude\0Longitude\0Checkerboard\0")) {
-            config.setType((PGL_BASIS_FUNC_TYPE) basisType);
-            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-        }
-        _();
-        int signatureSize = config.numBins;
-        if (ImGui::SliderInt("Number of Bins", &signatureSize, 1, PGL_SIGNATURE_MAX_SIZE)) {
-            config.numBins = signatureSize;
-            UpdateSignatureView();
-            if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-        }
-        if (basisType == PGL_BASIS_FUNC_NN || basisType == PGL_BASIS_FUNC_SPLAT || basisType == PGL_BASIS_FUNC_LATITUDE || basisType == PGL_BASIS_FUNC_LONGITUDE || basisType == PGL_BASIS_FUNC_CHECKERBOARD) {
-            _();
-            int resolution = config.getResolution();
-            if (ImGui::SliderInt("Resolution", &resolution, 1, 1024, "%d", ImGuiSliderFlags_Logarithmic)) {
-                config.setResolution(resolution);
-                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-            }
-            if (basisType == PGL_BASIS_FUNC_SPLAT) {
-                _();
-                float splatSigma = config.getSplatSigma();
-                if (ImGui::SliderFloat("Splat Sigma", &splatSigma, 0.05f, 5.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-                    config.setSplatSigma(splatSigma);
-                    if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-                }
-            }
-        } else if (basisType == PGL_BASIS_FUNC_DON_PCG || basisType == PGL_BASIS_FUNC_DON_XI) {  // DON
-            int octaveMin = config.getOctaveMin();
-            int octaveMax = config.getOctaveMax();
-            float octaveGamma = config.getDONGamma();
-            _();
-            if (ImGui::SliderInt("Octave Min", &octaveMin, 1, octaveMax)) {
-                config.setOctaveMin(octaveMin);
-                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-            }
-            _();
-            if (ImGui::SliderInt("Octave Max", &octaveMax, octaveMin, 10)) {
-                config.setOctaveMax(octaveMax);
-                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-            }
-            _();
-            if (ImGui::SliderFloat("Octave Gamma", &octaveGamma, 0.05f, 4.0f, "%.2f", ImGuiSliderFlags_Logarithmic)) {
-                config.setDONGamma(octaveGamma);
-                if (canUpdateRadianceView) m_radianceView->UpdateBasisBuffer();
-            }
-        }
 
         ImGui::Separator();
 
-        _(), ImGui::Combo("Confidence Type", reinterpret_cast<int *>(&m_subdivCfg.confidenceType), "None\0Risk Tolerance\0Welch's t-test\0T-test per Bin\0Simulation+EffectiveAngle\0Simulation+SeriesAngle\0");
-        _(), ImGui::InputFloat("Energy Threshold", &m_subdivCfg.signatureDistanceThreshold);
-        if (m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_SIMULATION && m_subdivCfg.confidenceType != PGL_SPATIAL_CONFIDENCE_SERIES)
-            _(), ImGui::InputFloat("Std Multiplier", &m_subdivCfg.stdMultiplier);
-        switch (m_subdivCfg.confidenceType) {
-            case PGL_SPATIAL_CONFIDENCE_RISK:
-                _(), ImGui::InputFloat("Risk Tolerance", &m_subdivCfg.riskTolerance); break;
-            case PGL_SPATIAL_CONFIDENCE_TTEST:
-            case PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN:
-                _(), ImGui::InputFloat("T Value Threshold", &m_subdivCfg.tValueThreshold);
-                _(), ImGui::InputFloat("T Eps K", &m_subdivCfg.tEpsK, 0, 0, "%.2e"); break;
-            case PGL_SPATIAL_CONFIDENCE_SIMULATION:
-            case PGL_SPATIAL_CONFIDENCE_SERIES: {
-                float fpProba = 1 - m_subdivCfg.sufficientCriterionThreshold;
-                _(), ImGui::InputFloat("FP Split Probability", &fpProba);
-                fpProba = std::clamp(fpProba, 0.0f, 1.0f);
-                // m_subdivCfg.sufficientCriterionThreshold = InversePhi(1 - fpProba);
-                m_subdivCfg.sufficientCriterionThreshold = 1 - fpProba;
-                float angle = Degrees(m_subdivCfg.angularDistanceThreshold);
-                _(), ImGui::SliderFloat("Angular Distance Threshold", &angle, 0, 180, "%.2f", ImGuiSliderFlags_Logarithmic);
-                m_subdivCfg.angularDistanceThreshold = Radians(angle);
-                _(), ImGui::SliderFloat("Angular Alpha", &m_subdivCfg.angularAlpha, 0, 1, "%.2e", ImGuiSliderFlags_Logarithmic);
-                _(), ImGui::InputInt("Simulation Samples", &m_subdivCfg.numSimulationSamples, 1000, 10000);
-                break;
-            }
-            default: break;
+        _(), ImGui::InputFloat("Fluence Distance Threshold", &m_subdivCfg.signatureDistanceThreshold);        
+        _(), ImGui::SliderFloat("Fluence Alpha", &m_subdivCfg.fluenceAlpha, 0, 1, "%.2e", ImGuiSliderFlags_Logarithmic);
+
+        _(), ImGui::Combo("Angular Type", reinterpret_cast<int *>(&m_subdivCfg.angularType), "Off\0Heuristic\0Series\0");
+        if (m_subdivCfg.angularType != PGL_SPATIAL_ANGULAR_OFF) {
+            float angle = Degrees(m_subdivCfg.angularDistanceThreshold);
+            _(), ImGui::SliderFloat("Angular Distance Threshold", &angle, 0, 180, "%.2f", ImGuiSliderFlags_Logarithmic);
+            m_subdivCfg.angularDistanceThreshold = Radians(angle);
+            _(), ImGui::SliderFloat("Angular Alpha", &m_subdivCfg.angularAlpha, 0, 1, "%.2e", ImGuiSliderFlags_Logarithmic);
         }
-        if (m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_SERIES) {
-            _(), ImGui::InputInt("Series Terms", &m_subdivCfg.numSeriesTerms, 10, 20);
-        }
-        _(), ImGui::Combo("Filter Type", reinterpret_cast<int *>(&m_subdivCfg.filterType), "None\0Percentage\0DBOR\0DBOR Accum\0");
-        switch (m_subdivCfg.filterType) {
-            case PGL_SPATIAL_FILTER_PERCENTAGE:
-                _(), ImGui::InputFloat("Inlier Percent", &m_subdivCfg.inlierPercent); break;
-            case PGL_SPATIAL_FILTER_DBOR:
-            case PGL_SPATIAL_FILTER_DBOR_ACCUM:
-                _(), ImGui::InputFloat("DBOR Std Multiplier", &m_subdivCfg.DBORstdMultiplier); break;
-            case PGL_SPATIAL_FILTER_NONE:
-            default: break;
-        }
-        _(), ImGui::Combo("Where To Split", reinterpret_cast<int *>(&m_subdivCfg.splitType), "Mean and Longest\0Variance Scan\0Information-Gain Scan\0Fluence Scan\0");
-        if (m_subdivCfg.splitType != PGL_SPATIAL_SPLIT_BASELINE) {
-            _(), ImGui::InputFloat("Variance Threshold", &m_subdivCfg.varianceThreshold, 0, 0, "%.2e");
-        }
+    
         if (ImGui::Button("Clear Signatures")) {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearSignatures();
@@ -1762,12 +1604,6 @@ void Application::PlotsView() {
     if (ImGui::Begin("Avg Path Length Plot"))
         m_plots.avgPathLength->Draw();
     ImGui::End();
-}
-
-void Application::SetSelectedModelIndex(int index) {
-    m_selectedModelIndex = index;
-    if (m_enableRadianceView && m_radianceView->HasStarted()) m_radianceView->UpdateBasisBuffer();
-    UpdateSignatureView();
 }
 
 }

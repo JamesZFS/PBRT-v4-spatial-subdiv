@@ -27,7 +27,6 @@ struct ColormapPanel : public View {
         bool firstNormalized = false;  // whether to trigger normalize when switching to this channel
     };
     ShaderData shaderData[Channel_Count];
-    ShaderData shaderDataTValue;
     std::function<float(const pbrt::RGB&, const pbrt::RGB&)> errorFunc = GetErrorFunc(Metric_MRAE);
 
     bool isHovered = false;

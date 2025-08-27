@@ -267,37 +267,18 @@ class GuidedPathIntegrator : public RayIntegrator {
 
         PGL_DIRECTIONAL_DISTRIBUTION_TYPE dtype {PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM};
         int treesamplecountthreshold {PGL_TREE_MAX_SAMPLE_PER_LEAF};
-        int treeforcedsamplecountthreshold {-1};
         int treeminsamplescandidatesplit {1000};
         int treeminsamplespromotion {1000};
         int treemaxdepth {32};
-        int treeinitializingiters {1};
-        int treelookaheaddepth {3};
-        float treeadaptivethreshold {0.05f};
-        float treestdmultiplier {1.0f};
-        float treefpsplitproba {0.01};
-        float treeangulardistancethreshold {180};  // degrees
+        int treeinitializingiters {0};
+        int treelookaheaddepth {6};
+        float treeadaptivethreshold {0.15f};
+        float treefpsplitproba {1e-4};
+        float treeangulardistancethreshold {3};  // degrees
         float treeangularalpha {1e-3};
-        int treenumseriesterms {50};
-        float treecedecay {0.0f};
-        float treerisktolerance {0.1f};
-        float treetvaluethreshold {3.0f};
-        float treeinlierpercent {1.0f};
-        float treedborstdmultiplier {3.0f};
-        float treetepsk {1.0f};
         bool treeenablepromotion {true};
-        bool treemultiplycosine {false};
-        bool treereproject {false};
-        bool treenonrecursive {false};
-        bool treesinglepromotion {false};
-        bool treeoptimizesignature {false};
+        PGL_SPATIAL_ANGULAR_TYPE treeangulartype {PGL_SPATIAL_ANGULAR_HEURISTIC};
         PGL_SPATIAL_KNN_TYPE treeknntype {PGL_SPATIAL_KNN_UNIFORM};
-        PGL_SPATIAL_SPLIT_TYPE treesplittype {PGL_SPATIAL_SPLIT_BASELINE};
-        PGL_SPATIAL_CONFIDENCE_TYPE treeconfidencetype {PGL_SPATIAL_CONFIDENCE_NONE};
-        PGL_SPATIAL_DEFENSIVE_TYPE treedefensivetype {PGL_SPATIAL_DEFENSIVE_FIXED};
-        PGL_SPATIAL_FILTER_TYPE treefiltertype {PGL_SPATIAL_FILTER_NONE};
-        
-        std::vector<SignatureArguments> signatureEnsembleConfig {1};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};

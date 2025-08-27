@@ -85,34 +85,16 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
         guiding_fieldSubdivConfig.deterministic = guideSettings.deterministic;
         guiding_fieldSubdivConfig.initializingIters = guideSettings.treeinitializingiters;
-        guiding_fieldSubdivConfig.forcedSampleCountThreshold = (uint32_t) guideSettings.treeforcedsamplecountthreshold;
         guiding_fieldSubdivConfig.lookaheadDepth = guideSettings.treelookaheaddepth;
         guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
         guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
-        guiding_fieldSubdivConfig.stdMultiplier = guideSettings.treestdmultiplier;
-        guiding_fieldSubdivConfig.sufficientCriterionThreshold = 1 - guideSettings.treefpsplitproba;
+        guiding_fieldSubdivConfig.fluenceAlpha = guideSettings.treefpsplitproba;
         guiding_fieldSubdivConfig.angularDistanceThreshold = Radians(guideSettings.treeangulardistancethreshold);
         guiding_fieldSubdivConfig.angularAlpha = guideSettings.treeangularalpha;
-        guiding_fieldSubdivConfig.numSeriesTerms = guideSettings.treenumseriesterms;
-        guiding_fieldSubdivConfig.filterType = guideSettings.treefiltertype;
-        guiding_fieldSubdivConfig.inlierPercent = guideSettings.treeinlierpercent;
-        guiding_fieldSubdivConfig.DBORstdMultiplier = guideSettings.treedborstdmultiplier;
-        guiding_fieldSubdivConfig.tEpsK = guideSettings.treetepsk;
-        guiding_fieldSubdivConfig.ceDecay = guideSettings.treecedecay;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
-        guiding_fieldSubdivConfig.multiplyCosine = guideSettings.treemultiplycosine;
-        guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
-        guiding_fieldSubdivConfig.nonRecursive = guideSettings.treenonrecursive;
-        guiding_fieldSubdivConfig.singlePromotion = guideSettings.treesinglepromotion;
-        guiding_fieldSubdivConfig.optimizeSignature = guideSettings.treeoptimizesignature;
+        guiding_fieldSubdivConfig.angularType = guideSettings.treeangulartype;
         guiding_fieldSubdivConfig.knnType = guideSettings.treeknntype;
-        guiding_fieldSubdivConfig.splitType = guideSettings.treesplittype;
-        guiding_fieldSubdivConfig.confidenceType = guideSettings.treeconfidencetype;
-        guiding_fieldSubdivConfig.signatureEnsembleConfig = guideSettings.signatureEnsembleConfig;
-        guiding_fieldSubdivConfig.defensiveType = guideSettings.treedefensivetype;
-        guiding_fieldSubdivConfig.riskTolerance = guideSettings.treerisktolerance;
-        guiding_fieldSubdivConfig.tValueThreshold = guideSettings.treetvaluethreshold;
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -506,15 +488,11 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 if (fine.id != -1) {
                     visibleSurf->guidingData.fluence = fine.fluence;
                     visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
-                    visibleSurf->guidingData.angularEnergy = Degrees(fine.angularEnergy);
-                    visibleSurf->guidingData.risk = fine.risk;  // max risk along the path
-                    visibleSurf->guidingData.tValue = fine.tValue;
+                    visibleSurf->guidingData.angularEnergy = fine.angularEnergy;
                 } else {
                     visibleSurf->guidingData.fluence = coarse.fluence;
                     visibleSurf->guidingData.energy = coarse.energy;
-                    visibleSurf->guidingData.angularEnergy = Degrees(coarse.angularEnergy);
-                    visibleSurf->guidingData.risk = coarse.risk;
-                    visibleSurf->guidingData.tValue = coarse.tValue;
+                    visibleSurf->guidingData.angularEnergy = coarse.angularEnergy;
                 }
             }
         }
@@ -709,7 +687,6 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
     else throw std::runtime_error("Unknown dtype: " + dtype);
     settings.treesamplecountthreshold = parameters.GetOneInt("treesamplecountthreshold", settings.treesamplecountthreshold);
-    settings.treeforcedsamplecountthreshold = parameters.GetOneInt("treeforcedsamplecountthreshold", settings.treeforcedsamplecountthreshold);
     settings.treeminsamplescandidatesplit = parameters.GetOneInt("treeminsamplescandidatesplit", settings.treeminsamplescandidatesplit);
     settings.treeminsamplespromotion = parameters.GetOneInt("treeminsamplespromotion", settings.treeminsamplespromotion);
     settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", settings.treemaxdepth);
@@ -719,121 +696,19 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treefpsplitproba = parameters.GetOneFloat("treefpsplitproba", settings.treefpsplitproba);
     settings.treeangulardistancethreshold = parameters.GetOneFloat("treeangulardistancethreshold", settings.treeangulardistancethreshold);
     settings.treeangularalpha = parameters.GetOneFloat("treeangularalpha", settings.treeangularalpha);
-    settings.treenumseriesterms = parameters.GetOneInt("treenumseriesterms", settings.treenumseriesterms);
-    settings.treestdmultiplier = parameters.GetOneFloat("treestdmultiplier", settings.treestdmultiplier);
-    settings.treerisktolerance = parameters.GetOneFloat("treerisktolerance", settings.treerisktolerance);
-    settings.treetvaluethreshold = parameters.GetOneFloat("treetvaluethreshold", settings.treetvaluethreshold);
-    settings.treeinlierpercent = parameters.GetOneFloat("treeinlierpercent", settings.treeinlierpercent);
-    settings.treedborstdmultiplier = parameters.GetOneFloat("treedborstdmultiplier", settings.treedborstdmultiplier);
-    settings.treetepsk = parameters.GetOneFloat("treetepsk", settings.treetepsk);
-    settings.treecedecay = parameters.GetOneFloat("treecedecay", settings.treecedecay);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
-    settings.treemultiplycosine = parameters.GetOneBool("treemultiplycosine", settings.treemultiplycosine);
-    settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
-    settings.treenonrecursive = parameters.GetOneBool("treenonrecursive", settings.treenonrecursive);
-    settings.treesinglepromotion = parameters.GetOneBool("treesinglepromotion", settings.treesinglepromotion);
-    settings.treeoptimizesignature = parameters.GetOneBool("treeoptimizesignature", settings.treeoptimizesignature);
+
+    auto angulartype = parameters.GetOneString("treeangulartype", "heuristic");
+    if (angulartype == "off") settings.treeangulartype = PGL_SPATIAL_ANGULAR_OFF;
+    else if (angulartype == "heuristic") settings.treeangulartype = PGL_SPATIAL_ANGULAR_HEURISTIC;
+    else if (angulartype == "series") settings.treeangulartype = PGL_SPATIAL_ANGULAR_SERIES;
+    else throw std::runtime_error("Unknown treeangulartype: " + angulartype);
 
     auto knntype = parameters.GetOneString("treeknntype", "uniform");
     if (knntype == "uniform") settings.treeknntype = PGL_SPATIAL_KNN_UNIFORM;
     else if (knntype == "region_size_weighted") settings.treeknntype = PGL_SPATIAL_KNN_REGION_SIZE_WEIGHTED;
     else if (knntype == "jitter") settings.treeknntype = PGL_SPATIAL_KNN_JITTER;
     else throw std::runtime_error("Unknown treeknntype: " + knntype);
-
-    auto splittype = parameters.GetOneString("treesplittype", "baseline");
-    if (splittype == "baseline") settings.treesplittype = PGL_SPATIAL_SPLIT_BASELINE;
-    else if (splittype == "vs") settings.treesplittype = PGL_SPATIAL_SPLIT_VS;
-    else if (splittype == "igs") settings.treesplittype = PGL_SPATIAL_SPLIT_IGS;
-    else if (splittype == "fs") settings.treesplittype = PGL_SPATIAL_SPLIT_FS;
-    else throw std::runtime_error("Unknown treesplittype: " + splittype);
-
-    auto confidencetype = parameters.GetOneString("treeconfidencetype", "none");
-    if (confidencetype == "none") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_NONE;
-    else if (confidencetype == "risk") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_RISK;
-    else if (confidencetype == "welch") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST;
-    else if (confidencetype == "ttest_per_bin") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_TTEST_PER_BIN;
-    else if (confidencetype == "simulation") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_SIMULATION;
-    else if (confidencetype == "angular_series") settings.treeconfidencetype = PGL_SPATIAL_CONFIDENCE_SERIES;
-    else throw std::runtime_error("Unknown treeconfidencetype: " + confidencetype);
-
-    auto defensivetype = parameters.GetOneString("treedefensivetype", "fixed");
-    if (defensivetype == "fixed") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_FIXED;
-    else if (defensivetype == "sqrt") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_SQRT;
-    else if (defensivetype == "ppg") settings.treedefensivetype = PGL_SPATIAL_DEFENSIVE_PPG;
-    else throw std::runtime_error("Unknown treedefensivetype: " + defensivetype);
-
-    auto filtertype = parameters.GetOneString("treefiltertype", "none");
-    if (filtertype == "none") settings.treefiltertype = PGL_SPATIAL_FILTER_NONE;
-    else if (filtertype == "percentage") settings.treefiltertype = PGL_SPATIAL_FILTER_PERCENTAGE;
-    else if (filtertype == "dbor") settings.treefiltertype = PGL_SPATIAL_FILTER_DBOR;
-    else if (filtertype == "dbor_accum") settings.treefiltertype = PGL_SPATIAL_FILTER_DBOR_ACCUM;
-    else throw std::runtime_error("Unknown treefiltertype: " + filtertype);
-    
-    // All of the following arrays may be empty, or have fewer elements than the number of signatures
-    //  for those cases, we use the default values for that parameter
-    auto basistype_list = parameters.GetStringArray("basistype");
-    int numSignatures = std::max(1, (int) basistype_list.size());
-    settings.signatureEnsembleConfig.resize(numSignatures);
-    auto numbins_list = parameters.GetIntArray("numbins");
-    auto resolution_list = parameters.GetIntArray("resolution");
-    auto splatsigma_list = parameters.GetFloatArray("splatsigma");
-    auto octavemin_list = parameters.GetIntArray("octavemin");
-    auto octavemax_list = parameters.GetIntArray("octavemax");
-    auto dongamma_list = parameters.GetFloatArray("dongamma");
-    auto getNextInt = [](std::vector<int> &a, int def) {
-        if (a.empty()) return def;
-        int val = a.front();
-        a.erase(a.begin());  // popfront
-        return val;
-    };
-    auto getNextFloat = [](std::vector<float> &a, float def) {
-        if (a.empty()) return def;
-        float val = a.front();
-        a.erase(a.begin());  // popfront
-        return val;
-    };
-    auto getNextString = [](std::vector<std::string> &a, const std::string &def) {
-        if (a.empty()) return def;
-        std::string val = a.front();
-        a.erase(a.begin());  // popfront
-        return val;
-    };
-    for (int i = 0; i < numSignatures; ++i) {
-        auto &c = settings.signatureEnsembleConfig[i];
-        auto numbins = getNextInt(numbins_list, c.numBins);
-        c.numBins = numbins;
-        if (numbins <= 0 || numbins > PGL_SIGNATURE_MAX_SIZE)
-            ErrorExit(loc, "Invalid number of bins %d: only 1-%d are supported.", numbins, PGL_SIGNATURE_MAX_SIZE);
-
-        auto basistype = getNextString(basistype_list, "don_xi");
-        if (basistype == "nn") c.basisType = PGL_BASIS_FUNC_NN;
-        else if (basistype == "splat") c.setType(PGL_BASIS_FUNC_SPLAT);
-        else if (basistype == "don_pcg") c.setType(PGL_BASIS_FUNC_DON_PCG);
-        else if (basistype == "don_xi") c.setType(PGL_BASIS_FUNC_DON_XI);
-        else if (basistype == "latitude") c.setType(PGL_BASIS_FUNC_LATITUDE);
-        else if (basistype == "longitude") c.setType(PGL_BASIS_FUNC_LONGITUDE);
-        else if (basistype == "checkerboard") c.setType(PGL_BASIS_FUNC_CHECKERBOARD);
-        else throw std::runtime_error("Unknown treecontribtype: " + basistype);
-        
-        switch (c.basisType) {
-            case PGL_BASIS_FUNC_NN:
-            case PGL_BASIS_FUNC_LATITUDE:
-            case PGL_BASIS_FUNC_LONGITUDE:
-            case PGL_BASIS_FUNC_CHECKERBOARD:
-                c.setResolution(getNextInt(resolution_list, c.getResolution()));
-                break;
-            case PGL_BASIS_FUNC_SPLAT:
-                c.setResolution(getNextInt(resolution_list, c.getResolution()));
-                c.setSplatSigma(getNextFloat(splatsigma_list, c.getSplatSigma()));
-                break;
-            case PGL_BASIS_FUNC_DON_PCG:
-            case PGL_BASIS_FUNC_DON_XI:
-                c.setOctaveMin(getNextInt(octavemin_list, c.getOctaveMin()));
-                c.setOctaveMax(getNextInt(octavemax_list, c.getOctaveMax()));
-                c.setDONGamma(getNextFloat(dongamma_list, c.getDONGamma()));
-                break;
-        }
-    }
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);

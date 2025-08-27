@@ -21,8 +21,6 @@ public:
 
     void RenderStep();
 
-    void UpdateBasisBuffer();
-
     void UpdateFramebuffer();
 
     void Clear();
@@ -38,14 +36,6 @@ public:
     pbrt::Point2i GetResolution() const { return m_resolution; }
 
     void SetResolution(const pbrt::Point2i &resolution);
-
-    void SetSelectedBinIndex(uint8_t index) { m_selectedBinIndex = index; }
-
-    uint8_t GetSelectedBinIndex() const { return m_selectedBinIndex; }
-
-    void ResetSelectedBinIndex() { m_selectedBinIndex = -1; }
-
-    bool HasSelectedBinIndex() const { return m_selectedBinIndex < PGL_SIGNATURE_MAX_SIZE; }
 
     PGLDirectionalSignature integratedSignature{};  // integrated signature vector with the radiance map
 
@@ -80,11 +70,9 @@ private:
     pbrt::Point2i m_resolution{640, 320};
 
     std::vector<pbrt::RGB> m_cpuBuffer;
-    std::vector<float> m_basisBuffer[PGL_SIGNATURE_MAX_SIZE];  // buffer of indices into the signature vector for each pixel
     double m_normalizer = 1;
     int m_numSamples = 0;
     int m_spp = 16;
-    uint8_t m_selectedBinIndex = -1;  // valid index is [0, PGL_SIGNATURE_SIZE)
     std::atomic_bool m_cpuBufferUpdated = false;
 
     struct {
@@ -110,7 +98,6 @@ private:
     float m_stepTheta;
 
     GLuint m_renderingTex = 0;  // stores the cpu buffer
-    GLuint m_basisTex[PGL_SIGNATURE_MAX_SIZE] = {};  // stores the basis map buffer
     Framebuffer m_framebuffer;
     Framebuffer m_overlayFramebuffer;
 };
