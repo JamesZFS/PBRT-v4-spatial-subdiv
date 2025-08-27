@@ -1502,14 +1502,14 @@ void Application::SpatialSubdivisionSettings() {
         ImGui::Separator();
 
         _(), ImGui::InputFloat("Fluence Distance Threshold", &m_subdivCfg.signatureDistanceThreshold);        
-        _(), ImGui::SliderFloat("Fluence Alpha", &m_subdivCfg.fluenceAlpha, 0, 1, "%.2e", ImGuiSliderFlags_Logarithmic);
+        _(), ImGui::InputFloat("Fluence Alpha", &m_subdivCfg.fluenceAlpha, 0, 0, "%.2e");
 
         _(), ImGui::Combo("Angular Type", reinterpret_cast<int *>(&m_subdivCfg.angularType), "Off\0Heuristic\0Series\0");
         if (m_subdivCfg.angularType != PGL_SPATIAL_ANGULAR_OFF) {
             float angle = Degrees(m_subdivCfg.angularDistanceThreshold);
             _(), ImGui::SliderFloat("Angular Distance Threshold", &angle, 0, 180, "%.2f", ImGuiSliderFlags_Logarithmic);
             m_subdivCfg.angularDistanceThreshold = Radians(angle);
-            _(), ImGui::SliderFloat("Angular Alpha", &m_subdivCfg.angularAlpha, 0, 1, "%.2e", ImGuiSliderFlags_Logarithmic);
+            _(), ImGui::InputFloat("Angular Alpha", &m_subdivCfg.angularAlpha, 0, 0, "%.2e");
         }
     
         if (ImGui::Button("Clear Signatures")) {
