@@ -962,11 +962,9 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                  "FirstDir.x", "FirstDir.y", "FirstDir.z",
                  "Energy",
                  "AngularDistance",
-                 "Risk",
-                 "TValue",
 
                     // Fine:
-                   "FineId.R",
+                 "FineId.R",
                  "FineId.G",
                  "FineId.B",
                 });
@@ -976,7 +974,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
     ImageChannelDesc guideDesc =
         image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
-            "Samples", "ZeroSamples", "Depth", "Fluence", "PixelFluence", "FirstDir.x", "FirstDir.y", "FirstDir.z", "Energy", "AngularDistance", "Risk", "TValue",
+            "Samples", "ZeroSamples", "Depth", "Fluence", "PixelFluence", "FirstDir.x", "FirstDir.y", "FirstDir.z", "Energy", "AngularDistance",
             "FineId.R", "FineId.G", "FineId.B"});
 
     std::atomic<int> nClamped{0};
@@ -1032,7 +1030,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                           {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                               (float) pixel.guidingData.numSamples, (float) pixel.guidingData.numZeroValueSamples, (float) pixel.guidingData.depth,
                               pixel.guidingData.fluence, pixelFluence, firstDir.x, firstDir.y, firstDir.z,
-                              pixel.guidingData.energy, pixel.guidingData.angularEnergy, pixel.guidingData.risk, pixel.guidingData.tValue,
+                              pixel.guidingData.energy, pixel.guidingData.angularEnergy,
                                 fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
 
         //Normal3f n =

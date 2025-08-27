@@ -18,7 +18,7 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.cacheID.fine.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.cacheID.diff.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.fluence.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.risk.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.angularEnergy.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.signatureDist.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
@@ -52,8 +52,6 @@ Viewport::~Viewport() {
 
 void Viewport::UpdateCPUBufferFromFilm() {
     if (m_isMultiChannel) {
-        bool showTValue = m_parent->IsShowingTValue();
-        bool showAngular = m_parent->IsShowingAngularDistance();
         auto *gFilm = m_film.Cast<GuidedGBufferFilm>();
         // Update all channels
         ParallelFor2D(m_film.PixelBounds(), [&](Point2i p) {
@@ -73,7 +71,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
                 m_cpuBuffer.cacheID.fine[index] = m_cpuBuffer.cacheID.coarse[index];
             }
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
-            m_cpuBuffer.risk[index] = showTValue ? pixel.guidingData.tValue : showAngular ? pixel.guidingData.angularEnergy : pixel.guidingData.risk;
+            m_cpuBuffer.angularEnergy[index] = pixel.guidingData.angularEnergy;
             m_cpuBuffer.signatureDist[index] = pixel.guidingData.energy;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
             m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
@@ -142,9 +140,9 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms, Selected
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.fluence.data(), m_resolution.x, m_resolution.y, false);
                 break;
-            case Channel_Risk:
+            case Channel_Angular:
                 CHECK(m_isMultiChannel);
-                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.risk.data(), m_resolution.x, m_resolution.y, false);
+                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.angularEnergy.data(), m_resolution.x, m_resolution.y, false);
                 break;
             case Channel_Samples:
                 CHECK(m_isMultiChannel);

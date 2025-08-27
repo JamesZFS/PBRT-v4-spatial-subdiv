@@ -4,8 +4,6 @@
 out vec4 out_color;
 
 uniform sampler2D image_tex;
-uniform sampler2D basis_map;
-uniform uint selected_bin_index;
 
 uniform uint show_vmf;  // 0: disable, 1: show mean dirs, 2: show kappa, 3: show 95% confidence interval
 uniform vec3 mean_dir1;
@@ -77,10 +75,6 @@ void main()
 		}
 		else if (dot2 > cos(CENTER_SIZE)) color = c2;
 
-	}  else if (selected_bin_index != INVALID) {
-		color = clamp(color, 0.0, 1.0);
-		float mask = texture(basis_map, tex_coord).r;
-		color = mix(color, vec3(1.0, 0.0, 0.0), mask);  // tint red
 	}
 	out_color = vec4(color, 1.0);
 }

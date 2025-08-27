@@ -47,20 +47,13 @@ public:
     int GetSPP() const { return m_spp; }
     bool IsShowingFine() const { return m_showFine; }
     bool IsShowingDiff() const { return m_showDiff; }
-    bool IsShowingTValue() const { return m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_TTEST; }
-    bool IsShowingAngularDistance() const { return m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_SIMULATION || m_subdivCfg.confidenceType == PGL_SPATIAL_CONFIDENCE_SERIES; }
     double GetCrossEntropySDRE() const { return m_samplingDistributionView->GetCrossEntropy(); }
     float GetEnergyThreshold() const { return m_subdivCfg.signatureDistanceThreshold; }
-    float GetRiskTolerance() const { return m_subdivCfg.riskTolerance; }
-    float GetTValueThreshold() const { return m_subdivCfg.tValueThreshold; }
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
-    float GetSignatureStdMultiplier() const { return m_subdivCfg.stdMultiplier; }
-    int SelectedModelIndex() const { return m_selectedModelIndex; }
     void SetSelectedModelIndex(int index);
     int LookaheadLevel() const { return m_signatureView->lookaheadLevel(); }
-    void UpdateBasisBuffer() { m_radianceView->UpdateBasisBuffer(); }
 
     bool sdrLocalFrame = false;
     float sdrExposure = 1.0f;
@@ -159,7 +152,6 @@ private:
     PGLKDTreeArguments m_subdivCfg;  // config for spatial subdivision
     int m_spp;
     int m_seed;
-    int m_selectedModelIndex = 0;
     Sampler m_samplerPrototype;
     ThreadLocal<Sampler> &m_samplers;
     GuidedPathIntegrator::IntegratorSettings &m_integratorSettings;  // from the integrator

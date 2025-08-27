@@ -57,7 +57,7 @@ private:
             std::vector<pbrt::RGB> diff;
         } cacheID;
         std::vector<float> fluence;
-        std::vector<float> risk;
+        std::vector<float> angularEnergy;
         std::vector<float> signatureDist;
         std::vector<float> samples;
         std::vector<float> zeroSamples;
