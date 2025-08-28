@@ -55,7 +55,7 @@ STAT_INT_DISTRIBUTION("Integrator/Path length", pathLength);
 STAT_COUNTER("Integrator/Volume interactions", volumeInteractions);
 STAT_COUNTER("Integrator/Surface interactions", surfaceInteractions);
 
-STAT_TIME_COUNTER("Pure Rendering Time", pureRenderingTime);
+STAT_TIME_COUNTER("Pure Rendering Time", renderingTime);
 STAT_TIME_COUNTER("Guiding Cache Training", guidingCacheUpdateTime);
 STAT_TIME_COUNTER("Image-space Guiding Buffer Training", imageSpaceGudingBufferUpdateTime);
 
@@ -256,7 +256,7 @@ void GuidedPathIntegrator::Render() {
                 PBRT_DBG("Finished image tile (%d,%d)-(%d,%d)\n", tileBounds.pMin.x,
                          tileBounds.pMin.y, tileBounds.pMax.x, tileBounds.pMax.y);
             });
-            pureRenderingTime += pureRenderingTimer.ElapsedSeconds();
+            renderingTime += pureRenderingTimer.ElapsedSeconds();
         },
         [&](int waveEnd) {
             // std::cout << "Updating cache " << waveEnd << std::endl;
@@ -656,11 +656,18 @@ std::string GuidedPathIntegrator::ToString() const {
 }
 
 void GuidedPathIntegrator::LogFileHead(FILE *logFile) const {
-    fprintf(logFile, "training time, number of regions, ");
+    fprintf(logFile, "training time, number of regions, number of lookahead regions, memory kd tree, memory region data, memory candidate region data, ");
 }
 
 void GuidedPathIntegrator::LogFileRow(FILE *logFile) const {
-    fprintf(logFile, "%.9f, %ld, ", guidingCacheUpdateTime, guiding_field->GetRegionCountSurface(false));
+    fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, ",
+        // training time
+        guidingCacheUpdateTime,
+        // number of regions                            number of lookahead regions
+        guiding_field->GetRegionCountSurface(false), guiding_field->GetLookaheadRegionCountSurface(),
+        // memory kd tree                        memory region data                           memory candidate region data
+        guiding_field->GetMemoryKDTreeSurface(), guiding_field->GetMemoryRegionDataSurface(), guiding_field->GetMemoryLookaheadRegionDataSurface()
+    );
 }
 
 std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
@@ -674,7 +681,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
 
     settings.guideSurface = parameters.GetOneBool("surfaceguiding", true);
     settings.guideRR = parameters.GetOneBool("rrguiding", false);
-    settings.deterministic = parameters.GetOneBool("deterministic", true);
+    settings.deterministic = parameters.GetOneBool("deterministic", settings.deterministic);
 
     settings.knnLookup = parameters.GetOneBool("knnlookup", true);
     std::string strSurfaceGuidingType = parameters.GetOneString("surfaceguidingtype", "ris");

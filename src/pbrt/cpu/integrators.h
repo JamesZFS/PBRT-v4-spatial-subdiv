@@ -258,7 +258,7 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool guideSurface {true};
 
         bool guideRR {false};
-        bool deterministic {true};
+        bool deterministic {false};
 
         GuidingType surfaceGuidingType {EGuideRIS};
         float guideSurfaceProbability {0.5f};

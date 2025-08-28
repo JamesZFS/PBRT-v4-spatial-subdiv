@@ -50,8 +50,8 @@
 namespace pbrt {
 
 STAT_COUNTER("Integrator/Camera rays traced", nCameraRays);
-STAT_TIME_COUNTER("Total Rendering Time", totalRenderingTime);
-STAT_TIME_COUNTER("Pure Rendering Time", pureRenderingTime);
+STAT_TIME_COUNTER("Total Time", totalTime);
+STAT_TIME_COUNTER("Rendering Time", renderingTime);
 // RandomWalkIntegrator Method Definitions
 std::unique_ptr<RandomWalkIntegrator> RandomWalkIntegrator::Create(
     const ParameterDictionary &parameters, Camera camera, Sampler sampler,
@@ -149,7 +149,7 @@ void ImageTileIntegrator::Render() {
         if (!logFile)
             ErrorExit("%s: %s", Options->csvOutput, ErrorString());
 
-        fprintf(logFile, "iter, total time, pure rendering time, ");
+        fprintf(logFile, "iter, total time, rendering time, ");
         LogFileHead(logFile);
         fprintf(logFile, "MRAE, MRSE\n");
         fflush(logFile);
@@ -200,9 +200,9 @@ void ImageTileIntegrator::Render() {
                      tileBounds.pMin.y, tileBounds.pMax.x, tileBounds.pMax.y);
             progress.Update((waveEnd - waveStart) * tileBounds.Area());
         });
-        pureRenderingTime += timer.ElapsedSeconds();
-        PostProcessWave();
-        totalRenderingTime += timer.ElapsedSeconds();
+        renderingTime += timer.ElapsedSeconds();
+        PostProcessWave();  // e.g. training cache
+        totalTime += timer.ElapsedSeconds();
 
         // Update start and end wave
         waveStart = waveEnd;
@@ -219,9 +219,9 @@ void ImageTileIntegrator::Render() {
             ImageChannelDesc desc = filmImage.GetChannelDesc({"R", "G", "B"});
             float mrae = filmImage.RobustMRAE(desc, *referenceImage, 0.95f).Average();
             float mrse = filmImage.RobustMRSE(desc, *referenceImage, 0.95f).Average();
-            fprintf(logFile, "%d, %.9f, %.9f, ", waveStart, totalRenderingTime, pureRenderingTime);
+            fprintf(logFile, "%d, %.3f, %.3f, ", waveStart, totalTime, renderingTime);
             LogFileRow(logFile);  // e.g. training time and number of regions
-            fprintf(logFile, "%.9f, %.9f\n", mrae, mrse);
+            fprintf(logFile, "%.3e, %.3e\n", mrae, mrse);
             fflush(logFile);
         }
         //std::cout << "nextWaveSize: " << nextWaveSize << "\t spp: " << spp << "\t waveStart: " << waveStart << "\t waveEnd: " << waveEnd << std::endl;
