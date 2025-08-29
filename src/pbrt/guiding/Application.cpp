@@ -1504,6 +1504,7 @@ void Application::SpatialSubdivisionSettings() {
         _(), ImGui::InputFloat("Fluence Distance Threshold", &m_subdivCfg.signatureDistanceThreshold);        
         _(), ImGui::InputFloat("Fluence Alpha", &m_subdivCfg.fluenceAlpha, 0, 0, "%.2e");
 
+        ImGui::Checkbox("Reproject", &m_subdivCfg.reproject);
         _(), ImGui::Combo("Angular Type", reinterpret_cast<int *>(&m_subdivCfg.angularType), "Off\0Heuristic\0Series\0");
         if (m_subdivCfg.angularType != PGL_SPATIAL_ANGULAR_OFF) {
             float angle = Degrees(m_subdivCfg.angularDistanceThreshold);
