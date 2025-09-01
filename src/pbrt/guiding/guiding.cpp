@@ -92,6 +92,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.fluenceAlpha = guideSettings.treefpsplitproba;
         guiding_fieldSubdivConfig.angularDistanceThreshold = Radians(guideSettings.treeangulardistancethreshold);
         guiding_fieldSubdivConfig.angularAlpha = guideSettings.treeangularalpha;
+        guiding_fieldSubdivConfig.knnJitterMultiplier = guideSettings.treeknnjittermultiplier;
         guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
         guiding_fieldSubdivConfig.angularType = guideSettings.treeangulartype;
@@ -704,6 +705,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treefpsplitproba = parameters.GetOneFloat("treefpsplitproba", settings.treefpsplitproba);
     settings.treeangulardistancethreshold = parameters.GetOneFloat("treeangulardistancethreshold", settings.treeangulardistancethreshold);
     settings.treeangularalpha = parameters.GetOneFloat("treeangularalpha", settings.treeangularalpha);
+    settings.treeknnjittermultiplier = parameters.GetOneFloat("treeknnjittermultiplier", settings.treeknnjittermultiplier);
     settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
 

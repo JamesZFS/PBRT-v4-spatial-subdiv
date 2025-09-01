@@ -276,10 +276,11 @@ class GuidedPathIntegrator : public RayIntegrator {
         float treefpsplitproba {1e-4};
         float treeangulardistancethreshold {3};  // degrees
         float treeangularalpha {1e-3};
+        float treeknnjittermultiplier {0.1f};
         bool treereproject {false};
         bool treeenablepromotion {true};
         PGL_SPATIAL_ANGULAR_TYPE treeangulartype {PGL_SPATIAL_ANGULAR_HEURISTIC};
-        PGL_SPATIAL_KNN_TYPE treeknntype {PGL_SPATIAL_KNN_UNIFORM};
+        PGL_SPATIAL_KNN_TYPE treeknntype {PGL_SPATIAL_KNN_JITTER};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};

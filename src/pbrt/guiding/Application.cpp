@@ -1461,6 +1461,11 @@ void Application::GuideSettings() {
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
         ImGui::Combo("KNN Type", reinterpret_cast<int *>(&m_subdivCfg.knnType), "Uniform\0Region-size-weighted\0Jitter\0");
+        if (m_subdivCfg.knnType == PGL_SPATIAL_KNN_JITTER) {
+            float inputWidth = std::max(80.0f, ImGui::GetColumnWidth() * 0.5f);
+            ImGui::SetNextItemWidth(inputWidth);
+            ImGui::SliderFloat("KNN Jitter Multiplier", &m_subdivCfg.knnJitterMultiplier, 0, 1);
+        }
         ImGui::Checkbox("Enable Training", &m_guideSettings.enableTraining);
         ImGui::Checkbox("Evaluate Only", &m_guideSettings.evaluateOnly);
         ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
