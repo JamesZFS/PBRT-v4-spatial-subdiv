@@ -906,7 +906,7 @@ int average(std::vector<std::string> args) {
     });
 
     ImageMetadata avgMetadata;
-    colorSpaces.ForAll([&](const RGBColorSpace *cs) {RGBColorSpace
+    colorSpaces.ForAll([&](const RGBColorSpace *cs) {
         // Will redundantly set it, but whatever.
         avgMetadata.colorSpace = cs;
     });
