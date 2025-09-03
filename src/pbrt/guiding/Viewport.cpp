@@ -21,7 +21,6 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.angularEnergy.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.signatureDist.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.zeroSamples.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.reference.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.error.resize(m_resolution.x * m_resolution.y);
@@ -74,7 +73,6 @@ void Viewport::UpdateCPUBufferFromFilm() {
             m_cpuBuffer.angularEnergy[index] = pixel.guidingData.angularEnergy;
             m_cpuBuffer.signatureDist[index] = pixel.guidingData.energy;
             m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
-            m_cpuBuffer.zeroSamples[index] = (float) pixel.guidingData.numZeroValueSamples;
             m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;
             if (m_hasReference) {
                 RGB reference = m_cpuBuffer.reference[index];

@@ -167,7 +167,6 @@ class VisibleSurface {
         uint32_t id = -1;
         uint32_t fineId = -1;
         uint32_t numSamples = 0;
-        uint32_t numZeroValueSamples = 0;
         uint32_t depth = 0;
         float fluence = 0;
         float energy = 0;
@@ -177,7 +176,6 @@ class VisibleSurface {
             if (other.id != -1) id = other.id;
             if (other.fineId != -1) fineId = other.fineId;
             numSamples = other.numSamples;
-            numZeroValueSamples = other.numZeroValueSamples;
             depth = other.depth;
             fluence = other.fluence;
             energy = other.energy;

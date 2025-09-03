@@ -768,7 +768,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
         ImGui::Text("Fluence: %f", stats.fluence);
         ImGui::Text("Fluence Energy: %f", fine.energy);
         ImGui::Text("Angular Energy: %f", fine.angularEnergy);
-        ImGui::Text("Nonzero/Zero Samples: %s/%s", FormatInteger(stats.numSamples).c_str(), FormatInteger(stats.numZeroValueSamples).c_str());
+        ImGui::Text("Nonzero Samples: %s", FormatInteger(stats.numSamples).c_str());
         ImGui::Text("Depth: %d", (int) stats.depth);
         if (stats.splitDim < 3) {
             static const char dim_ch[] = {'x', 'y', 'z'};
@@ -805,13 +805,12 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
             return StringPrintf(
                 "  ID: %u\n"
                 "  Samples: %d\n"
-                "  Zero Samples: %d\n"
                 "  Depth: %d\n"
                 "  Energy:  %f\n"
                 "  Fluence: %f\n"
                 "  Risk:    %f\n"
                 "  Bounds: (%f, %f, %f) - (%f, %f, %f)\n",
-                s.id, s.numSamples, s.numZeroValueSamples, (int) s.depth, s.energy, s.fluence, std::numeric_limits<float>::quiet_NaN(),
+                s.id, s.numSamples, (int) s.depth, s.energy, s.fluence, std::numeric_limits<float>::quiet_NaN(),
                 s.lowerBounds.x, s.lowerBounds.y, s.lowerBounds.z,
                 s.upperBounds.x, s.upperBounds.y, s.upperBounds.z);
         };
