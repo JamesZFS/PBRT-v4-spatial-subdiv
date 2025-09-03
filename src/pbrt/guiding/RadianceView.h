@@ -43,11 +43,13 @@ public:
         pgl_vec3f meanDir{0, 0, 0};
         float kappa = 0;
         float sigma = 0;
+        float kappa_eff = 0;
 
         void setFromPGLData(const PGLDirectionalSignature &s) {
             meanDir = s.meanDir;
             kappa = s.kappa;
             sigma = s.sigmaDir;
+            kappa_eff = s.kappa_eff;
         }
     } directionData[2];
 

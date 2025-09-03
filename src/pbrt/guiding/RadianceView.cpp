@@ -301,7 +301,7 @@ void RadianceView::UpdateFramebuffer() {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, m_framebuffer.getTexture());
         shader.setUniform1i("image_tex", 0);
-        shader.setUniform1ui("show_vmf", m_showDirStd ? 3 : (m_showKappa ? 2 : 1));
+        shader.setUniform1ui("show_vmf", m_showDirStd ? (m_parent->GetSubdivCfg().angularType == PGL_SPATIAL_ANGULAR_SERIES_EFFECTIVE_KAPPA ? 4 : 3) : (m_showKappa ? 2 : 1));
         if (m_showIntegrated) {
             shader.setUniform3f("mean_dir1", &integratedSignature.meanDir[0]);
             shader.setUniform3f("mean_dir2", &integratedSignature.meanDir[0]);
@@ -309,6 +309,8 @@ void RadianceView::UpdateFramebuffer() {
             shader.setUniform1f("kappa2", integratedSignature.kappa);
             shader.setUniform1f("sigma1", integratedSignature.sigmaDir);
             shader.setUniform1f("sigma2", integratedSignature.sigmaDir);
+            shader.setUniform1f("kappa1_eff", 0);
+            shader.setUniform1f("kappa2_eff", 0);
         } else {
             shader.setUniform3f("mean_dir1", &directionData[0].meanDir[0]);
             shader.setUniform3f("mean_dir2", &directionData[1].meanDir[0]);
@@ -316,6 +318,8 @@ void RadianceView::UpdateFramebuffer() {
             shader.setUniform1f("kappa2", directionData[1].kappa);
             shader.setUniform1f("sigma1", directionData[0].sigma);
             shader.setUniform1f("sigma2", directionData[1].sigma);
+            shader.setUniform1f("kappa1_eff", directionData[0].kappa_eff);
+            shader.setUniform1f("kappa2_eff", directionData[1].kappa_eff);
         }
 
         // Render!

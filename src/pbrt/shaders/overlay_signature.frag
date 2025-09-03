@@ -12,6 +12,8 @@ uniform float kappa1;
 uniform float kappa2;
 uniform float sigma1;
 uniform float sigma2;
+uniform float kappa1_eff;
+uniform float kappa2_eff;
 
 #define INVALID 255 // (uint8_t) -1
 #define PI 3.14159265359
@@ -66,6 +68,27 @@ void main()
 			float b = max(blend1, blend2);
 			if (b > 0)
 				color = mix(color, (c1 * blend1 + c2 * blend2) / (blend1 + blend2), b);
+		} else if (show_vmf == 4) {
+			// Show effective kappa
+			float blend1 = exp(kappa1_eff * dot1);
+			float blend2 = exp(kappa2_eff * dot2);
+			if (kappa1_eff * dot1 > kappa1_eff - 2) {
+				float bmin = exp(max(-kappa1_eff, kappa1_eff - 2));
+				float bmax = exp(kappa1_eff);
+				blend1 = (blend1 - bmin) / (bmax - bmin + 1e-6);
+			} else {
+				blend1 = 0;
+			}
+			if (kappa2_eff * dot2 > kappa2_eff - 2) {
+				float bmin = exp(max(-kappa2_eff, kappa2_eff - 2));
+				float bmax = exp(kappa2_eff);
+				blend2 = (blend2 - bmin) / (bmax - bmin + 1e-6);
+			} else {
+				blend2 = 0;
+			}
+			float b = max(blend1, blend2);
+			if (b > 0)
+			color = mix(color, (c1 * blend1 + c2 * blend2) / (blend1 + blend2), b);
 		}
 
 		// Draw centers
