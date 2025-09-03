@@ -713,7 +713,6 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     if (angulartype == "off") settings.treeangulartype = PGL_SPATIAL_ANGULAR_OFF;
     else if (angulartype == "heuristic") settings.treeangulartype = PGL_SPATIAL_ANGULAR_HEURISTIC;
     else if (angulartype == "series") settings.treeangulartype = PGL_SPATIAL_ANGULAR_SERIES;
-    else if (angulartype == "series_kappa_eff") settings.treeangulartype = PGL_SPATIAL_ANGULAR_SERIES_EFFECTIVE_KAPPA;
     else throw std::runtime_error("Unknown treeangulartype: " + angulartype);
 
     auto knntype = parameters.GetOneString("treeknntype", "uniform");
