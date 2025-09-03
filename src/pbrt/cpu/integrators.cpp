@@ -217,8 +217,8 @@ void ImageTileIntegrator::Render() {
             ImageMetadata filmMetadata;
             Image filmImage = camera.GetFilm().GetImage(&filmMetadata, 1.f / waveStart);
             ImageChannelDesc desc = filmImage.GetChannelDesc({"R", "G", "B"});
-            float mrae = filmImage.RobustMRAE(desc, *referenceImage, 0.95f).Average();
-            float mrse = filmImage.RobustMRSE(desc, *referenceImage, 0.95f).Average();
+            float mrae = filmImage.RobustMRAE(desc, *referenceImage, 0.999f).Average();
+            float mrse = filmImage.RobustMRSE(desc, *referenceImage, 0.999f).Average();
             fprintf(logFile, "%d, %.3f, %.3f, ", waveStart, totalTime, renderingTime);
             LogFileRow(logFile);  // e.g. training time and number of regions
             fprintf(logFile, "%.3e, %.3e\n", mrae, mrse);
