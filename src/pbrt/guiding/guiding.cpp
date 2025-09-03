@@ -485,7 +485,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
             visibleSurf->guidingData.fineId = fine.id;
             if (coarse.id != -1) {
                 visibleSurf->guidingData.numSamples = coarse.numSamples;
-                visibleSurf->guidingData.numZeroValueSamples = coarse.numZeroValueSamples;
                 visibleSurf->guidingData.depth = coarse.depth;
                 if (fine.id != -1) {
                     visibleSurf->guidingData.fluence = fine.fluence;
