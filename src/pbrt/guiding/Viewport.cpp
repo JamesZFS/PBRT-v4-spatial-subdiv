@@ -20,7 +20,7 @@ Viewport::Viewport(pbrt::Application* parent, pbrt::Film film, const pstd::optio
     m_cpuBuffer.fluence.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.angularEnergy.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.signatureDist.resize(m_resolution.x * m_resolution.y);
-    m_cpuBuffer.samples.resize(m_resolution.x * m_resolution.y);
+    m_cpuBuffer.splitKind.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.depth.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.reference.resize(m_resolution.x * m_resolution.y);
     m_cpuBuffer.error.resize(m_resolution.x * m_resolution.y);
@@ -49,6 +49,20 @@ Viewport::~Viewport() {
     glDeleteTextures(1, &m_fineIDTex);
 }
 
+static inline RGB SplitKindToRGB(uint8_t kind) {
+    RGB ret = {0, 0, 0};
+    if (kind & PGL_SPATIAL_SPLIT_SAMPLE_COUNT) {
+        ret += {1, 0, 0};  // red
+    }
+    if (kind & PGL_SPATIAL_SPLIT_FLUENCE) {
+        ret += {0, 1, 0};  // green
+    }
+    if (kind & PGL_SPATIAL_SPLIT_ANGULAR) {
+        ret += {0, 0, 1};  // blue
+    }
+    return ret;
+}
+
 void Viewport::UpdateCPUBufferFromFilm() {
     if (m_isMultiChannel) {
         auto *gFilm = m_film.Cast<GuidedGBufferFilm>();
@@ -72,7 +86,7 @@ void Viewport::UpdateCPUBufferFromFilm() {
             m_cpuBuffer.fluence[index] = pixel.guidingData.fluence;
             m_cpuBuffer.angularEnergy[index] = pixel.guidingData.angularEnergy;
             m_cpuBuffer.signatureDist[index] = pixel.guidingData.energy;
-            m_cpuBuffer.samples[index] = (float) pixel.guidingData.numSamples;
+            m_cpuBuffer.splitKind[index] = SplitKindToRGB(pixel.guidingData.splitKind);
             m_cpuBuffer.depth[index] = (float) pixel.guidingData.depth;
             if (m_hasReference) {
                 RGB reference = m_cpuBuffer.reference[index];
@@ -142,9 +156,9 @@ void Viewport::UpdateFramebuffer(const TonemapShaderUniforms &uniforms, Selected
                 CHECK(m_isMultiChannel);
                 UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.angularEnergy.data(), m_resolution.x, m_resolution.y, false);
                 break;
-            case Channel_Samples:
+            case Channel_SplitKind:
                 CHECK(m_isMultiChannel);
-                UpdateTextureFromFloatData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.samples.data(), m_resolution.x, m_resolution.y, false);
+                UpdateTextureFromRGBData((GLuint) (uintptr_t) m_renderingTex, m_cpuBuffer.splitKind.data(), m_resolution.x, m_resolution.y, false);
                 break;
             // case Channel_ZeroSamples:
             //     CHECK(m_isMultiChannel);

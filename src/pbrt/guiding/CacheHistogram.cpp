@@ -33,7 +33,7 @@ void CacheHistogram::Hist::Draw() {
         ImPlot::SetNextAxesToFit();
 
     // Use an eccentric color when the selected channel is same as the current histogram
-    static const SelectedChannel histType2Channel[] = {Channel_Fluence, Channel_Angular, Channel_Energy, Channel_Depth, Channel_Samples};
+    static const SelectedChannel histType2Channel[] = {Channel_Fluence, Channel_Angular, Channel_Energy, Channel_Depth, Channel_SplitKind};
     static const ImU32 unselectedCol = ImGui::GetColorU32({0.2f, 0.4f, 0.6f, 1.f});
     static const ImU32 selectedCol = ImGui::GetColorU32({0.6f, 0.4f, 0.2f, 1.f});
     ImU32 col = m_parent->GetSelectedChannel() == histType2Channel[m_type] ? selectedCol : unselectedCol;

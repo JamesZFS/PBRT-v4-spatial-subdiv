@@ -18,7 +18,7 @@ enum SelectedChannel {
     Channel_Fluence,
     Channel_Energy,
     Channel_Angular,
-    Channel_Samples,
+    Channel_SplitKind,
     // Channel_ZeroSamples,
     Channel_Depth,
     Channel_Reference,

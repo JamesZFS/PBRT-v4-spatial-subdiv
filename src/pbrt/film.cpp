@@ -28,6 +28,7 @@
 #include <pbrt/util/spectrum.h>
 #include <pbrt/util/stats.h>
 #include <pbrt/util/transform.h>
+#include <openpgl/types.h>
 
 #include <algorithm>
 #include <cstring>
@@ -936,6 +937,20 @@ void GuidedGBufferFilm::WriteImage(ImageMetadata metadata, Float splatScale, boo
     image.Write(filename, metadata, isPartial);
 }
 
+static inline RGB SplitKindToRGB(uint8_t kind) {
+    RGB ret = {0, 0, 0};
+    if (kind & PGL_SPATIAL_SPLIT_SAMPLE_COUNT) {
+        ret += {1, 0, 0};  // red
+    }
+    if (kind & PGL_SPATIAL_SPLIT_FLUENCE) {
+        ret += {0, 1, 0};  // green
+    }
+    if (kind & PGL_SPATIAL_SPLIT_ANGULAR) {
+        ret += {0, 0, 1};  // blue
+    }
+    return ret;
+}
+
 Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
@@ -957,6 +972,9 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                      "GuideId.B",
                      "Samples",
                      "Depth",
+                    "SplitKind.R",
+                    "SplitKind.G",
+                    "SplitKind.B",
                      "Fluence",
                      "PixelFluence",
                      "FirstDir.x", "FirstDir.y", "FirstDir.z",
@@ -974,7 +992,8 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
         ImageChannelDesc guideDesc =
             image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
-                "Samples", "Depth", "Fluence", "PixelFluence", "FirstDir.x", "FirstDir.y", "FirstDir.z", "Energy", "AngularDistance",
+                "Samples", "Depth", "SplitKind.R", "SplitKind.G", "SplitKind.B",
+                "Fluence", "PixelFluence", "FirstDir.x", "FirstDir.y", "FirstDir.z", "Energy", "AngularDistance",
                 "FineId.R", "FineId.G", "FineId.B"});
 
         std::atomic<int> nClamped{0};
@@ -992,6 +1011,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
             {
                 fineIdRgb = RGB(HashFloat(pixel.guidingData.fineId, 0), HashFloat(pixel.guidingData.fineId, 1), HashFloat(pixel.guidingData.fineId, 2));
             }
+            RGB splitKindRgb = SplitKindToRGB(pixel.guidingData.splitKind);
 
             // Normalize pixel with weight sum
             Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
@@ -1029,6 +1049,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
             image.SetChannels(pOffset, guideDesc,
                               {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                                   (float) pixel.guidingData.numSamples, (float) pixel.guidingData.depth,
+                                  splitKindRgb[0], splitKindRgb[1], splitKindRgb[2],
                                   pixel.guidingData.fluence, pixelFluence, firstDir.x, firstDir.y, firstDir.z,
                                   pixel.guidingData.energy, pixel.guidingData.angularEnergy,
                                     fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
@@ -1060,13 +1081,16 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                      "GuideId.G",
                      "GuideId.B",
                      "Depth",
+                     "SplitKind.R",
+                     "SplitKind.G",
+                     "SplitKind.B",
                     });
 
         ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
         //ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
         //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
         ImageChannelDesc guideDesc =
-            image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B", "Depth"});
+            image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B", "Depth", "SplitKind.R", "SplitKind.G", "SplitKind.B"});
 
         std::atomic<int> nClamped{0};
         ParallelFor2D(pixelBounds, [&](Point2i p) {
@@ -1078,6 +1102,8 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
             {
                 guideIdRgb = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
             }
+
+            RGB splitKindRgb = SplitKindToRGB(pixel.guidingData.splitKind);
 
             // Normalize pixel with weight sum
             Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
@@ -1104,7 +1130,9 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
             Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
             image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
             image.SetChannels(pOffset, guideDesc,
-                              {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2], (float) pixel.guidingData.depth});
+                            {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
+                                  (float) pixel.guidingData.depth,
+                                  splitKindRgb[0], splitKindRgb[1], splitKindRgb[2]});
         });
 
         if (nClamped.load() > 0)

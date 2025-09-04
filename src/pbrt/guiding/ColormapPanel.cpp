@@ -9,13 +9,13 @@ using namespace pbrt;
 
 ColormapPanel::ColormapPanel(pbrt::Application *parent, pbrt::Film film, const pstd::optional<pbrt::Image> &reference)
     : View(parent), film(film), reference(reference) {
-    for (auto c: {Channel_Radiance, Channel_CacheID, Channel_Reference, Channel_Error}) {
+    for (auto c: {Channel_Radiance, Channel_CacheID, Channel_SplitKind, Channel_Reference, Channel_Error}) {
         shaderData[c].firstNormalized = true;
     }
-    for (auto c: {Channel_Energy, Channel_Fluence, Channel_Angular, Channel_Samples, /*Channel_ZeroSamples,*/ Channel_Depth}) {
+    for (auto c: {Channel_Energy, Channel_Fluence, Channel_Angular, /*Channel_ZeroSamples,*/ Channel_Depth}) {
         shaderData[c].cmap = CMap_Viridis;
     }
-    for (auto c: {Channel_Radiance, Channel_Reference}) {
+    for (auto c: {Channel_Radiance, Channel_SplitKind, Channel_Reference}) {
         shaderData[c].boundary = true;
     }
     shaderData[Channel_Error].cmap = CMap_Inferno;
@@ -26,10 +26,11 @@ void ColormapPanel::Draw() {
     isHovered = false;
     hoveringValue = std::numeric_limits<float>::infinity();
     auto c = m_parent->GetSelectedChannel();
-    bool isID = c == Channel_CacheID;
+    bool isOrdinal = c == Channel_CacheID || c == Channel_SplitKind;
     auto &io = ImGui::GetIO();
-    if (!isID) {
-        auto &sd = shaderData[c];
+    auto &sd = shaderData[c];
+    if (IsKeyPressed(ImGuiKey_B, false)) sd.boundary ^= true;
+    if (!isOrdinal) {
         auto reset = [&]() {
             sd.scale = 1.0f;
             sd.offset = 0.0f;
@@ -49,7 +50,6 @@ void ColormapPanel::Draw() {
         }
         if (IsKeyPressed(ImGuiKey_R, false)) reset();
         if (IsKeyPressed(ImGuiKey_N, false) || !sd.firstNormalized) normalize();
-        if (IsKeyPressed(ImGuiKey_B, false)) sd.boundary ^= true;
         ImGui::SetNextItemOpen(true, ImGuiCond_Once);
         if (ImGui::CollapsingHeader("Color Map")) {
             ImGui::DragFloat("Scale", &sd.scale, 0.01f, 0, 0, "%.8f");
@@ -105,9 +105,6 @@ std::pair<float, float> ColormapPanel::GetMinMaxFromFilm(SelectedChannel c) cons
                         break;
                     case Channel_Angular:
                         val = pixel.guidingData.angularEnergy;
-                        break;
-                    case Channel_Samples:
-                        val = (float) pixel.guidingData.numSamples;
                         break;
                     // case Channel_ZeroSamples:
                     //     val = (float) pixel.guidingData.numZeroValueSamples;

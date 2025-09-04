@@ -59,7 +59,7 @@ private:
         std::vector<float> fluence;
         std::vector<float> angularEnergy;
         std::vector<float> signatureDist;
-        std::vector<float> samples;
+        std::vector<pbrt::RGB> splitKind;
         std::vector<float> depth;
         std::vector<pbrt::RGB> reference;  // stays constant
         std::vector<float> error;

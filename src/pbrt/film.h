@@ -171,6 +171,7 @@ class VisibleSurface {
         float fluence = 0;
         float energy = 0;
         float angularEnergy = 0;
+        uint8_t splitKind = 0;
 
         GuidingData &operator=(const GuidingData &other) {
             if (other.id != -1) id = other.id;
@@ -180,6 +181,7 @@ class VisibleSurface {
             fluence = other.fluence;
             energy = other.energy;
             angularEnergy = other.angularEnergy;
+            splitKind = other.splitKind;
             return *this;
         }
     } guidingData;
