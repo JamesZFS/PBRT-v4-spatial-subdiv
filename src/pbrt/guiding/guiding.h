@@ -666,12 +666,11 @@ void dumpSampleStorage(const std::string& outdir_, openpgl::cpp::SampleStorage* 
     if (!outdir.exists()) create_directories(outdir);
 
     const size_t n = isVolume ? storage->GetSizeVolume() : storage->GetSizeSurface();
-    npy::npy_data<float> position, direction, weight, pdf, guidingPdf;
+    npy::npy_data<float> position, direction, weight, pdf;
     initVectorBuffer(position, n);
     initVectorBuffer(direction, n);
     initScalarBuffer(weight, n);
     initScalarBuffer(pdf, n);
-    initScalarBuffer(guidingPdf, n);
 
     auto remove_if_exists = [](filesystem::path& path) {
         if (path.exists()) path.remove_file();
@@ -681,12 +680,10 @@ void dumpSampleStorage(const std::string& outdir_, openpgl::cpp::SampleStorage* 
     filesystem::path direction_path = outdir / StringPrintf("direction-%d.npy", iter);
     filesystem::path weight_path = outdir / StringPrintf("weight-%d.npy", iter);
     filesystem::path pdf_path = outdir / StringPrintf("pdf-%d.npy", iter);
-    filesystem::path guidingPdf_path = outdir / StringPrintf("guidingPDF-%d.npy", iter);
     remove_if_exists(position_path);
     remove_if_exists(direction_path);
     remove_if_exists(weight_path);
     remove_if_exists(pdf_path);
-    remove_if_exists(guidingPdf_path);
 
     for (int i = 0; i < n; ++i) {
         auto s = isVolume ? storage->GetSampleVolume(i) : storage->GetSampleSurface(i);
@@ -701,14 +698,12 @@ void dumpSampleStorage(const std::string& outdir_, openpgl::cpp::SampleStorage* 
 
         weight.data[i] = s.weight;
         pdf.data[i] = s.pdf;
-        guidingPdf.data[i] = s.guidingPDF;
     }
 
     npy::write_npy(position_path.str(), position);
     npy::write_npy(direction_path.str(), direction);
     npy::write_npy(weight_path.str(), weight);
     npy::write_npy(pdf_path.str(), pdf);
-    npy::write_npy(guidingPdf_path.str(), guidingPdf);
 }
 
 inline openpgl::cpp::PathSegment* guiding_newVolumePathSegment(openpgl::cpp::PathSegmentStorage* pathSegmentStorage, const Point3f& pos, const Vector3f& wo)

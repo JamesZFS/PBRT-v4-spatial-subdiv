@@ -354,10 +354,10 @@ if (PBRT_WITH_PATH_GUIDING)
 
   set(OPENPGL_BUILD_STATIC OFF CACHE BOOL "Build OpenPGL as a static library" FORCE)
 #  set(OPENPGL_TBB_ROOT ${CMAKE_INSTALL_PREFIX} CACHE PATH "Path to TBB" FORCE)
-  set(OPENPGL_EF_RADIANCE_CACHES ON CACHE BOOL "Enable radiance caches" FORCE)
-  set(OPENPGL_EF_GUIDING_PDF_CACHES ON CACHE BOOL "Enable cached guiding PDFs" FORCE)
-  set(OPENPGL_DIRECTION_COMPRESSION ON CACHE BOOL "Enable direction compression" FORCE)
-  set(OPENPGL_RADIANCE_COMPRESSION ON CACHE BOOL "Enable radiance compression" FORCE)
+  set(OPENPGL_EF_RADIANCE_CACHES OFF CACHE BOOL "Enable radiance caches" FORCE)
+  set(OPENPGL_EF_GUIDING_PDF_CACHES OFF CACHE BOOL "Enable cached guiding PDFs" FORCE)
+  set(OPENPGL_DIRECTION_COMPRESSION OFF CACHE BOOL "Enable direction compression" FORCE)
+  set(OPENPGL_RADIANCE_COMPRESSION OFF CACHE BOOL "Enable radiance compression" FORCE)
 
   add_subdirectory (openpgl)
   add_library(OpenPGL ALIAS openpgl)  # Assuming openpgl creates a target named `openpgl`

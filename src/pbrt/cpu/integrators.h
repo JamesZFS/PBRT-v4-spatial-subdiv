@@ -358,11 +358,6 @@ class GuidedPathIntegrator : public RayIntegrator {
     mutable float avgPathLength {0};
     mutable float pathLengthCnt {0};
 
-    openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer {nullptr};
-
-    bool imageSpaceGuidingBufferReady {false};
-    bool calculateImageSpaceGuidingBuffer {false};
-    int imageSpaceGuidingBufferUpdateWave {0};
     int waveCounter {0};
 };
 #endif
@@ -503,11 +498,6 @@ class GuidedVolPathIntegrator : public RayIntegrator {
     openpgl::cpp::Field* guiding_field {nullptr};
     openpgl::cpp::Device* guiding_device {nullptr};
 
-    openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer{nullptr};
-
-    bool imageSpaceGuidingBufferReady {false};
-    bool calculateImageSpaceGuidingBuffer {false};
-    int imageSpaceGuidingBufferUpdateWave {0};
     int waveCounter {0};
 };
 #endif
