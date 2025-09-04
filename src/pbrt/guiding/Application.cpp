@@ -24,7 +24,7 @@ static std::vector<const char *> channelNames = {
     "Fluence (3)",
     "Energy (4)",
     "Angular (5)",
-    "Samples (6)",
+    "Split Kind (6)",
     // "Zero Samples (6)",
     "Depth (7)",
     "Reference (8)",
@@ -690,7 +690,7 @@ void Application::UpdateFramebuffer() {
         clipValue = m_cacheHistogram.energy->hoveringValue;
     } else if (c == Channel_Depth && m_cacheHistogram.depth->isHovered) {
         clipValue = m_cacheHistogram.depth->hoveringValue;
-    } else if (c == Channel_Samples && m_cacheHistogram.samples->isHovered) {
+    } else if (c == Channel_SplitKind && m_cacheHistogram.samples->isHovered) {
         clipValue = m_cacheHistogram.samples->hoveringValue;
     }
     m_viewport->UpdateFramebuffer({sd.scale, sd.offset, clipValue, cmap_tex_ids[sd.cmap]}, m_selectedChannel, m_showFine, m_showDiff, sd.boundary);
