@@ -940,115 +940,182 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
     PixelFormat format = writeFP16 ? PixelFormat::Half : PixelFormat::Float;
-    Image image(format, Point2i(pixelBounds.Diagonal()),
-                {"R",
-                 "G",
-                 "B",
-                 //"N.x",
-                 //"N.y",
-                 //"N.z",
-                 //"Ns.x",
-                 //"Ns.y",
-                 //"Ns.z",
-                    // Coarse:
-                 "GuideId.R",
-                 "GuideId.G",
-                 "GuideId.B",
-                 "Samples",
-                 "Depth",
-                 "Fluence",
-                 "PixelFluence",
-                 "FirstDir.x", "FirstDir.y", "FirstDir.z",
-                 "Energy",
-                 "AngularDistance",
+    if (Options->csvOutput.empty()) {
+        Image image(format, Point2i(pixelBounds.Diagonal()),
+                    {"R",
+                     "G",
+                     "B",
+                     //"N.x",
+                     //"N.y",
+                     //"N.z",
+                     //"Ns.x",
+                     //"Ns.y",
+                     //"Ns.z",
+                        // Coarse:
+                     "GuideId.R",
+                     "GuideId.G",
+                     "GuideId.B",
+                     "Samples",
+                     "Depth",
+                     "Fluence",
+                     "PixelFluence",
+                     "FirstDir.x", "FirstDir.y", "FirstDir.z",
+                     "Energy",
+                     "AngularDistance",
 
-                    // Fine:
-                 "FineId.R",
-                 "FineId.G",
-                 "FineId.B",
-                });
+                        // Fine:
+                     "FineId.R",
+                     "FineId.G",
+                     "FineId.B",
+                    });
 
-    ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
-    //ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
-    //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
-    ImageChannelDesc guideDesc =
-        image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
-            "Samples", "Depth", "Fluence", "PixelFluence", "FirstDir.x", "FirstDir.y", "FirstDir.z", "Energy", "AngularDistance",
-            "FineId.R", "FineId.G", "FineId.B"});
+        ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
+        //ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
+        //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
+        ImageChannelDesc guideDesc =
+            image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
+                "Samples", "Depth", "Fluence", "PixelFluence", "FirstDir.x", "FirstDir.y", "FirstDir.z", "Energy", "AngularDistance",
+                "FineId.R", "FineId.G", "FineId.B"});
 
-    std::atomic<int> nClamped{0};
-    ParallelFor2D(pixelBounds, [&](Point2i p) {
-        Pixel &pixel = pixels[p];
-        RGB rgb(pixel.rgbSum[0], pixel.rgbSum[1], pixel.rgbSum[2]);
+        std::atomic<int> nClamped{0};
+        ParallelFor2D(pixelBounds, [&](Point2i p) {
+            Pixel &pixel = pixels[p];
+            RGB rgb(pixel.rgbSum[0], pixel.rgbSum[1], pixel.rgbSum[2]);
 
-        RGB guideIdRgb(0.0, 0.0, 0.0);
-        if(pixel.guidingData.id != -1)
-        {
-            guideIdRgb = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
-        }
-        RGB fineIdRgb = guideIdRgb;
-        if(pixel.guidingData.fineId != -1)
-        {
-            fineIdRgb = RGB(HashFloat(pixel.guidingData.fineId, 0), HashFloat(pixel.guidingData.fineId, 1), HashFloat(pixel.guidingData.fineId, 2));
-        }
+            RGB guideIdRgb(0.0, 0.0, 0.0);
+            if(pixel.guidingData.id != -1)
+            {
+                guideIdRgb = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
+            }
+            RGB fineIdRgb = guideIdRgb;
+            if(pixel.guidingData.fineId != -1)
+            {
+                fineIdRgb = RGB(HashFloat(pixel.guidingData.fineId, 0), HashFloat(pixel.guidingData.fineId, 1), HashFloat(pixel.guidingData.fineId, 2));
+            }
 
-        // Normalize pixel with weight sum
-        Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
-        if (weightSum != 0) {
-            rgb /= weightSum;
-        }
+            // Normalize pixel with weight sum
+            Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
+            if (weightSum != 0) {
+                rgb /= weightSum;
+            }
 
-        Float pixelFluence = pixel.pixelFluenceSum;
-        if (gBufferWeightSum != 0) {
-            pixelFluence /= gBufferWeightSum;
-        }
+            Float pixelFluence = pixel.pixelFluenceSum;
+            if (gBufferWeightSum != 0) {
+                pixelFluence /= gBufferWeightSum;
+            }
 
-        Vector3 firstDir = pixel.firstDirSum;
-        float norm = Length(firstDir);
-        if (norm > 0) firstDir /= norm;
+            Vector3 firstDir = pixel.firstDirSum;
+            float norm = Length(firstDir);
+            if (norm > 0) firstDir /= norm;
 
-        // Add splat value at pixel
-        for (int c = 0; c < 3; ++c)
-            rgb[c] += splatScale * pixel.rgbSplat[c] / filterIntegral;
+            // Add splat value at pixel
+            for (int c = 0; c < 3; ++c)
+                rgb[c] += splatScale * pixel.rgbSplat[c] / filterIntegral;
 
-        rgb = outputRGBFromSensorRGB * rgb;
+            rgb = outputRGBFromSensorRGB * rgb;
 
-        if (writeFP16 && std::max({rgb.r, rgb.g, rgb.b}) > 65504) {
-            if (rgb.r > 65504)
-                rgb.r = 65504;
-            if (rgb.g > 65504)
-                rgb.g = 65504;
-            if (rgb.b > 65504)
-                rgb.b = 65504;
-            ++nClamped;
-        }
+            if (writeFP16 && std::max({rgb.r, rgb.g, rgb.b}) > 65504) {
+                if (rgb.r > 65504)
+                    rgb.r = 65504;
+                if (rgb.g > 65504)
+                    rgb.g = 65504;
+                if (rgb.b > 65504)
+                    rgb.b = 65504;
+                ++nClamped;
+            }
 
-        Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
-        image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
-        image.SetChannels(pOffset, guideDesc,
-                          {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
-                              (float) pixel.guidingData.numSamples, (float) pixel.guidingData.depth,
-                              pixel.guidingData.fluence, pixelFluence, firstDir.x, firstDir.y, firstDir.z,
-                              pixel.guidingData.energy, pixel.guidingData.angularEnergy,
-                                fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
+            Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
+            image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
+            image.SetChannels(pOffset, guideDesc,
+                              {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
+                                  (float) pixel.guidingData.numSamples, (float) pixel.guidingData.depth,
+                                  pixel.guidingData.fluence, pixelFluence, firstDir.x, firstDir.y, firstDir.z,
+                                  pixel.guidingData.energy, pixel.guidingData.angularEnergy,
+                                    fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
 
-        //Normal3f n =
-        //    LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
-        
-        //Normal3f ns =
-        //    LengthSquared(pixel.nsSum) > 0 ? Normalize(pixel.nsSum) : Normal3f(0, 0, 0);
-        //image.SetChannels(pOffset, normalDesc, {(n.x+1.0f) * 0.5f, (n.y+1.0f) * 0.5f, (n.z+1.0f) * 0.5f});
-        //image.SetChannels(pOffset, normalShadeDesc, {(ns.x+1.0f) * 0.5f, (ns.y+1.0f) * 0.5f, (ns.z+1.0f) * 0.5f});
-    });
+            //Normal3f n =
+            //    LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);
 
-    if (nClamped.load() > 0)
-        Warning("%d pixel values clamped to maximum fp16 value.", nClamped.load());
+            //Normal3f ns =
+            //    LengthSquared(pixel.nsSum) > 0 ? Normalize(pixel.nsSum) : Normal3f(0, 0, 0);
+            //image.SetChannels(pOffset, normalDesc, {(n.x+1.0f) * 0.5f, (n.y+1.0f) * 0.5f, (n.z+1.0f) * 0.5f});
+            //image.SetChannels(pOffset, normalShadeDesc, {(ns.x+1.0f) * 0.5f, (ns.y+1.0f) * 0.5f, (ns.z+1.0f) * 0.5f});
+        });
 
-    metadata->pixelBounds = pixelBounds;
-    metadata->fullResolution = fullResolution;
-    metadata->colorSpace = colorSpace;
+        if (nClamped.load() > 0)
+            Warning("%d pixel values clamped to maximum fp16 value.", nClamped.load());
 
-    return image;
+        metadata->pixelBounds = pixelBounds;
+        metadata->fullResolution = fullResolution;
+        metadata->colorSpace = colorSpace;
+
+        return image;
+    } else {
+        // Benchmarking mode
+        Image image(format, Point2i(pixelBounds.Diagonal()),
+                    {"R",
+                     "G",
+                     "B",
+                     "GuideId.R",
+                     "GuideId.G",
+                     "GuideId.B",
+                     "Depth",
+                    });
+
+        ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
+        //ImageChannelDesc normalDesc = image.GetChannelDesc({"N.x", "N.y", "N.z"});
+        //ImageChannelDesc normalShadeDesc = image.GetChannelDesc({"Ns.x", "Ns.y", "Ns.z"});
+        ImageChannelDesc guideDesc =
+            image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B", "Depth"});
+
+        std::atomic<int> nClamped{0};
+        ParallelFor2D(pixelBounds, [&](Point2i p) {
+            Pixel &pixel = pixels[p];
+            RGB rgb(pixel.rgbSum[0], pixel.rgbSum[1], pixel.rgbSum[2]);
+
+            RGB guideIdRgb(0.0, 0.0, 0.0);
+            if(pixel.guidingData.id != -1)
+            {
+                guideIdRgb = RGB(HashFloat(pixel.guidingData.id, 0), HashFloat(pixel.guidingData.id, 1), HashFloat(pixel.guidingData.id, 2));
+            }
+
+            // Normalize pixel with weight sum
+            Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
+            if (weightSum != 0) {
+                rgb /= weightSum;
+            }
+
+            // Add splat value at pixel
+            for (int c = 0; c < 3; ++c)
+                rgb[c] += splatScale * pixel.rgbSplat[c] / filterIntegral;
+
+            rgb = outputRGBFromSensorRGB * rgb;
+
+            if (writeFP16 && std::max({rgb.r, rgb.g, rgb.b}) > 65504) {
+                if (rgb.r > 65504)
+                    rgb.r = 65504;
+                if (rgb.g > 65504)
+                    rgb.g = 65504;
+                if (rgb.b > 65504)
+                    rgb.b = 65504;
+                ++nClamped;
+            }
+
+            Point2i pOffset(p.x - pixelBounds.pMin.x, p.y - pixelBounds.pMin.y);
+            image.SetChannels(pOffset, rgbDesc, {rgb[0], rgb[1], rgb[2]});
+            image.SetChannels(pOffset, guideDesc,
+                              {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2], (float) pixel.guidingData.depth});
+        });
+
+        if (nClamped.load() > 0)
+            Warning("%d pixel values clamped to maximum fp16 value.", nClamped.load());
+
+        metadata->pixelBounds = pixelBounds;
+        metadata->fullResolution = fullResolution;
+        metadata->colorSpace = colorSpace;
+
+        return image;
+    }
 }
 
 std::string GuidedGBufferFilm::ToString() const {

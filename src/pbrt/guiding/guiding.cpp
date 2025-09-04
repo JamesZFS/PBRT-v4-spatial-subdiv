@@ -480,21 +480,28 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         if (cacheInitialized && shouldCreateVisbleSurf) {
             Point3 p = si->intr.p();
             pgl_point3f pglP{p.x, p.y, p.z};
-            auto [coarse, fine] = guiding_field->GetCoarseFineRegionStatisticsSurface(pglP);
-            visibleSurf->guidingData.id = coarse.id;
-            visibleSurf->guidingData.fineId = fine.id;
-            if (coarse.id != -1) {
-                visibleSurf->guidingData.numSamples = coarse.numSamples;
-                visibleSurf->guidingData.depth = coarse.depth;
-                if (fine.id != -1) {
-                    visibleSurf->guidingData.fluence = fine.fluence;
-                    visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
-                    visibleSurf->guidingData.angularEnergy = fine.angularEnergy;
-                } else {
-                    visibleSurf->guidingData.fluence = coarse.fluence;
-                    visibleSurf->guidingData.energy = coarse.energy;
-                    visibleSurf->guidingData.angularEnergy = coarse.angularEnergy;
+            if (Options->csvOutput.empty()) {
+                auto [coarse, fine] = guiding_field->GetCoarseFineRegionStatisticsSurface(pglP);
+                visibleSurf->guidingData.id = coarse.id;
+                visibleSurf->guidingData.fineId = fine.id;
+                if (coarse.id != -1) {
+                    visibleSurf->guidingData.numSamples = coarse.numSamples;
+                    visibleSurf->guidingData.depth = coarse.depth;
+                    if (fine.id != -1) {
+                        visibleSurf->guidingData.fluence = fine.fluence;
+                        visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
+                        visibleSurf->guidingData.angularEnergy = fine.angularEnergy;
+                    } else {
+                        visibleSurf->guidingData.fluence = coarse.fluence;
+                        visibleSurf->guidingData.energy = coarse.energy;
+                        visibleSurf->guidingData.angularEnergy = coarse.angularEnergy;
+                    }
                 }
+            } else {  // Benchmarking mode
+                auto stats = guiding_field->GetBriefRegionStatisticsSurface(pglP);
+                visibleSurf->guidingData.id = stats.id;
+                visibleSurf->guidingData.depth = stats.depth;
+                // Skip other fields
             }
         }
 
