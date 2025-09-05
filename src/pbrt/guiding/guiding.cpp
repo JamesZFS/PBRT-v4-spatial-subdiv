@@ -261,6 +261,7 @@ void GuidedPathIntegrator::Render() {
 
 
 void GuidedPathIntegrator::PostProcessWave() {
+    prevAvgPathLength = avgPathLength;
     avgPathLength = pathLengthCnt = 0;
 
     waveCounter++;
@@ -271,14 +272,13 @@ void GuidedPathIntegrator::PostProcessWave() {
     }
     else if (guideSettings.enableTraining) {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() + guiding_sampleStorage->GetSizeVolume();
+        prevNumTrainingSamples = numValidSamples;
         std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t numValidSamples: " << numValidSamples << std::endl;
-        if(numValidSamples > 128) {
-            Timer guidingFieldUpdateTimer;
-            guiding_field->Update(*guiding_sampleStorage);
-            guidingCacheUpdateTime += guidingFieldUpdateTimer.ElapsedSeconds();
-            if(guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
-                guideSettings.enableTraining = false;
-            }
+        Timer guidingFieldUpdateTimer;
+        guiding_field->Update(*guiding_sampleStorage);
+        guidingCacheUpdateTime += guidingFieldUpdateTimer.ElapsedSeconds();
+        if(guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
+            guideSettings.enableTraining = false;
         }
     }
     guiding_sampleStorage->Clear();
@@ -603,17 +603,19 @@ std::string GuidedPathIntegrator::ToString() const {
 }
 
 void GuidedPathIntegrator::LogFileHead(FILE *logFile) const {
-    fprintf(logFile, "training time, number of regions, number of lookahead regions, memory kd tree, memory region data, memory candidate region data, ");
+    fprintf(logFile, "training time, number of regions, number of lookahead regions, memory kd tree, memory region data, memory candidate region data, number of training samples, average path length, ");
 }
 
 void GuidedPathIntegrator::LogFileRow(FILE *logFile) const {
-    fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, ",
+    fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ",
         // training time
         guidingCacheUpdateTime,
         // number of regions                            number of lookahead regions
         guiding_field->GetRegionCountSurface(false), guiding_field->GetLookaheadRegionCountSurface(),
         // memory kd tree                        memory region data                           memory candidate region data
-        guiding_field->GetMemoryKDTreeSurface(), guiding_field->GetMemoryRegionDataSurface(), guiding_field->GetMemoryLookaheadRegionDataSurface()
+        guiding_field->GetMemoryKDTreeSurface(), guiding_field->GetMemoryRegionDataSurface(), guiding_field->GetMemoryLookaheadRegionDataSurface(),
+        // number of samples   average path length
+        prevNumTrainingSamples, prevAvgPathLength
     );
 }
 

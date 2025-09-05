@@ -357,6 +357,8 @@ class GuidedPathIntegrator : public RayIntegrator {
     mutable std::mutex pathLengthMutex;
     mutable float avgPathLength {0};
     mutable float pathLengthCnt {0};
+    float prevAvgPathLength {0};
+    size_t prevNumTrainingSamples {0};
 
     openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer {nullptr};
 
