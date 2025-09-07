@@ -660,7 +660,11 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     if (angulartype == "off") settings.treeangulartype = PGL_SPATIAL_ANGULAR_OFF;
     else if (angulartype == "heuristic") settings.treeangulartype = PGL_SPATIAL_ANGULAR_HEURISTIC;
     else if (angulartype == "series") settings.treeangulartype = PGL_SPATIAL_ANGULAR_SERIES;
+    else if (angulartype == "lut") settings.treeangulartype = PGL_SPATIAL_ANGULAR_LUT;
     else throw std::runtime_error("Unknown treeangulartype: " + angulartype);
+
+    if (settings.treeangulartype == PGL_SPATIAL_ANGULAR_LUT && settings.treeangularalpha != 1e-4f)
+        throw std::runtime_error("treeangularalpha should be 1e-4 when using LUT angular type");
 
     auto knntype = parameters.GetOneString("treeknntype", "uniform");
     if (knntype == "uniform") settings.treeknntype = PGL_SPATIAL_KNN_UNIFORM;

@@ -190,8 +190,8 @@ void SignatureView::DrawPC() {
     ImGui::Text("Mean direction of child / parent: (%.2f, %.2f, %.2f) / (%.2f, %.2f, %.2f)",
         m_cachedSignatureChild.meanDir.x, m_cachedSignatureChild.meanDir.y, m_cachedSignatureChild.meanDir.z,
         m_cachedSignatureParent.meanDir.x, m_cachedSignatureParent.meanDir.y, m_cachedSignatureParent.meanDir.z);
-    ImGui::Text("VMF kappa of child / parent: %.2f / %.2f, sigma: %.2e / %.2e",
-        m_cachedSignatureChild.kappa, m_cachedSignatureParent.kappa,
+    ImGui::Text("VMF effective kappa of child / parent: %.2f / %.2f, sigma: %.2e / %.2e",
+        m_cachedSignatureChild.kappa_eff, m_cachedSignatureParent.kappa_eff,
         m_cachedSignatureChild.sigmaDir, m_cachedSignatureParent.sigmaDir);
 }
 
