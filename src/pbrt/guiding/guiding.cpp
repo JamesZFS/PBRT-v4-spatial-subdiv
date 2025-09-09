@@ -668,7 +668,6 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
 
     auto knntype = parameters.GetOneString("treeknntype", "uniform");
     if (knntype == "uniform") settings.treeknntype = PGL_SPATIAL_KNN_UNIFORM;
-    else if (knntype == "region_size_weighted") settings.treeknntype = PGL_SPATIAL_KNN_REGION_SIZE_WEIGHTED;
     else if (knntype == "jitter") settings.treeknntype = PGL_SPATIAL_KNN_JITTER;
     else throw std::runtime_error("Unknown treeknntype: " + knntype);
 
