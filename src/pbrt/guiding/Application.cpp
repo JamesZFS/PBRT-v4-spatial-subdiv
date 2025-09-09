@@ -13,6 +13,7 @@
 #include <pbrt/util/progressreporter.h>
 
 #include <iostream>
+#include <random>
 #include <imgui_internal.h>
 #include <implot.h>
 #include <implot_internal.h>
@@ -631,14 +632,13 @@ void Application::CheckIsRenderThread() {
         ErrorExit("This function should be called from the render thread");
 }
 
-Application::RayCastingData Application::RayCast(Point2i pixel) const {
-    RayCastingData rc{pixel};
+void Application::RayCast(Point2i pixel, const std::function<void(const RayDifferential &, const ShapeIntersection &sit)> &onDiffuse) const {
     static ScratchBuffer scratchBuffer;
-    if (rc.pixel.x >= 0 && rc.pixel.x < m_resolution.x && rc.pixel.y >= 0 && rc.pixel.y < m_resolution.y) {
+    if (pixel.x >= 0 && pixel.x < m_resolution.x && pixel.y >= 0 && pixel.y < m_resolution.y) {
         IndependentSampler _sampler(m_spp, 0);
         Sampler sampler(&_sampler);
         Filter filter = m_camera.GetFilm().GetFilter();
-        CameraSample cameraSample = GetCameraSample(sampler, rc.pixel, filter);
+        CameraSample cameraSample = GetCameraSample(sampler, pixel, filter);
         SampledWavelengths lambda = m_camera.GetFilm().SampleWavelengths(sampler.Get1D());
         if (auto cameraRay = m_camera.GenerateRayDifferential(cameraSample, lambda)) {
             RayDifferential ray = cameraRay->ray;
@@ -659,21 +659,28 @@ Application::RayCastingData Application::RayCast(Point2i pixel) const {
                     ray = sit->intr.SpawnRay(bs->wi);  // Continue tracing
                 } else {
                     // Diffuse surface. Good
-                    rc.valid = true;
-                    rc.hit = ray(sit->tHit);
-                    if (Dot(ray.d, sit->intr.shading.n) > 0) sit->intr.shading.n *= -1;  // flip normal when backfacing
-                    rc.normal = sit->intr.shading.n;
-                    rc.uv = sit->intr.uv;
-                    // Query the guiding cache
-                    pgl_point3f pglP = {rc.hit.x, rc.hit.y, rc.hit.z};
-                    std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
-                    std::tie(rc.coarse, rc.fine) = m_field.GetCoarseFineRegionStatisticsSurface(pglP);
+                    onDiffuse(ray, *sit);
                     break;
                 }
             }
         }
         scratchBuffer.Reset();
     }
+}
+
+Application::RayCastingData Application::GetRayCastData(Point2i pixel) const {
+    RayCastingData rc{pixel};
+    RayCast(pixel, [&](auto &ray, auto &sit) {
+        rc.valid = true;
+        rc.hit = ray(sit.tHit);
+        rc.normal = sit.intr.shading.n;
+        if (Dot(ray.d, rc.normal) > 0) rc.normal *= -1;  // flip normal when backfacing
+        rc.uv = sit.intr.uv;
+        // Query the guiding cache
+        pgl_point3f pglP = {rc.hit.x, rc.hit.y, rc.hit.z};
+        std::lock_guard lock(m_mtx.field);  // avoid race condition when the field is updated
+        std::tie(rc.coarse, rc.fine) = m_field.GetCoarseFineRegionStatisticsSurface(pglP);
+    });
     return rc;
 }
 
@@ -832,10 +839,14 @@ void Application::AppendToRayCastingHistory(const RayCastingData &rc) {
     m_rcHistory += "\n";
 }
 
+void Application::AppendToRayCastingHistory(const std::string &message) {
+    m_rcHistory += message + "\n";
+}
+
 void Application::UpdateRayCastingAtMouse() {
     if (m_enableRayCastingAtMouse) {
         if (m_viewport->IsHovered()) {
-            m_rcMouse = RayCast(m_viewport->GetMousePixel());
+            m_rcMouse = GetRayCastData(m_viewport->GetMousePixel());
             if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
                 AppendToRayCastingHistory(m_rcMouse);
             }
@@ -850,6 +861,32 @@ void Application::UpdateRayCastingAtMouse() {
                 ImGui::EndTooltip();
             }
         }
+    }
+    if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && m_guideSettings.knnLookup) {
+        // KNN test
+        static std::mt19937 rng(0);
+        std::uniform_real_distribution<float> dist(0, 1);
+        RayCast(m_viewport->GetMousePixel(), [&](auto &ray, auto &sit) {
+            std::lock_guard lock(m_mtx.field);
+            pgl_point3f p{ray(sit.tHit).x, ray(sit.tHit).y, ray(sit.tHit).z};
+            const int numTests = 10000;
+            std::unordered_map<uint32_t, int> count;  // from region idx to count
+            for (int i = 0; i < numTests; ++i) {
+                float sample[3] = {dist(rng), dist(rng), dist(rng)};
+                uint32_t id = m_field.GetRegionIdxKNNSurface(p, sample);
+                count[id]++;
+            }
+            // Sort by count
+            std::vector<std::pair<uint32_t, int>> result(count.begin(), count.end());
+            std::sort(result.begin(), result.end(), [](const auto &a, const auto &b) {
+                return a.second > b.second;
+            });
+            std::string message = "KNN test: \n";
+            for (auto [id, n]: result) {
+                message += StringPrintf("  ID %u: \t%d \t(%.2f%%)\n", id, n, n * 100.f / numTests);
+            }
+            AppendToRayCastingHistory(message);
+        });
     }
 }
 
@@ -882,7 +919,7 @@ void Application::SDREViewInteraction() {
         // Not found: create a new one at click
         if (!found && m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, false)) {
             hasUpdate = true;
-            m_rcSDRE = RayCast(pixel);
+            m_rcSDRE = GetRayCastData(pixel);
             m_rcSDREHistory.push_back(m_rcSDRE);
         }
         if (hasUpdate) {
@@ -893,7 +930,7 @@ void Application::SDREViewInteraction() {
     } else {  // Standard mode
         // Left click to update the sampling distribution
         if (m_viewport->IsHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left, true)) {
-            m_rcSDRE = RayCast(pixel);
+            m_rcSDRE = GetRayCastData(pixel);
             UpdateSamplingDistributionView();
             NewRadianceViewRendering();
             UpdateSignatureView();
@@ -954,7 +991,7 @@ void Application::CacheProbesInteraction() {
                 float x = GetCurrentWave();
                 const float nan = std::numeric_limits<float>::quiet_NaN();
                 if (probe.data.empty() || probe.data.back().iter < x) {
-                    auto rc = RayCast(pixel);
+                    auto rc = GetRayCastData(pixel);
                     bool coarseValid = rc.coarse.id != -1;
                     bool fineValid = rc.fine.id != -1;
                     probe.data.push_back({x,
@@ -974,10 +1011,6 @@ void Application::CacheProbesInteraction() {
 
 void Application::UpdateField(int waveEnd) {
     // CheckIsRenderThread();
-    {
-        std::lock_guard lock(m_mtx.subdivCfg);
-        m_field.UpdateSubdivConfig(m_subdivCfg);
-    }
     std::lock_guard lock(m_mtx.field);
     Timer timer;
     if (waveEnd > 0)
@@ -1031,7 +1064,7 @@ void Application::UpdateCacheCurves() {
     const float nan = std::numeric_limits<float>::quiet_NaN();
     m_cacheMonitor.object->ForEachProbe([&](CacheMonitor::Probe &probe) {
         if (probe.active) {
-            auto rc = RayCast(probe.pixel);
+            auto rc = GetRayCastData(probe.pixel);
             bool coarseValid = rc.coarse.id != -1;
             bool fineValid = rc.fine.id != -1;
             probe.data.push_back({x,
@@ -1457,6 +1490,7 @@ void Application::GuideSettings() {
     // ImGui::SetNextItemOpen(true, ImGuiCond_Once);
     ImGui::BeginDisabled(m_renderThread->GetState() == RenderThread::Rendering);
     if (ImGui::CollapsingHeader("Guide Settings")) {
+        std::lock_guard lock(m_mtx.subdivCfg);
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
         ImGui::Combo("KNN Type", reinterpret_cast<int *>(&m_subdivCfg.knnType), "Uniform\0Region-size-weighted\0Jitter\0");
@@ -1469,6 +1503,7 @@ void Application::GuideSettings() {
         ImGui::Checkbox("Evaluate Only", &m_guideSettings.evaluateOnly);
         ImGui::InputInt("Training Waves", &m_guideSettings.guideNumTrainingWaves);
         ImGui::Combo("Guiding Type", reinterpret_cast<int *>(&m_guideSettings.surfaceGuidingType), "MIS\0RIS\0");
+        m_field.UpdateSubdivConfig(m_subdivCfg);
     }
     ImGui::EndDisabled();
     ImGui::PopID();
@@ -1521,6 +1556,7 @@ void Application::SpatialSubdivisionSettings() {
             std::lock_guard lock_(m_mtx.field);
             m_field.ClearSignatures();
         }
+        m_field.UpdateSubdivConfig(m_subdivCfg);
     }
     ImGui::EndDisabled();
     ImGui::PopID();
