@@ -52,7 +52,6 @@ public:
     const GuidedPathIntegrator::IntegratorSettings &GetIntegratorSettings() const { return m_integratorSettings; }
     const GuidedPathIntegrator::GuidingSettings &GetGuideSettings() const { return m_guideSettings; }
     const PGLKDTreeArguments &GetSubdivCfg() const { return m_subdivCfg; }
-    void SetSelectedModelIndex(int index);
     int LookaheadLevel() const { return m_signatureView->lookaheadLevel(); }
 
     bool sdrLocalFrame = false;
@@ -89,7 +88,8 @@ private:
     void SetupRenderThread();
 
     void CheckIsMainThread();
-    RayCastingData RayCast(Point2i pixel) const;
+    RayCastingData GetRayCastData(Point2i pixel) const;
+    void RayCast(Point2i pixel, const std::function<void(const RayDifferential &, const ShapeIntersection &sit)> &onDiffuse) const;
     void UpdateFramebuffer();
     void SaveRendering(std::string path);
     void SaveField(std::string path);
@@ -101,6 +101,7 @@ private:
 
     void CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionStatistics &fine);
     void AppendToRayCastingHistory(const RayCastingData &rc);
+    void AppendToRayCastingHistory(const std::string &message);
 
     void UpdateRayCastingAtMouse();
     void SDREViewInteraction();
