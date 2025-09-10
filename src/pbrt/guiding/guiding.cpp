@@ -97,6 +97,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
         guiding_fieldSubdivConfig.angularType = guideSettings.treeangulartype;
         guiding_fieldSubdivConfig.knnType = guideSettings.treeknntype;
+        guiding_fieldSubdivConfig.knnLookup = guideSettings.knnLookup;
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -670,6 +671,8 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     auto knntype = parameters.GetOneString("treeknntype", "uniform");
     if (knntype == "uniform") settings.treeknntype = PGL_SPATIAL_KNN_UNIFORM;
     else if (knntype == "jitter") settings.treeknntype = PGL_SPATIAL_KNN_JITTER;
+    else if (knntype == "isknn") settings.treeknntype = PGL_SPATIAL_KNN_IS;
+    else if (knntype == "isknn2") settings.treeknntype = PGL_SPATIAL_KNN_IS2;
     else throw std::runtime_error("Unknown treeknntype: " + knntype);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);

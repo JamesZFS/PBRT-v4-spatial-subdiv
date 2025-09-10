@@ -1493,7 +1493,8 @@ void Application::GuideSettings() {
         std::lock_guard lock(m_mtx.subdivCfg);
         ImGui::Checkbox("Enable Guiding", &m_guideSettings.enableGuiding);
         ImGui::Checkbox("KNN Lookup", &m_guideSettings.knnLookup);
-        ImGui::Combo("KNN Type", reinterpret_cast<int *>(&m_subdivCfg.knnType), "Uniform\0Jitter\0");
+        m_subdivCfg.knnLookup = m_guideSettings.knnLookup;
+        ImGui::Combo("KNN Type", reinterpret_cast<int *>(&m_subdivCfg.knnType), "Uniform\0Jitter\0ISKNN\0ISKNN2\0");
         if (m_subdivCfg.knnType == PGL_SPATIAL_KNN_JITTER) {
             float inputWidth = std::max(80.0f, ImGui::GetColumnWidth() * 0.5f);
             ImGui::SetNextItemWidth(inputWidth);
