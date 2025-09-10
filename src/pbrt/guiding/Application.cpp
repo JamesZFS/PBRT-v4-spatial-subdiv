@@ -785,7 +785,7 @@ void Application::CacheInfo(const PGLRegionStatistics &coarse, const PGLRegionSt
     };
     if (IsShowingFine() && fineIsValid) f(fine);
     else f(coarse);
-    // ImGui::Text("Sample Mean: (%.4f, %.4f, %.4f)", coarse.sampleMean[0], coarse.sampleMean[1], coarse.sampleMean[2]);
+    ImGui::Text("Sample Mean: (%.4f, %.4f, %.4f)", coarse.sampleMean[0], coarse.sampleMean[1], coarse.sampleMean[2]);
     ImGui::Text("Sample Variance: (%.4f, %.4f, %.4f)", coarse.sampleVariance[0], coarse.sampleVariance[1], coarse.sampleVariance[2]);
 }
 
