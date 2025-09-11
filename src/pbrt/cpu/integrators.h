@@ -260,27 +260,26 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool guideRR {false};
         bool deterministic {false};
 
-        GuidingType surfaceGuidingType {EGuideRIS};
+        GuidingType surfaceGuidingType {EGuideMIS};
         float guideSurfaceProbability {0.5f};
-        bool knnLookup {true};
+        bool knnLookup {false};
         int guideNumTrainingWaves {128};
 
-        PGL_DIRECTIONAL_DISTRIBUTION_TYPE dtype {PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM};
-        int treesamplecountthreshold {PGL_TREE_MAX_SAMPLE_PER_LEAF};
-        int treeminsamplescandidatesplit {1000};
-        int treeminsamplespromotion {1000};
-        int treemaxdepth {32};
-        int treeinitializingiters {0};
-        int treelookaheaddepth {6};
-        float treeadaptivethreshold {0.15f};
-        float treefpsplitproba {1e-4};
-        float treeangulardistancethreshold {3};  // degrees
-        float treeangularalpha {1e-3};
-        float treeknnjittermultiplier {0.1f};
-        bool treereproject {false};
-        bool treeenablepromotion {true};
-        PGL_SPATIAL_ANGULAR_TYPE treeangulartype {PGL_SPATIAL_ANGULAR_HEURISTIC};
-        PGL_SPATIAL_KNN_TYPE treeknntype {PGL_SPATIAL_KNN_JITTER};
+        PGL_DIRECTIONAL_DISTRIBUTION_TYPE dtype  {PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM};
+        int treesamplecountthreshold             {PGL_TREE_MAX_SAMPLE_PER_LEAF};
+        int treeminsamplescandidatesplit         {1000};
+        int treeminsamplespromotion              {1000};
+        int treemaxdepth                         {32};
+        int treeinitializingiters                {0};
+        int treelookaheaddepth                   {6};
+        float treeadaptivethreshold              {0.15f};
+        float treefpsplitproba                   {1e-4};
+        float treeangulardistancethreshold       {3};  // degrees
+        float treeknnjittermultiplier            {0.1f};
+        bool treereproject                       {false};
+        bool treeenablepromotion                 {true};
+        bool treeenableangular                   {true};
+        PGL_SPATIAL_KNN_TYPE treeknntype         {PGL_SPATIAL_KNN_IS2};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};

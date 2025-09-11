@@ -90,12 +90,15 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
         guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
         guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
         guiding_fieldSubdivConfig.fluenceAlpha = guideSettings.treefpsplitproba;
-        guiding_fieldSubdivConfig.angularDistanceThreshold = Radians(guideSettings.treeangulardistancethreshold);
-        guiding_fieldSubdivConfig.angularAlpha = guideSettings.treeangularalpha;
+        if (guideSettings.treeangulardistancethreshold == 0.5f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_HALF_DEG;
+        else if (guideSettings.treeangulardistancethreshold == 1.0f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_1_DEG;
+        else if (guideSettings.treeangulardistancethreshold == 3.0f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_3_DEG;
+        else if (guideSettings.treeangulardistancethreshold == 10.0f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_10_DEG;
+        else throw std::runtime_error("treeangulardistancethreshold must be one of {0.5, 1, 3, 10} deg");
         guiding_fieldSubdivConfig.knnJitterMultiplier = guideSettings.treeknnjittermultiplier;
         guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
         guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
-        guiding_fieldSubdivConfig.angularType = guideSettings.treeangulartype;
+        guiding_fieldSubdivConfig.enableAngular = guideSettings.treeenableangular;
         guiding_fieldSubdivConfig.knnType = guideSettings.treeknntype;
         guiding_fieldSubdivConfig.knnLookup = guideSettings.knnLookup;
 
@@ -623,9 +626,9 @@ void GuidedPathIntegrator::LogFileRow(FILE *logFile) const {
 std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     const ParameterDictionary &parameters, const RGBColorSpace *colorSpace, Camera camera, Sampler sampler,
     Primitive aggregate, std::vector<Light> lights, const FileLoc *loc) {
-    int maxDepth = parameters.GetOneInt("maxdepth", 5);
-    int minRRDepth = parameters.GetOneInt("minrrdepth", 1);
-    bool useNEE = parameters.GetOneBool("usenee", true);
+    int maxDepth = parameters.GetOneInt("maxdepth", 20);
+    int minRRDepth = parameters.GetOneInt("minrrdepth", 5);
+    bool useNEE = parameters.GetOneBool("usenee", false);
     GuidingSettings settings;
     settings.enableGuiding = parameters.GetOneBool("enableguiding", true);
 
@@ -633,8 +636,8 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.guideRR = parameters.GetOneBool("rrguiding", false);
     settings.deterministic = parameters.GetOneBool("deterministic", settings.deterministic);
 
-    settings.knnLookup = parameters.GetOneBool("knnlookup", true);
-    std::string strSurfaceGuidingType = parameters.GetOneString("surfaceguidingtype", "ris");
+    settings.knnLookup = parameters.GetOneBool("knnlookup", settings.knnLookup);
+    std::string strSurfaceGuidingType = parameters.GetOneString("surfaceguidingtype", "mis");
     settings.surfaceGuidingType = strSurfaceGuidingType == "mis" ? EGuideMIS : EGuideRIS;
 
     settings.guideNumTrainingWaves = parameters.GetOneInt("numtrainingwaves", 128);
@@ -653,22 +656,12 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
     settings.treefpsplitproba = parameters.GetOneFloat("treefpsplitproba", settings.treefpsplitproba);
     settings.treeangulardistancethreshold = parameters.GetOneFloat("treeangulardistancethreshold", settings.treeangulardistancethreshold);
-    settings.treeangularalpha = parameters.GetOneFloat("treeangularalpha", settings.treeangularalpha);
     settings.treeknnjittermultiplier = parameters.GetOneFloat("treeknnjittermultiplier", settings.treeknnjittermultiplier);
     settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
     settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
+    settings.treeenableangular = parameters.GetOneBool("treeenableangular", settings.treeenableangular);
 
-    auto angulartype = parameters.GetOneString("treeangulartype", "heuristic");
-    if (angulartype == "off") settings.treeangulartype = PGL_SPATIAL_ANGULAR_OFF;
-    else if (angulartype == "heuristic") settings.treeangulartype = PGL_SPATIAL_ANGULAR_HEURISTIC;
-    else if (angulartype == "series") settings.treeangulartype = PGL_SPATIAL_ANGULAR_SERIES;
-    else if (angulartype == "lut") settings.treeangulartype = PGL_SPATIAL_ANGULAR_LUT;
-    else throw std::runtime_error("Unknown treeangulartype: " + angulartype);
-
-    if (settings.treeangulartype == PGL_SPATIAL_ANGULAR_LUT && settings.treeangularalpha != 1e-4f)
-        throw std::runtime_error("treeangularalpha should be 1e-4 when using LUT angular type");
-
-    auto knntype = parameters.GetOneString("treeknntype", "uniform");
+    auto knntype = parameters.GetOneString("treeknntype", "isknn2");
     if (knntype == "uniform") settings.treeknntype = PGL_SPATIAL_KNN_UNIFORM;
     else if (knntype == "jitter") settings.treeknntype = PGL_SPATIAL_KNN_JITTER;
     else if (knntype == "isknn") settings.treeknntype = PGL_SPATIAL_KNN_IS;
