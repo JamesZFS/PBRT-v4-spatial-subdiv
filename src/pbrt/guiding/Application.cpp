@@ -1545,12 +1545,13 @@ void Application::SpatialSubdivisionSettings() {
         _(), ImGui::InputFloat("Fluence Alpha", &m_subdivCfg.fluenceAlpha, 0, 0, "%.2e");
 
         ImGui::Checkbox("Reproject", &m_subdivCfg.reproject);
-        _(), ImGui::Combo("Angular Type", reinterpret_cast<int *>(&m_subdivCfg.angularType), "Off\0Heuristic\0Series\0LUT\0");
-        if (m_subdivCfg.angularType != PGL_SPATIAL_ANGULAR_OFF) {
-            float angle = Degrees(m_subdivCfg.angularDistanceThreshold);
-            _(), ImGui::SliderFloat("Angular Distance Threshold", &angle, 0, 180, "%.2f", ImGuiSliderFlags_Logarithmic);
-            m_subdivCfg.angularDistanceThreshold = Radians(angle);
-            _(), ImGui::InputFloat("Angular Alpha", &m_subdivCfg.angularAlpha, 0, 0, "%.2e");
+        ImGui::Checkbox("Enable Mean Direction", &m_subdivCfg.enableAngular);
+        if (m_subdivCfg.enableAngular) {
+            ImGui::Text("Angular Distance Threshold:");
+            ImGui::RadioButton("0.5 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 0);
+            ImGui::RadioButton("1 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 1);
+            ImGui::RadioButton("3 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 2);
+            ImGui::RadioButton("10 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 3);
         }
     
         if (ImGui::Button("Clear Signatures")) {
