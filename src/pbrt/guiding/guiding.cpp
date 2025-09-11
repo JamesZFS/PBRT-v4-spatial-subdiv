@@ -637,7 +637,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.guideNumTrainingWaves = parameters.GetOneInt("numtrainingwaves", 128);
     auto dtype = parameters.GetOneString("dtype", "pavmm");
     if (dtype == "pavmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM;
-    else if (dtype == "pavmmv2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2;
+    else if (dtype == "pavmm-v2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2;
     else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
     else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
     else throw std::runtime_error("Unknown dtype: " + dtype);
