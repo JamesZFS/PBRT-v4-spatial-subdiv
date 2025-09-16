@@ -641,7 +641,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     settings.surfaceGuidingType = strSurfaceGuidingType == "mis" ? EGuideMIS : EGuideRIS;
 
     settings.guideNumTrainingWaves = parameters.GetOneInt("numtrainingwaves", 128);
-    auto dtype = parameters.GetOneString("dtype", "pavmm");
+    auto dtype = parameters.GetOneString("dtype", "pavmm-v2");
     if (dtype == "pavmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM;
     else if (dtype == "pavmm-v2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2;
     else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
@@ -683,6 +683,23 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
                                             lightStrategy, regularize);
 }
 
+void GuidedVolPathIntegrator::LogFileHead(FILE *logFile) const {
+    fprintf(logFile, "training time, number of regions, number of lookahead regions, memory kd tree, memory region data, memory candidate region data, number of training samples, average path length, ");
+}
+
+void GuidedVolPathIntegrator::LogFileRow(FILE *logFile) const {
+    fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ",
+        // training time
+        guidingCacheUpdateTime,
+        // number of regions                                                                         number of lookahead regions
+        guiding_field->GetRegionCountSurface(false) + guiding_field->GetRegionCountVolume(false), guiding_field->GetLookaheadRegionCountSurface() + guiding_field->GetLookaheadRegionCountVolume(),
+        // memory kd tree                                                                 memory region data                                                                        memory candidate region data
+        guiding_field->GetMemoryKDTreeSurface() + guiding_field->GetMemoryKDTreeVolume(), guiding_field->GetMemoryRegionDataSurface() + guiding_field->GetMemoryRegionDataVolume(), guiding_field->GetMemoryLookaheadRegionDataSurface() + guiding_field->GetMemoryLookaheadRegionDataVolume(),
+        // number of samples   average path length
+        prevNumTrainingSamples, prevAvgPathLength
+    );
+}
+
 // GuidedVolPathIntegrator Method Definitions
 GuidedVolPathIntegrator::GuidedVolPathIntegrator(int maxDepth, int minRRDepth, bool useNEE, const GuidingSettings guideSettings, const RGBColorSpace *colorSpace, Camera camera, Sampler sampler, Primitive aggregate,
                       std::vector<Light> lights,
@@ -710,7 +727,27 @@ GuidedVolPathIntegrator::GuidedVolPathIntegrator(int maxDepth, int minRRDepth, b
         std::cout<< "\t regularize = " << regularize << std::endl;
 
         guiding_device = new openpgl::cpp::Device(PGL_DEVICE_TYPE_CPU_4);
-        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM);
+        guiding_fieldConfig.Init(PGL_SPATIAL_STRUCTURE_KDTREE, guideSettings.dtype, true,
+            guideSettings.treesamplecountthreshold, guideSettings.treeminsamplescandidatesplit, guideSettings.treemaxdepth);
+        guiding_fieldSubdivConfig = *(PGLKDTreeArguments*) guiding_fieldConfig.GetSubdivConfig();
+        guiding_fieldSubdivConfig.deterministic = guideSettings.deterministic;
+        guiding_fieldSubdivConfig.initializingIters = guideSettings.treeinitializingiters;
+        guiding_fieldSubdivConfig.lookaheadDepth = guideSettings.treelookaheaddepth;
+        guiding_fieldSubdivConfig.minSamplesPromotion = guideSettings.treeminsamplespromotion;
+        guiding_fieldSubdivConfig.minSamplesCandidateSplit = guideSettings.treeminsamplescandidatesplit;
+        guiding_fieldSubdivConfig.signatureDistanceThreshold = guideSettings.treeadaptivethreshold;
+        guiding_fieldSubdivConfig.fluenceAlpha = guideSettings.treefpsplitproba;
+        if (guideSettings.treeangulardistancethreshold == 0.5f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_HALF_DEG;
+        else if (guideSettings.treeangulardistancethreshold == 1.0f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_1_DEG;
+        else if (guideSettings.treeangulardistancethreshold == 3.0f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_3_DEG;
+        else if (guideSettings.treeangulardistancethreshold == 10.0f) guiding_fieldSubdivConfig.angularDistanceThreshold = PGL_SPATIAL_ANGULAR_10_DEG;
+        else throw std::runtime_error("treeangulardistancethreshold must be one of {0.5, 1, 3, 10} deg");
+        guiding_fieldSubdivConfig.knnJitterMultiplier = guideSettings.treeknnjittermultiplier;
+        guiding_fieldSubdivConfig.reproject = guideSettings.treereproject;
+        guiding_fieldSubdivConfig.enablePromotion = guideSettings.treeenablepromotion;
+        guiding_fieldSubdivConfig.enableAngular = guideSettings.treeenableangular;
+        guiding_fieldSubdivConfig.knnType = guideSettings.treeknntype;
+        guiding_fieldSubdivConfig.knnLookup = guideSettings.knnLookup;
 
         if (guideSettings.loadGuidingCache) {
             if(FileExists(guideSettings.guidingCacheFileName)) {
@@ -723,6 +760,7 @@ GuidedVolPathIntegrator::GuidedVolPathIntegrator(int maxDepth, int minRRDepth, b
         } else {
             guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
         }
+        guiding_field->UpdateSubdivConfig(guiding_fieldSubdivConfig);
         guiding_sampleStorage = new openpgl::cpp::SampleStorage();
 
         guiding_threadPathSegmentStorage = new ThreadLocal<openpgl::cpp::PathSegmentStorage*>(
@@ -760,20 +798,20 @@ GuidedVolPathIntegrator::~GuidedVolPathIntegrator() {
 }
 
 void GuidedVolPathIntegrator::PostProcessWave() {
+    prevAvgPathLength = avgPathLength;
+    avgPathLength = pathLengthCnt = 0;
 
     waveCounter++;
     std::cout << "GuidedVolPathIntegrator::PostProcessWave()" << std::endl;
-    if(guideTraining) {
+    if (guideTraining) {
         const size_t numValidSamples = guiding_sampleStorage->GetSizeSurface() + guiding_sampleStorage->GetSizeVolume();
+        prevNumTrainingSamples = numValidSamples;
         std::cout << "Guiding Iteration: "<< guiding_field->GetIteration() << "\t numValidSamples: " << numValidSamples << "\t surfaceSamples: " << guiding_sampleStorage->GetSizeSurface() << "\t volumeSamples: " << guiding_sampleStorage->GetSizeVolume() << std::endl;
-        if(numValidSamples > 128) {
-            Timer guidingFiledUpdateTimer;
-            guiding_field->Update(*guiding_sampleStorage);
-            guidingCacheUpdateTime += guidingFiledUpdateTimer.ElapsedSeconds();
-            if(guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
-                guideTraining = false;
-            }
-            guiding_sampleStorage->Clear();
+        Timer guidingFieldUpdateTimer;
+        guiding_field->Update(*guiding_sampleStorage);
+        guidingCacheUpdateTime += guidingFieldUpdateTimer.ElapsedSeconds();
+        if (guiding_field->GetIteration() >= guideSettings.guideNumTrainingWaves) {
+            guideTraining = false;
         }
     }
 
@@ -798,7 +836,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
 
     // Declare state variables for volumetric path sampling
     SampledSpectrum L(0.f), beta(1.f), r_u(1.f), r_l(1.f);
-    bool specularBounce = false, anyNonSpecularBounces = false;
+    bool specularBounce = false, anyNonSpecularBounces = false, wasRRorTT = true;
     int depth = 0;
     Float etaScale = 1;
 
@@ -1101,8 +1139,48 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         }
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
-        Float v[3] = {sampler.Get1D(), sampler.Get1D(), sampler.Get1D()};
-        gbsdf.init(&bsdf, ray, si, v);
+        Float v[3];
+        if (guideSettings.knnLookup) {
+            v[0] = sampler.Get1D();
+            v[1] = sampler.Get1D();
+            v[2] = sampler.Get1D();
+        }
+        else v[0] = -1;
+        bool cacheInitialized = gbsdf.init(&bsdf, ray, si, v);
+
+        // Initialize _visibleSurf_ at first nonspecular intersection
+        // To avoid the ambiguity from specular transmissive surfaces (reflective or transmissive), we only store if it was a transmission
+        bool shouldCreateVisbleSurf = visibleSurf && !anyNonSpecularBounces && wasRRorTT && IsNonSpecular(bsdf.Flags());
+
+        if (cacheInitialized && shouldCreateVisbleSurf) {
+            Point3 p = si->intr.p();
+            pgl_point3f pglP{p.x, p.y, p.z};
+            if (Options->csvOutput.empty()) {
+                auto [coarse, fine] = guiding_field->GetCoarseFineRegionStatisticsSurface(pglP);
+                visibleSurf->guidingData.id = coarse.id;
+                visibleSurf->guidingData.fineId = fine.id;
+                if (coarse.id != -1) {
+                    visibleSurf->guidingData.numSamples = coarse.numSamples;
+                    visibleSurf->guidingData.depth = coarse.depth;
+                    visibleSurf->guidingData.splitKind = coarse.splitKind;
+                    if (fine.id != -1) {
+                        visibleSurf->guidingData.fluence = fine.fluence;
+                        visibleSurf->guidingData.energy = fine.energy;  // max energy along the path
+                        visibleSurf->guidingData.angularEnergy = fine.angularEnergy;
+                    } else {
+                        visibleSurf->guidingData.fluence = coarse.fluence;
+                        visibleSurf->guidingData.energy = coarse.energy;
+                        visibleSurf->guidingData.angularEnergy = coarse.angularEnergy;
+                    }
+                }
+            } else {  // Benchmarking mode
+                auto stats = guiding_field->GetBriefRegionStatisticsSurface(pglP);
+                visibleSurf->guidingData.id = stats.id;
+                visibleSurf->guidingData.depth = stats.depth;
+                visibleSurf->guidingData.splitKind = stats.splitKind;
+                // Skip other fields
+            }
+        }
 
         if (guideRR && depth > minRRDepth) {
             if(guideSurfaceRR) {
@@ -1155,6 +1233,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         anyNonSpecularBounces |= !bs->IsSpecular();
         if (bs->IsTransmission())
             etaScale *= Sqr(bs->eta);
+        wasRRorTT &= !IsTransmissive(bsdf.Flags()) || bs->IsTransmission();
         ray = isect.SpawnRay(ray, bsdf, bs->wi, bs->flags, bs->eta);
 
         // Account for attenuated subsurface scattering, if applicable
@@ -1249,6 +1328,11 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                                bs->guidingPDF,
 #endif
                                survivalProb, lambda, colorSpace);
+    }
+    {
+        std::lock_guard lock(pathLengthMutex);
+        pathLengthCnt += 1;
+        avgPathLength = Lerp(1.f / pathLengthCnt, avgPathLength, (float) depth);
     }
 
     pathLength << depth;
@@ -1391,22 +1475,52 @@ std::string GuidedVolPathIntegrator::ToString() const {
 std::unique_ptr<GuidedVolPathIntegrator> GuidedVolPathIntegrator::Create(
     const ParameterDictionary &parameters, const RGBColorSpace *colorSpace, Camera camera, Sampler sampler,
     Primitive aggregate, std::vector<Light> lights, const FileLoc *loc) {
-    int maxDepth = parameters.GetOneInt("maxdepth", 5);
-    int minRRDepth = parameters.GetOneInt("minrrdepth", 1);
-    bool useNEE = parameters.GetOneBool("usenee", true);
+    int maxDepth = parameters.GetOneInt("maxdepth", 20);
+    int minRRDepth = parameters.GetOneInt("minrrdepth", 5);
+    bool useNEE = parameters.GetOneBool("usenee", false);
     GuidingSettings settings;
-    settings.knnLookup = parameters.GetOneBool("knnlookup", true);
+    settings.knnLookup = parameters.GetOneBool("knnlookup", settings.knnLookup);
     settings.guideSurface = parameters.GetOneBool("surfaceguiding", true);
     settings.guideVolume = parameters.GetOneBool("volumeguiding", true);
     settings.guideRR = parameters.GetOneBool("rrguiding", false);
     settings.guideSurfaceRR = parameters.GetOneBool("surfacerrguiding", true);
     settings.guideVolumeRR = parameters.GetOneBool("volumerrguiding", true);
+    settings.deterministic = parameters.GetOneBool("deterministic", settings.deterministic);
 
     settings.enableGuiding = settings.guideSurface || settings.guideVolume;
     std::string strSurfaceGuidingType = parameters.GetOneString("surfaceguidingtype", "ris");
     settings.surfaceGuidingType = strSurfaceGuidingType == "mis" ? EGuideMIS : EGuideRIS;
     std::string strVolumeGuidingType = parameters.GetOneString("volumeguidingtype", "mis");
     settings.volumeGuidingType = strVolumeGuidingType == "mis" ? EGuideMIS : EGuideRIS;
+
+    settings.guideNumTrainingWaves = parameters.GetOneInt("numtrainingwaves", 128);
+    auto dtype = parameters.GetOneString("dtype", "pavmm-v2");
+    if (dtype == "pavmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM;
+    else if (dtype == "pavmm-v2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2;
+    else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
+    else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
+    else throw std::runtime_error("Unknown dtype: " + dtype);
+
+    settings.treesamplecountthreshold = parameters.GetOneInt("treesamplecountthreshold", settings.treesamplecountthreshold);
+    settings.treeminsamplescandidatesplit = parameters.GetOneInt("treeminsamplescandidatesplit", settings.treeminsamplescandidatesplit);
+    settings.treeminsamplespromotion = parameters.GetOneInt("treeminsamplespromotion", settings.treeminsamplespromotion);
+    settings.treemaxdepth = parameters.GetOneInt("treemaxdepth", settings.treemaxdepth);
+    settings.treeinitializingiters = parameters.GetOneInt("treeinitializingiters", settings.treeinitializingiters);
+    settings.treelookaheaddepth = parameters.GetOneInt("treelookaheaddepth", settings.treelookaheaddepth);
+    settings.treeadaptivethreshold = parameters.GetOneFloat("treeadaptivethreshold", settings.treeadaptivethreshold);
+    settings.treefpsplitproba = parameters.GetOneFloat("treefpsplitproba", settings.treefpsplitproba);
+    settings.treeangulardistancethreshold = parameters.GetOneFloat("treeangulardistancethreshold", settings.treeangulardistancethreshold);
+    settings.treeknnjittermultiplier = parameters.GetOneFloat("treeknnjittermultiplier", settings.treeknnjittermultiplier);
+    settings.treereproject = parameters.GetOneBool("treereproject", settings.treereproject);
+    settings.treeenablepromotion = parameters.GetOneBool("treeenablepromotion", settings.treeenablepromotion);
+    settings.treeenableangular = parameters.GetOneBool("treeenableangular", settings.treeenableangular);
+
+    auto knntype = parameters.GetOneString("treeknntype", "isknn2");
+    if (knntype == "uniform") settings.treeknntype = PGL_SPATIAL_KNN_UNIFORM;
+    else if (knntype == "jitter") settings.treeknntype = PGL_SPATIAL_KNN_JITTER;
+    else if (knntype == "isknn") settings.treeknntype = PGL_SPATIAL_KNN_IS;
+    else if (knntype == "isknn2") settings.treeknntype = PGL_SPATIAL_KNN_IS2;
+    else throw std::runtime_error("Unknown treeknntype: " + knntype);
 
     settings.storeGuidingCache = parameters.GetOneBool("storeGuidingCache", false);
     settings.loadGuidingCache = parameters.GetOneBool("loadGuidingCache", false);

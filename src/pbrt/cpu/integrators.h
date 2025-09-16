@@ -435,15 +435,32 @@ class GuidedVolPathIntegrator : public RayIntegrator {
         bool guideVolume {true};
 
         bool guideRR {false};
+        bool deterministic {false};
         bool guideSurfaceRR {true};
         bool guideVolumeRR {true};
 
-        GuidingType surfaceGuidingType {EGuideRIS};
-        GuidingType volumeGuidingType {EGuideRIS};
+        GuidingType surfaceGuidingType {EGuideMIS};
+        GuidingType volumeGuidingType {EGuideMIS};
         float guideSurfaceProbability {0.5f};
         float guideVolumeProbability {0.5f};
-        bool knnLookup {true};
+        bool knnLookup {false};
         int guideNumTrainingWaves {128};
+
+        PGL_DIRECTIONAL_DISTRIBUTION_TYPE dtype  {PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM};
+        int treesamplecountthreshold             {PGL_TREE_MAX_SAMPLE_PER_LEAF};
+        int treeminsamplescandidatesplit         {1000};
+        int treeminsamplespromotion              {1000};
+        int treemaxdepth                         {32};
+        int treeinitializingiters                {0};
+        int treelookaheaddepth                   {6};
+        float treeadaptivethreshold              {0.15f};
+        float treefpsplitproba                   {1e-4};
+        float treeangulardistancethreshold       {3};  // degrees
+        float treeknnjittermultiplier            {0.1f};
+        bool treereproject                       {false};
+        bool treeenablepromotion                 {true};
+        bool treeenableangular                   {true};
+        PGL_SPATIAL_KNN_TYPE treeknntype         {PGL_SPATIAL_KNN_IS2};
 
         bool storeGuidingCache {false};
         bool loadGuidingCache {false};
@@ -454,6 +471,10 @@ class GuidedVolPathIntegrator : public RayIntegrator {
         std::string contributionEstimateFileName {""};
     };
   public:
+    void LogFileHead(FILE *logFile) const override;
+
+    void LogFileRow(FILE *logFile) const override;
+
     // VolPathIntegrator Public Methods
     GuidedVolPathIntegrator(int maxDepth, int minRRDepth, bool useNEE, const GuidingSettings settings, const RGBColorSpace *colorSpace, Camera camera, Sampler sampler, Primitive aggregate,
                       std::vector<Light> lights,
@@ -500,9 +521,15 @@ class GuidedVolPathIntegrator : public RayIntegrator {
     ThreadLocal<openpgl::cpp::VolumeSamplingDistribution*>* guiding_threadVolumeSamplingDistribution;
 
     openpgl::cpp::FieldConfig guiding_fieldConfig;
+    PGLKDTreeArguments guiding_fieldSubdivConfig;
     openpgl::cpp::SampleStorage* guiding_sampleStorage {nullptr};
     openpgl::cpp::Field* guiding_field {nullptr};
     openpgl::cpp::Device* guiding_device {nullptr};
+    mutable std::mutex pathLengthMutex;
+    mutable float avgPathLength {0};
+    mutable float pathLengthCnt {0};
+    float prevAvgPathLength {0};
+    size_t prevNumTrainingSamples {0};
 
     openpgl::cpp::util::ImageSpaceGuidingBuffer* imageSpaceGuidingBuffer{nullptr};
 
