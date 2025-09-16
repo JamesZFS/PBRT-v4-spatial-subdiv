@@ -172,6 +172,9 @@ class VisibleSurface {
         float energy = 0;
         float angularEnergy = 0;
         uint8_t splitKind = 0;
+        uint32_t volumeId = -1;
+        uint8_t volumeSplitKind = 0;
+        float volumeFluence = 0;
 
         GuidingData &operator=(const GuidingData &other) {
             if (other.id != -1) id = other.id;
@@ -182,6 +185,9 @@ class VisibleSurface {
             energy = other.energy;
             angularEnergy = other.angularEnergy;
             splitKind = other.splitKind;
+            volumeId = other.volumeId;
+            volumeSplitKind = other.volumeSplitKind;
+            volumeFluence = other.volumeFluence;
             return *this;
         }
     } guidingData;

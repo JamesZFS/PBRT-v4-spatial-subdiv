@@ -454,6 +454,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 auto stats = guiding_field->GetBriefRegionStatisticsSurface(pglP);
                 visibleSurf->guidingData.id = stats.id;
                 visibleSurf->guidingData.depth = stats.depth;
+                visibleSurf->guidingData.fluence = stats.fluence;
                 visibleSurf->guidingData.splitKind = stats.splitKind;
                 // Skip other fields
             }
@@ -822,6 +823,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                                       Sampler sampler, ScratchBuffer &scratchBuffer,
                                       VisibleSurface *visibleSurf) const {
 
+    const RayDifferential initialRay = ray;
     openpgl::cpp::PathSegmentStorage* pathSegmentStorage = guiding_threadPathSegmentStorage->Get();
     openpgl::cpp::SurfaceSamplingDistribution* surfaceSamplingDistribution = guiding_threadSurfaceSamplingDistribution->Get();
     openpgl::cpp::VolumeSamplingDistribution* volumeSamplingDistribution = guiding_threadVolumeSamplingDistribution->Get();
@@ -1177,6 +1179,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                 auto stats = guiding_field->GetBriefRegionStatisticsSurface(pglP);
                 visibleSurf->guidingData.id = stats.id;
                 visibleSurf->guidingData.depth = stats.depth;
+                visibleSurf->guidingData.fluence = stats.fluence;
                 visibleSurf->guidingData.splitKind = stats.splitKind;
                 // Skip other fields
             }
@@ -1347,6 +1350,18 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
     {
         pathSegmentStorage->Clear();
     }
+
+    if (visibleSurf && guiding_field->GetIteration() > 0 && std::abs(initialRay.d.z) > 1e-6f) {
+        // Visualize the volume region information at z = 0 plane
+        float t = -initialRay.o.z / initialRay.d.z;
+        Point3f p = initialRay(t);
+        pgl_point3f pglP{p.x, p.y, p.z};
+        auto stats = guiding_field->GetBriefRegionStatisticsVolume(pglP);
+        visibleSurf->guidingData.volumeId = stats.id;
+        visibleSurf->guidingData.volumeSplitKind = stats.splitKind;
+        visibleSurf->guidingData.volumeFluence = stats.fluence;
+    }
+
     return L;
 }
 
