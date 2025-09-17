@@ -55,6 +55,8 @@ void PlotManager::Plot::Draw() {
     if (ImGui::Checkbox("X-axis Time", &m_xAxisTime)) {
         m_shouldFitAxes = true;
     }
+    ImGui::SameLine();
+    ImGui::Checkbox("X Log", &m_manager.m_xScaleLog);
 
     // Draw plots
     ImPlot::PushStyleVar(ImPlotStyleVar_FitPadding, ImVec2(0, 0.3));
@@ -68,6 +70,12 @@ void PlotManager::Plot::Draw() {
 
     if (ImPlot::BeginPlot(m_yAxisName.c_str(), ImVec2(-1, ImGui::GetContentRegionAvail().y - ImGui::GetFrameHeightWithSpacing()), plot_flags)) {
         ImPlot::SetupAxes("", m_yAxisName.c_str(), ImPlotAxisFlags_NoLabel, ImPlotAxisFlags_NoLabel);
+        if (m_yAxisName == "error")
+            ImPlot::SetupAxisScale(ImAxis_Y1, ImPlotScale_SymLog);
+        if (m_manager.m_xScaleLog)
+            ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Log10);
+        else
+            ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Linear);
         // Hovering behavior: draw a vertical line for all plots at the same x position
         ImDrawList *draw_list = ImPlot::GetPlotDrawList();
         if (ImPlot::IsPlotHovered()) {

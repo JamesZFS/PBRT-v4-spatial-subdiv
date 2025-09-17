@@ -1102,14 +1102,16 @@ void Application::UpdateCacheHistograms() {
 
 void Application::UpdatePlots() {
     float iter = GetCurrentWave();
-    m_waveStats.totalSeconds += (m_waveStats.renderMS + m_waveStats.postprocessMS) * 1e-3f;  // to secs
-    m_plots.object->AppendData("regions", iter, m_waveStats.totalSeconds, m_waveStats.numRegions);
-    m_plots.object->AppendData("error", iter, m_waveStats.totalSeconds, m_viewport->GetMeanError());
-    m_plots.object->AppendData("rendering time", iter, m_waveStats.totalSeconds, m_waveStats.renderMS);
-    m_plots.object->AppendData("training time", iter, m_waveStats.totalSeconds, m_waveStats.postprocessMS);
-    m_plots.object->AppendData("samples", iter, m_waveStats.totalSeconds, m_waveStats.trainingSamples);
-    m_plots.object->AppendData("avg path length", iter, m_waveStats.totalSeconds, m_waveStats.avgPathLength);
-    m_plots.object->RequestFitAxes();
+    if (iter > 1) {
+        m_waveStats.totalSeconds += (m_waveStats.renderMS + m_waveStats.postprocessMS) * 1e-3f;  // to secs
+        m_plots.object->AppendData("regions", iter, m_waveStats.totalSeconds, m_waveStats.numRegions);
+        m_plots.object->AppendData("error", iter, m_waveStats.totalSeconds, m_viewport->GetMeanError());
+        m_plots.object->AppendData("rendering time", iter, m_waveStats.totalSeconds, m_waveStats.renderMS);
+        m_plots.object->AppendData("training time", iter, m_waveStats.totalSeconds, m_waveStats.postprocessMS);
+        m_plots.object->AppendData("samples", iter, m_waveStats.totalSeconds, m_waveStats.trainingSamples);
+        m_plots.object->AppendData("avg path length", iter, m_waveStats.totalSeconds, m_waveStats.avgPathLength);
+        m_plots.object->RequestFitAxes();
+    }
 }
 
 void Application::UpdateSamplingDistributionView() {

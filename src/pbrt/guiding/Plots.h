@@ -61,6 +61,7 @@ private:
     float m_markerSize = 2;
     float m_alpha = 0.5f;
     bool m_autoFitAxes = true;
+    bool m_xScaleLog = false;
     std::string m_curveId = "#0";  // value of the input box
 };
 
