@@ -288,6 +288,8 @@ class GuidedPathIntegrator : public RayIntegrator {
         bool storeContributionEstimate {false};
         bool loadContributionEstimate {false};
         std::string contributionEstimateFileName {""};
+
+        Float regularizationGamma {0.1f};
     };
 
     struct IntegratorSettings {
@@ -469,6 +471,8 @@ class GuidedVolPathIntegrator : public RayIntegrator {
         bool storeContributionEstimate {false};
         bool loadContributionEstimate {false};
         std::string contributionEstimateFileName {""};
+
+        Float regularizationGamma {0.1f};
     };
   public:
     void LogFileHead(FILE *logFile) const override;

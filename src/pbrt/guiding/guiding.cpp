@@ -305,6 +305,9 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     Vector3f firstOmegaI(0, 0, 0);
     int depth = 0;
 
+    Float regularizationGamma = guideSettings.regularizationGamma; 
+    Float accumulatedRoughness = 0.f;
+
     GuidedBSDF gbsdf(&sampler, guiding_field, surfaceSamplingDistribution, guideSettings.enableGuiding, guideSettings.surfaceGuidingType);
     float rr_correction = 1.0f;
 
@@ -411,7 +414,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         // Possibly regularize the BSDF
         if (settings.regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         ++totalBSDFs;
@@ -484,6 +487,8 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         pstd::optional<BSDFSample> bs = gbsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
 
         rr_correction *= bs->pdf / bs->bsdfPdf;
         misPDF = survivalProb * bs->misPdf;
@@ -684,6 +689,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
 
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
+    settings.regularizationGamma = parameters.GetOneFloat("regGamma", 0.1f);
 
     return std::make_unique<GuidedPathIntegrator>(maxDepth, minRRDepth, useNEE, settings, colorSpace, camera, sampler, aggregate, lights,
                                             lightStrategy, regularize);
@@ -851,6 +857,9 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
     bool specularBounce = false, anyNonSpecularBounces = false, wasRRorTT = true;
     int depth = 0;
     Float etaScale = 1;
+
+    Float regularizationGamma = guideSettings.regularizationGamma; 
+    Float accumulatedRoughness = 0.f;
 
     GuidedBSDF gbsdf(&sampler, guiding_field, surfaceSamplingDistribution, guideSettings.guideSurface, guideSettings.surfaceGuidingType);
     GuidedPhaseFunction gphase(&sampler, guiding_field, volumeSamplingDistribution, guideSettings.guideVolume, guideSettings.volumeGuidingType);
@@ -1147,7 +1156,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         // Guiding - Check if we can use guiding. If so intialize the guiding distribution
@@ -1225,6 +1234,8 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         pstd::optional<BSDFSample> bs = gbsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
 
         rr_correction *= bs->pdf / bs->bsdfPdf;
         misPDF = bs->misPdf;
@@ -1558,6 +1569,7 @@ std::unique_ptr<GuidedVolPathIntegrator> GuidedVolPathIntegrator::Create(
 
     std::string lightStrategy = parameters.GetOneString("lightsampler", "bvh");
     bool regularize = parameters.GetOneBool("regularize", false);
+    settings.regularizationGamma = parameters.GetOneFloat("regGamma", 0.1f);
     return std::make_unique<GuidedVolPathIntegrator>(maxDepth, minRRDepth, useNEE, settings, colorSpace, camera, sampler, aggregate,
                                                lights, lightStrategy, regularize);
 }

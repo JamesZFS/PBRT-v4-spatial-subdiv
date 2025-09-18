@@ -655,6 +655,9 @@ SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledW
     bool specularBounce = false, anyNonSpecularBounces = false;
     LightSampleContext prevIntrCtx;
 
+    Float regularizationGamma = 0.f; 
+    Float accumulatedRoughness = 0.f;
+
     // Sample path from camera and accumulate radiance estimate
     while (true) {
         // Trace ray and find closest path vertex and its BSDF
@@ -730,7 +733,7 @@ SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledW
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         ++totalBSDFs;
@@ -754,6 +757,8 @@ SampledSpectrum PathIntegrator::Li(Point2i pPixel, RayDifferential ray, SampledW
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
         // Update path state variables after surface scattering
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         p_b = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi) : bs->pdf;
@@ -978,6 +983,9 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
     int depth = 0;
     Float etaScale = 1;
 
+    Float regularizationGamma = 0.f; 
+    Float accumulatedRoughness = 0.f;
+
     LightSampleContext prevIntrContext;
 
     while (true) {
@@ -1169,7 +1177,7 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         // Sample illumination from lights to find attenuated path contribution
@@ -1185,6 +1193,8 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D());
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
         // Update _beta_ and rescaled path probabilities for BSDF scattering
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         if (bs->pdfIsProportional)
@@ -1252,7 +1262,7 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
             anyNonSpecularBounces = true;
             if (regularize) {
                 ++regularizedBSDFs;
-                Sw.Regularize();
+                Sw.Regularize(regularizationGamma, accumulatedRoughness);
             } else
                 ++totalBSDFs;
 
@@ -1264,6 +1274,8 @@ SampledSpectrum VolPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sampl
             pstd::optional<BSDFSample> bs = Sw.Sample_f(pi.wo, u, sampler.Get2D());
             if (!bs)
                 break;
+            accumulatedRoughness = bs->sampledRoughness;
+
             beta *= bs->f * AbsDot(bs->wi, pi.shading.n) / bs->pdf;
             r_l = r_u / bs->pdf;
             // Don't increment depth this time...
@@ -1990,6 +2002,10 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
     int bounces = 0;
     bool anyNonSpecularBounces = false;
     Float pdfFwd = pdf;
+
+    Float regularizationGamma = 0.f; 
+    Float accumulatedRoughness = 0.f;
+
     while (true) {
         // Attempt to create the next subpath vertex in _path_
         PBRT_DBG("%s\n", StringPrintf("Random walk. Bounces %d, beta %s, pdfFwd %f",
@@ -2114,7 +2130,7 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
-            bsdf.Regularize();
+            bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
         ++totalBSDFs;
@@ -2129,6 +2145,9 @@ int RandomWalk(const Integrator &integrator, SampledWavelengths &lambda,
         pstd::optional<BSDFSample> bs = bsdf.Sample_f(wo, u, sampler.Get2D(), mode);
         if (!bs)
             break;
+
+        accumulatedRoughness = bs->sampledRoughness;
+
         pdfFwd = bs->pdfIsProportional ? bsdf.PDF(wo, bs->wi, mode) : bs->pdf;
         anyNonSpecularBounces |= !bs->IsSpecular();
         beta *= bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
