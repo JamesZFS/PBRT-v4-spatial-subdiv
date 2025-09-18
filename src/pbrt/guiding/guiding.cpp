@@ -114,6 +114,7 @@ GuidedPathIntegrator::GuidedPathIntegrator(const int maxDepth, const int minRRDe
             guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
         }
         guiding_field->UpdateSubdivConfig(guiding_fieldSubdivConfig);
+        if (!guideSettings.enableGuiding) this->guideSettings.enableTraining = false;
         guiding_sampleStorage = new openpgl::cpp::SampleStorage();
 
         guiding_threadPathSegmentStorage = new ThreadLocal<openpgl::cpp::PathSegmentStorage*>(
@@ -612,16 +613,20 @@ void GuidedPathIntegrator::LogFileHead(FILE *logFile) const {
 }
 
 void GuidedPathIntegrator::LogFileRow(FILE *logFile) const {
-    fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ",
-        // training time
-        guidingCacheUpdateTime,
-        // number of regions                            number of lookahead regions
-        guiding_field->GetRegionCountSurface(false), guiding_field->GetLookaheadRegionCountSurface(),
-        // memory kd tree                        memory region data                           memory candidate region data
-        guiding_field->GetMemoryKDTreeSurface(), guiding_field->GetMemoryRegionDataSurface(), guiding_field->GetMemoryLookaheadRegionDataSurface(),
-        // number of samples   average path length
-        prevNumTrainingSamples, prevAvgPathLength
-    );
+    if (guideSettings.enableGuiding) {
+        fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ",
+            // training time
+            guidingCacheUpdateTime,
+            // number of regions                            number of lookahead regions
+            guiding_field->GetRegionCountSurface(false), guiding_field->GetLookaheadRegionCountSurface(),
+            // memory kd tree                        memory region data                           memory candidate region data
+            guiding_field->GetMemoryKDTreeSurface(), guiding_field->GetMemoryRegionDataSurface(), guiding_field->GetMemoryLookaheadRegionDataSurface(),
+            // number of samples   average path length
+            prevNumTrainingSamples, prevAvgPathLength
+        );
+    } else {
+        fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ", 0, 0, 0, 0, 0, 0, 0, prevAvgPathLength);
+    }
 }
 
 std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
@@ -689,16 +694,20 @@ void GuidedVolPathIntegrator::LogFileHead(FILE *logFile) const {
 }
 
 void GuidedVolPathIntegrator::LogFileRow(FILE *logFile) const {
-    fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ",
-        // training time
-        guidingCacheUpdateTime,
-        // number of regions                                                                         number of lookahead regions
-        guiding_field->GetRegionCountSurface(false) + guiding_field->GetRegionCountVolume(false), guiding_field->GetLookaheadRegionCountSurface() + guiding_field->GetLookaheadRegionCountVolume(),
-        // memory kd tree                                                                 memory region data                                                                        memory candidate region data
-        guiding_field->GetMemoryKDTreeSurface() + guiding_field->GetMemoryKDTreeVolume(), guiding_field->GetMemoryRegionDataSurface() + guiding_field->GetMemoryRegionDataVolume(), guiding_field->GetMemoryLookaheadRegionDataSurface() + guiding_field->GetMemoryLookaheadRegionDataVolume(),
-        // number of samples   average path length
-        prevNumTrainingSamples, prevAvgPathLength
-    );
+    if (guideSettings.enableGuiding) {
+        fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ",
+            // training time
+            guidingCacheUpdateTime,
+            // number of regions                                                                         number of lookahead regions
+            guiding_field->GetRegionCountSurface(false) + guiding_field->GetRegionCountVolume(false), guiding_field->GetLookaheadRegionCountSurface() + guiding_field->GetLookaheadRegionCountVolume(),
+            // memory kd tree                                                                 memory region data                                                                        memory candidate region data
+            guiding_field->GetMemoryKDTreeSurface() + guiding_field->GetMemoryKDTreeVolume(), guiding_field->GetMemoryRegionDataSurface() + guiding_field->GetMemoryRegionDataVolume(), guiding_field->GetMemoryLookaheadRegionDataSurface() + guiding_field->GetMemoryLookaheadRegionDataVolume(),
+            // number of samples   average path length
+            prevNumTrainingSamples, prevAvgPathLength
+        );
+    } else {
+        fprintf(logFile, "%.3f, %ld, %ld, %ld, %ld, %ld, %ld, %.3f, ", 0, 0, 0, 0, 0, 0, 0, prevAvgPathLength);
+    }
 }
 
 // GuidedVolPathIntegrator Method Definitions
@@ -762,6 +771,7 @@ GuidedVolPathIntegrator::GuidedVolPathIntegrator(int maxDepth, int minRRDepth, b
             guiding_field = new openpgl::cpp::Field(guiding_device, guiding_fieldConfig);
         }
         guiding_field->UpdateSubdivConfig(guiding_fieldSubdivConfig);
+        if (!guideSettings.enableGuiding) guideTraining = false;
         guiding_sampleStorage = new openpgl::cpp::SampleStorage();
 
         guiding_threadPathSegmentStorage = new ThreadLocal<openpgl::cpp::PathSegmentStorage*>(
@@ -1351,7 +1361,8 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         pathSegmentStorage->Clear();
     }
 
-    if (visibleSurf && guiding_field->GetIteration() > 0 && std::abs(initialRay.d.z) > 1e-6f) {
+    if (false) {
+    // if (visibleSurf && guiding_field->GetIteration() > 0 && std::abs(initialRay.d.z) > 1e-6f) {
         // Visualize the volume region information at z = 0 plane
         float t = -initialRay.o.z / initialRay.d.z;
         Point3f p = initialRay(t);
