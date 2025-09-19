@@ -1020,7 +1020,7 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         ImageChannelDesc guideDesc =
             image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
                 "Samples", "Depth", "SplitKind.R", "SplitKind.G", "SplitKind.B",
-                "Fluence", "FirstDir.z", "Energy", "AngularDistance",
+                "Fluence", "Energy", "AngularDistance",
                 "FineId.R", "FineId.G", "FineId.B"});
 
         std::atomic<int> nClamped{0};
