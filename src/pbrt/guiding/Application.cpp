@@ -1550,8 +1550,8 @@ void Application::SpatialSubdivisionSettings() {
         ImGui::Checkbox("Enable Mean Direction", &m_subdivCfg.enableAngular);
         if (m_subdivCfg.enableAngular) {
             ImGui::Text("Angular Distance Threshold:");
-            ImGui::RadioButton("0.5 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 0);
-            ImGui::RadioButton("1 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 1);
+            ImGui::RadioButton("1 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 0);
+            ImGui::RadioButton("2 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 1);
             ImGui::RadioButton("3 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 2);
             ImGui::RadioButton("10 Deg", reinterpret_cast<int*>(&m_subdivCfg.angularDistanceThreshold), 3);
         }
