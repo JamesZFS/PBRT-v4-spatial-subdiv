@@ -301,8 +301,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     // Declare local variables for GuidedPathIntegrator::Li()
     SampledSpectrum L(0.f), beta(1.f);
     SampledSpectrum bsdfWeight(1.f);
-    SampledSpectrum Phi(0.f), betaPhi(1.f);  // for fluence estimator
-    Vector3f firstOmegaI(0, 0, 0);
     int depth = 0;
 
     Float regularizationGamma = guideSettings.regularizationGamma; 
@@ -329,7 +327,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 SampledSpectrum Le = light.Le(ray, lambda);
                 if (depth == 0 || specularBounce) {
                     L += beta * Le;
-                    Phi += betaPhi * Le;
                     guiding_addInfiniteLightEmission(pathSegmentStorage, guidingInfiniteLightDistance, ray, Le, 1.0f, lambda, colorSpace);
                 } else {
                     // Compute MIS weight for infinite light
@@ -338,7 +335,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                     Float w_b = settings.useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
 
                     L += beta * w_b * Le;
-                    Phi += betaPhi * w_b * Le;
                     guiding_addInfiniteLightEmission(pathSegmentStorage, guidingInfiniteLightDistance, ray, Le, w_b, lambda, colorSpace);
                 }
             }
@@ -350,7 +346,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         if (Le) {
             if (depth == 0 || specularBounce) {
                 L += beta * Le;
-                Phi += betaPhi * Le;
                 w = 1.0f;
                 add_direct_contribution = true;
             } else {
@@ -361,7 +356,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
                 Float w_l = settings.useNEE ? PowerHeuristic(1, misPDF, 1, lightPDF) : 1.0f;
                 L += beta * w_l * Le;
                                 w = w_l;
-                Phi += betaPhi * w_l * Le;
                 add_direct_contribution = true;
             }
         }
@@ -472,11 +466,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
             if (!Ld)
                 ++zeroRadiancePaths;
             L += beta * Ld;
-            if (shouldCreateVisbleSurf) {
-                Phi += betaPhi * Ld / bsdfCosine;  // * the fluence estimator's weight is initialized differently from Li
-            } else {
-                Phi += betaPhi * Ld;
-            }
             // Guiding - add scattered contribution from NEE
             guiding_addScatteredDirectLight(pathSegmentData, Ld, lambda, colorSpace);
         }
@@ -495,12 +484,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         // Update path state variables after surface scattering
         bsdfWeight = bs->f * AbsDot(bs->wi, isect.shading.n) / bs->pdf;
         beta *= bsdfWeight;
-        if (shouldCreateVisbleSurf) {
-            betaPhi = SampledSpectrum(1.f / bs->pdf);  // * the fluence estimator's weight is initialized differently from Li
-            firstOmegaI = bs->wi;
-        } else {
-            betaPhi *= bsdfWeight;
-        }
 
         DCHECK(!IsInf(beta.y(lambda)));
         specularBounce = bs->IsSpecular();
@@ -528,7 +511,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
             if (sampler.Get1D() < q)
                 break;
             beta /= 1 - q;
-            betaPhi /= 1 - q;
             DCHECK(!IsInf(beta.y(lambda)));
         }
 
@@ -555,10 +537,6 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     else
     {
         pathSegmentStorage->Clear();
-    }
-    if (visibleSurf) {
-        visibleSurf->pixelFluence = Luminance(Phi.ToRGB(lambda, *colorSpace));
-        visibleSurf->firstOmegaI = firstOmegaI;
     }
     return L;
 }
@@ -1370,18 +1348,6 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
     else
     {
         pathSegmentStorage->Clear();
-    }
-
-    if (false) {
-    // if (visibleSurf && guiding_field->GetIteration() > 0 && std::abs(initialRay.d.z) > 1e-6f) {
-        // Visualize the volume region information at z = 0 plane
-        float t = -initialRay.o.z / initialRay.d.z;
-        Point3f p = initialRay(t);
-        pgl_point3f pglP{p.x, p.y, p.z};
-        auto stats = guiding_field->GetBriefRegionStatisticsVolume(pglP);
-        visibleSurf->guidingData.volumeId = stats.id;
-        visibleSurf->guidingData.volumeSplitKind = stats.splitKind;
-        visibleSurf->guidingData.volumeFluence = stats.fluence;
     }
 
     return L;

@@ -151,7 +151,7 @@ void ImageTileIntegrator::Render() {
 
         fprintf(logFile, "iter, total time, rendering time, ");
         LogFileHead(logFile);
-        fprintf(logFile, "MRAE, MRSE\n");
+        fprintf(logFile, "recent variance estimate, MRAE, MRSE\n");
         fflush(logFile);
     }
 
@@ -214,6 +214,7 @@ void ImageTileIntegrator::Render() {
             progress.Done();
 
         if (referenceImage) {  // update log file
+            float recentVariance = camera.GetFilm().EstimateRecentVariance();
             ImageMetadata filmMetadata;
             Image filmImage = camera.GetFilm().GetImage(&filmMetadata, 1.f / waveStart);
             ImageChannelDesc desc = filmImage.GetChannelDesc({"R", "G", "B"});
@@ -221,7 +222,7 @@ void ImageTileIntegrator::Render() {
             float mrse = filmImage.RobustMRSE(desc, *referenceImage, 0.999f).Average();
             fprintf(logFile, "%d, %.3f, %.3f, ", waveStart, totalTime, renderingTime);
             LogFileRow(logFile);  // e.g. training time and number of regions
-            fprintf(logFile, "%.3e, %.3e\n", mrae, mrse);
+            fprintf(logFile, "%.3e, %.3e, %.3e\n", recentVariance, mrae, mrse);
             fflush(logFile);
         }
         //std::cout << "nextWaveSize: " << nextWaveSize << "\t spp: " << spp << "\t waveStart: " << waveStart << "\t waveEnd: " << waveEnd << std::endl;

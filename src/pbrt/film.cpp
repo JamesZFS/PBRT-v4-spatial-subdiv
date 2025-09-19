@@ -50,6 +50,11 @@ Image Film::GetImage(ImageMetadata *metadata, Float splatScale) {
     return DispatchCPU(get);
 }
 
+double Film::EstimateRecentVariance() {
+    auto est = [&](auto ptr) { return ptr->EstimateRecentVariance(); };
+    return DispatchCPU(est);
+}
+
 std::string Film::ToString() const {
     if (!ptr())
         return "(nullptr)";
@@ -866,8 +871,6 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
     Pixel &p = pixels[pFilm];
     if (visibleSurface && *visibleSurface) {
         p.gBufferWeightSum += weight;
-        p.pixelFluenceSum += weight * visibleSurface->pixelFluence;
-        p.firstDirSum += weight * visibleSurface->pixelFluence * visibleSurface->firstOmegaI;
 
         if (applyInverse) {
             p.nSum += weight * outputFromRender.ApplyInverse(visibleSurface->n,
@@ -883,8 +886,10 @@ void GuidedGBufferFilm::AddSample(Point2i pFilm, SampledSpectrum L,
         p.guidingData = visibleSurface->guidingData;
     }
 
-    for (int c = 0; c < 3; ++c)
+    for (int c = 0; c < 3; ++c) {
         p.rgbSum[c] += rgb[c] * weight;
+        p.rgbCurrent[c] = rgb[c] * weight;
+    }
     p.weightSum += weight;
 }
 
@@ -951,6 +956,19 @@ static inline RGB SplitKindToRGB(uint8_t kind) {
     return ret;
 }
 
+double GuidedGBufferFilm::EstimateRecentVariance() {
+    // Compute the variance of the rgbCurrent image
+    double sum = 0, sum2 = 0, num = 0;
+    for (Point2i p: pixelBounds) {
+        auto &rgb = pixels[p].rgbCurrent;
+        double scalar = (rgb[0] + rgb[1] + rgb[2]) / 3.0;
+        sum += scalar;
+        sum2 += scalar * scalar;
+        ++num;
+    }
+    return (num * sum2 - sum * sum) / (num * num);
+}
+
 Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
     // Convert image to RGB and compute final pixel values
     LOG_VERBOSE("Converting image to RGB and computing final weighted pixel values");
@@ -976,8 +994,6 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                     "SplitKind.G",
                     "SplitKind.B",
                      "Fluence",
-                     "PixelFluence",
-                     "FirstDir.x", "FirstDir.y", "FirstDir.z",
                      "Energy",
                      "AngularDistance",
 
@@ -987,15 +1003,15 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                      "FineId.B",
 
                         // Volume:
-                        "VolumeId.R",
-                     "VolumeId.G",
-                     "VolumeId.B",
+                    //     "VolumeId.R",
+                    //  "VolumeId.G",
+                    //  "VolumeId.B",
 
-                        "VolumeSplitKind.R",
-                        "VolumeSplitKind.G",
-                        "VolumeSplitKind.B",
+                    //     "VolumeSplitKind.R",
+                    //     "VolumeSplitKind.G",
+                    //     "VolumeSplitKind.B",
 
-                        "VolumeFluence",
+                    //     "VolumeFluence",
                     });
 
         ImageChannelDesc rgbDesc = image.GetChannelDesc({"R", "G", "B"});
@@ -1004,9 +1020,8 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
         ImageChannelDesc guideDesc =
             image.GetChannelDesc({"GuideId.R", "GuideId.G", "GuideId.B",
                 "Samples", "Depth", "SplitKind.R", "SplitKind.G", "SplitKind.B",
-                "Fluence", "PixelFluence", "FirstDir.x", "FirstDir.y", "FirstDir.z", "Energy", "AngularDistance",
-                "FineId.R", "FineId.G", "FineId.B",
-                "VolumeId.R", "VolumeId.G", "VolumeId.B", "VolumeSplitKind.R", "VolumeSplitKind.G", "VolumeSplitKind.B", "VolumeFluence"});
+                "Fluence", "FirstDir.z", "Energy", "AngularDistance",
+                "FineId.R", "FineId.G", "FineId.B"});
 
         std::atomic<int> nClamped{0};
         ParallelFor2D(pixelBounds, [&](Point2i p) {
@@ -1023,27 +1038,18 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
             {
                 fineIdRgb = RGB(HashFloat(pixel.guidingData.fineId, 0), HashFloat(pixel.guidingData.fineId, 1), HashFloat(pixel.guidingData.fineId, 2));
             }
-            RGB volumeIdRgb = {0.0, 0.0, 0.0};
-            if (pixel.guidingData.volumeId != -1) {
-                volumeIdRgb = RGB(HashFloat(pixel.guidingData.volumeId, 0), HashFloat(pixel.guidingData.volumeId, 1), HashFloat(pixel.guidingData.volumeId, 2));
-            }
+            // RGB volumeIdRgb = {0.0, 0.0, 0.0};
+            // if (pixel.guidingData.volumeId != -1) {
+            //     volumeIdRgb = RGB(HashFloat(pixel.guidingData.volumeId, 0), HashFloat(pixel.guidingData.volumeId, 1), HashFloat(pixel.guidingData.volumeId, 2));
+            // }
             RGB splitKindRgb = SplitKindToRGB(pixel.guidingData.splitKind);
-            RGB splitKindVolumeRgb = SplitKindToRGB(pixel.guidingData.volumeSplitKind);
+            // RGB splitKindVolumeRgb = SplitKindToRGB(pixel.guidingData.volumeSplitKind);
 
             // Normalize pixel with weight sum
             Float weightSum = pixel.weightSum, gBufferWeightSum = pixel.gBufferWeightSum;
             if (weightSum != 0) {
                 rgb /= weightSum;
             }
-
-            Float pixelFluence = pixel.pixelFluenceSum;
-            if (gBufferWeightSum != 0) {
-                pixelFluence /= gBufferWeightSum;
-            }
-
-            Vector3 firstDir = pixel.firstDirSum;
-            float norm = Length(firstDir);
-            if (norm > 0) firstDir /= norm;
 
             // Add splat value at pixel
             for (int c = 0; c < 3; ++c)
@@ -1067,11 +1073,9 @@ Image GuidedGBufferFilm::GetImage(ImageMetadata *metadata, Float splatScale) {
                               {guideIdRgb[0], guideIdRgb[1], guideIdRgb[2],
                                   (float) pixel.guidingData.numSamples, (float) pixel.guidingData.depth,
                                   splitKindRgb[0], splitKindRgb[1], splitKindRgb[2],
-                                  pixel.guidingData.fluence, pixelFluence, firstDir.x, firstDir.y, firstDir.z,
+                                  pixel.guidingData.fluence,
                                   pixel.guidingData.energy, pixel.guidingData.angularEnergy,
-                                    fineIdRgb[0], fineIdRgb[1], fineIdRgb[2],
-                                    volumeIdRgb[0], volumeIdRgb[1], volumeIdRgb[2],
-                                    splitKindVolumeRgb[0], splitKindVolumeRgb[1], splitKindVolumeRgb[2], pixel.guidingData.volumeFluence});
+                                    fineIdRgb[0], fineIdRgb[1], fineIdRgb[2]});
 
             //Normal3f n =
             //    LengthSquared(pixel.nSum) > 0 ? Normalize(pixel.nSum) : Normal3f(0, 0, 0);

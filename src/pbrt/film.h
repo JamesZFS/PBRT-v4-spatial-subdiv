@@ -158,8 +158,6 @@ class VisibleSurface {
     Vector3f dpdx, dpdy;
     SampledSpectrum albedo;
     bool set = false;
-    float pixelFluence = 0.0f;
-    Vector3f firstOmegaI{0, 0, 0};
 
     // Guiding
     // PGLRegionStatistics guidingData;
@@ -172,9 +170,9 @@ class VisibleSurface {
         float energy = 0;
         float angularEnergy = 0;
         uint8_t splitKind = 0;
-        uint32_t volumeId = -1;
-        uint8_t volumeSplitKind = 0;
-        float volumeFluence = 0;
+        // uint32_t volumeId = -1;
+        // uint8_t volumeSplitKind = 0;
+        // float volumeFluence = 0;
 
         GuidingData &operator=(const GuidingData &other) {
             if (other.id != -1) id = other.id;
@@ -185,9 +183,9 @@ class VisibleSurface {
             energy = other.energy;
             angularEnergy = other.angularEnergy;
             splitKind = other.splitKind;
-            volumeId = other.volumeId;
-            volumeSplitKind = other.volumeSplitKind;
-            volumeFluence = other.volumeFluence;
+            // volumeId = other.volumeId;
+            // volumeSplitKind = other.volumeSplitKind;
+            // volumeFluence = other.volumeFluence;
             return *this;
         }
     } guidingData;
@@ -246,6 +244,8 @@ class FilmBase {
     PBRT_CPU_GPU
     const PixelSensor *GetPixelSensor() const { return sensor; }
     std::string GetFilename() const { return filename; }
+
+    PBRT_CPU_GPU virtual double EstimateRecentVariance() { return 0; }
 
     PBRT_CPU_GPU
     SampledWavelengths SampleWavelengths(Float u) const {
@@ -488,6 +488,8 @@ class GuidedGBufferFilm : public FilmBase {
     void WriteImage(ImageMetadata metadata, Float splatScale = 1, bool isPartial = false);
     Image GetImage(ImageMetadata *metadata, Float splatScale = 1);
 
+    double EstimateRecentVariance() override;
+
     std::string ToString() const;
 
     PBRT_CPU_GPU void ResetPixel(Point2i p) { std::memset(&pixels[p], 0, sizeof(Pixel)); }
@@ -498,9 +500,8 @@ class GuidedGBufferFilm : public FilmBase {
         double rgbSum[3] = {0., 0., 0.};
         double weightSum = 0.;
         double gBufferWeightSum = 0.;
-        double pixelFluenceSum = 0.;
-        Vector3f firstDirSum {0, 0, 0};
         AtomicDouble rgbSplat[3];
+        double rgbCurrent[3] = {0, 0, 0};  // RGB of the current iteration
         // PGLRegionStatistics guidingData;
         VisibleSurface::GuidingData guidingData;
         //Point3f pSum;

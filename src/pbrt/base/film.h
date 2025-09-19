@@ -52,6 +52,8 @@ class Film : public TaggedPointer<RGBFilm, GBufferFilm, GuidedGBufferFilm, Spect
 
     Image GetImage(ImageMetadata *metadata, Float splatScale = 1);
 
+    double EstimateRecentVariance();
+
     PBRT_CPU_GPU
     RGB GetPixelRGB(Point2i p, Float splatScale = 1) const;
 
