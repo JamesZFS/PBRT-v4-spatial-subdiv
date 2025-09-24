@@ -41,6 +41,7 @@ struct PBRTOptions : BasicPBRTOptions {
     std::string logFile;
     bool logUtilization = false;
     bool writePartialImages = false;
+    int writeAllAfter = -1;
     bool recordPixelStatistics = false;
     bool printStatistics = false;
     pstd::optional<int> pixelSamples;

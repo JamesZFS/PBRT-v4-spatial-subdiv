@@ -227,13 +227,17 @@ void ImageTileIntegrator::Render() {
         }
         //std::cout << "nextWaveSize: " << nextWaveSize << "\t spp: " << spp << "\t waveStart: " << waveStart << "\t waveEnd: " << waveEnd << std::endl;
         // Optionally write current image to disk
-        if (waveStart == spp || (Options->writePartialImages && IsPowerOf2(waveStart))) {
+        bool isPartialImage = Options->writePartialImages && (IsPowerOf2(waveStart) || (Options->writeAllAfter >= 0 && waveStart >= Options->writeAllAfter));
+        if (waveStart == spp || isPartialImage) {
             LOG_VERBOSE("Writing image with spp = %d", waveStart);
             ImageMetadata metadata;
             metadata.renderTimeSeconds = progress.ElapsedSeconds();
             metadata.samplesPerPixel = waveStart;
             camera.InitMetadata(&metadata);
-            camera.GetFilm().WriteImage(metadata, 1.0f / waveStart, waveStart != spp);
+            if (waveStart == spp)
+                camera.GetFilm().WriteImage(metadata, 1.0f / waveStart, false);
+            if (isPartialImage)
+                camera.GetFilm().WriteImage(metadata, 1.0f / waveStart, true);
         }
     }
 

@@ -83,9 +83,12 @@ Rendering options:
   --guiding-viewer              Interactive cache visualizer for guided path tracer.)"
 #endif
             R"(
-  --write-partial-images        Periodically write the current image to disk at power of
-                                two iterations, rather than waiting for the end of rendering.
+  --write-partial-images        Write the current image to disk at power of two iterations, 
+                                rather than waiting for the end of rendering.
                                 Default: disabled.
+  --write-all-after <iter>      Write the current image to disk after each iteration,
+                                Takes effect since <iter>. This is useful for equal-time comparison.
+                                Default: -1 (disabled)
 
 Logging options:
   --log-file <filename>         Filename to write logging messages to. Default: none;
@@ -211,6 +214,7 @@ int main(int argc, char *argv[]) {
 #endif
             ParseArg(&iter, args.end(), "write-partial-images",
                      &options.writePartialImages, onError) ||
+            ParseArg(&iter, args.end(), "write-all-after", &options.writeAllAfter, onError) ||
             ParseArg(&iter, args.end(), "upgrade", &options.upgrade, onError)) {
             // success
         } else if (*iter == "--help" || *iter == "-help" || *iter == "-h") {
