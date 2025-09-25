@@ -358,6 +358,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
 
     Float misPDF, etaScale = 1;
     bool specularBounce = false, anyNonSpecularBounces = false, wasRRorTT = true;
+    bool wasSpecularBounce =false;
     LightSampleContext prevIntrCtx;
 
     bool add_direct_contribution = false;
@@ -465,6 +466,12 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         // Possibly regularize the BSDF
         if (settings.regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
+            if(bsdf.GetRoughness() < 0.01f){
+                wasSpecularBounce = true;
+            }
+            else {
+                wasSpecularBounce = false;
+            }
             bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
@@ -483,7 +490,7 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         adjointEstimate = gbsdf.OutgoingRadiance(-ray.d);
 
         if (guideRR && depth > settings.minRRDepth) {
-            survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
+            survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
         }
 #endif
         // Initialize _visibleSurf_ at first nonspecular intersection
@@ -568,9 +575,9 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
         if (!guideRR && depth > settings.minRRDepth) {
             const SampledSpectrum rrThroughputWeight = beta * rr_correction * etaScale;
 #ifdef GUIDED_RR
-            survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(OPGLVector3f(rrThroughputWeight));
+            survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(OPGLVector3f(rrThroughputWeight));
 #else
-            survivalProb = specularBounce ? 0.95 : std::max(0.f, std::min(1.f, rrThroughputWeight.MaxComponentValue()));
+            survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : std::max(0.f, std::min(1.f, rrThroughputWeight.MaxComponentValue()));
 #endif
         }
         if (survivalProb < 1 && depth > settings.minRRDepth) {
@@ -960,6 +967,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
     // Declare state variables for volumetric path sampling
     SampledSpectrum L(0.f), beta(1.f), r_u(1.f), r_l(1.f);
     bool specularBounce = false, anyNonSpecularBounces = false, wasRRorTT = true;
+    bool wasSpecularBounce = false;
     int depth = 0;
     Float etaScale = 1;
 
@@ -1098,17 +1106,17 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
 #ifdef GUIDED_RR
                                 if (guideRR) {
                                     if(guideVolumeRR){
-                                        survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
+                                        survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
                                     } else {
                                         survivalProb = 1.f;
                                     }
                                 } else {
                                     const SampledSpectrum rrThroughputWeight = (beta / r_u.Average()) * rr_correction;
-                                    survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(OPGLVector3f(rrThroughputWeight));        
+                                    survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(OPGLVector3f(rrThroughputWeight));        
                                 }
 #else
                                 const SampledSpectrum rrThroughputWeight = (beta / r_u.Average()) * rr_correction;
-                                survivalProb = specularBounce ? 0.95 : std::max(0.f, std::min(1.f, rrThroughputWeight.MaxComponentValue()));
+                                survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : std::max(0.f, std::min(1.f, rrThroughputWeight.MaxComponentValue()));
 #endif
                             }
                             // Preform next-event estimation before RR
@@ -1289,6 +1297,12 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         // Possibly regularize the BSDF
         if (regularize && anyNonSpecularBounces) {
             ++regularizedBSDFs;
+            if(bsdf.GetRoughness() < 0.01f){
+                wasSpecularBounce = true;
+            }
+            else {
+                wasSpecularBounce = false;
+            }
             bsdf.Regularize(regularizationGamma, accumulatedRoughness);
         }
 
@@ -1308,7 +1322,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
 
         if (guideRR && depth > minRRDepth) {
             if(guideSurfaceRR) {
-                survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
+                survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
             } else {
                 survivalProb = 1.f;
             }
@@ -1351,7 +1365,7 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
 
         if (guideRR && depth > minRRDepth) {
             if(guideSurfaceRR) {
-                survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
+                survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : openpgl::cpp::util::GuidedRussianRoulette(OPGLVector3f(beta), OPGLVector3f(adjointEstimate), OPGLVector3f(pixelContributionEstimate), 0.1f);
             } else {
                 survivalProb = 1.f;
             }
@@ -1484,9 +1498,9 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
         if (!guideRR && depth > minRRDepth) {
             const SampledSpectrum rrThroughputWeight = (beta / r_u.Average()) * rr_correction * etaScale;
 #ifdef GUIDED_RR
-            survivalProb = specularBounce ? 0.95 : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(OPGLVector3f(rrThroughputWeight));
+            survivalProb = (specularBounce || wasSpecularBounce) ? 0.95 : openpgl::cpp::util::StandardThroughputBasedRussianRoulette(OPGLVector3f(rrThroughputWeight));
 #else
-            survivalProb = specularBounce ? 0.95 : std::max(0.f, std::min(1.f, rrThroughputWeight.MaxComponentValue()));
+            survivalProb = specularBounce || wasSpecularBounce) ? 0.95 : std::max(0.f, std::min(1.f, rrThroughputWeight.MaxComponentValue()));
 #endif
         }
         if (survivalProb < 1 && depth > minRRDepth) {
