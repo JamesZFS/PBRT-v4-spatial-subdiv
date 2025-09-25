@@ -355,9 +355,8 @@ class GuidedPathIntegrator : public RayIntegrator {
     openpgl::cpp::Field* guiding_field {nullptr};
     openpgl::cpp::Device* guiding_device {nullptr};
     //ThreadLocal<Allocator> threadPathSegmentStorage;
-    mutable std::mutex pathLengthMutex;
-    mutable float avgPathLength {0};
-    mutable float pathLengthCnt {0};
+    mutable std::atomic<uint64_t> pathLengthAccum {0};
+    mutable std::atomic<uint64_t> pathLengthCnt {0};
     float prevAvgPathLength {0};
     size_t prevNumTrainingSamples {0};
 
@@ -529,9 +528,8 @@ class GuidedVolPathIntegrator : public RayIntegrator {
     openpgl::cpp::SampleStorage* guiding_sampleStorage {nullptr};
     openpgl::cpp::Field* guiding_field {nullptr};
     openpgl::cpp::Device* guiding_device {nullptr};
-    mutable std::mutex pathLengthMutex;
-    mutable float avgPathLength {0};
-    mutable float pathLengthCnt {0};
+    mutable std::atomic<uint64_t> pathLengthAccum {0};
+    mutable std::atomic<uint64_t> pathLengthCnt {0};
     float prevAvgPathLength {0};
     size_t prevNumTrainingSamples {0};
 

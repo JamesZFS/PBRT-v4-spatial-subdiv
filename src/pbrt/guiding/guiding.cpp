@@ -256,7 +256,7 @@ void GuidedPathIntegrator::Render() {
             camera.InitMetadata(&metadata);
             camera.GetFilm().WriteImage(metadata, 1.0f / waveEnd);
         },
-        [&]() { return avgPathLength; });
+        [&]() { return float(pathLengthAccum) / float(pathLengthCnt); });
 
     if (int ret = app.Run(); ret != 0)
         Error("Guiding viewer application failed with %d", ret);
@@ -266,8 +266,8 @@ void GuidedPathIntegrator::Render() {
 
 
 void GuidedPathIntegrator::PostProcessWave() {
-    prevAvgPathLength = avgPathLength;
-    avgPathLength = pathLengthCnt = 0;
+    prevAvgPathLength = float(pathLengthAccum) / float(pathLengthCnt);
+    pathLengthAccum = pathLengthCnt = 0;
 
     waveCounter++;
     std::cout << "GuidedPathIntegrator::PostProcessWave()" << std::endl;
@@ -523,9 +523,8 @@ SampledSpectrum GuidedPathIntegrator::Li(Point2i pPixel, RayDifferential ray, Sa
     }
     pathLength << depth;
     {
-        std::lock_guard lock(pathLengthMutex);
-        pathLengthCnt += 1;
-        avgPathLength = Lerp(1.f / pathLengthCnt, avgPathLength, (float) depth);
+        ++pathLengthCnt;
+        pathLengthAccum += depth;
     }
 
     if (guideSettings.enableTraining || guideSettings.evaluateOnly)
@@ -793,8 +792,8 @@ GuidedVolPathIntegrator::~GuidedVolPathIntegrator() {
 }
 
 void GuidedVolPathIntegrator::PostProcessWave() {
-    prevAvgPathLength = avgPathLength;
-    avgPathLength = pathLengthCnt = 0;
+    prevAvgPathLength = float(pathLengthAccum) / float(pathLengthCnt);
+    pathLengthAccum = pathLengthCnt = 0;
 
     waveCounter++;
     std::cout << "GuidedVolPathIntegrator::PostProcessWave()" << std::endl;
@@ -1332,9 +1331,8 @@ SampledSpectrum GuidedVolPathIntegrator::Li(Point2i pPixel, RayDifferential ray,
                                survivalProb, lambda, colorSpace);
     }
     {
-        std::lock_guard lock(pathLengthMutex);
-        pathLengthCnt += 1;
-        avgPathLength = Lerp(1.f / pathLengthCnt, avgPathLength, (float) depth);
+        ++pathLengthCnt;
+        pathLengthAccum += depth;
     }
 
     pathLength << depth;
