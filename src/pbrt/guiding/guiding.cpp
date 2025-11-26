@@ -721,6 +721,7 @@ std::unique_ptr<GuidedPathIntegrator> GuidedPathIntegrator::Create(
     if (dtype == "pavmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM;
     else if (dtype == "pavmm-v2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2;
     else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
+    else if (dtype == "vmm-v2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM_V2;
     else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
     else throw std::runtime_error("Unknown dtype: " + dtype);
     settings.treesamplecountthreshold = parameters.GetOneInt("treesamplecountthreshold", settings.treesamplecountthreshold);
@@ -1696,6 +1697,7 @@ std::unique_ptr<GuidedVolPathIntegrator> GuidedVolPathIntegrator::Create(
     if (dtype == "pavmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM;
     else if (dtype == "pavmm-v2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_PARALLAX_AWARE_VMM_V2;
     else if (dtype == "vmm") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM;
+    else if (dtype == "vmm-v2") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_VMM_V2;
     else if (dtype == "quadtree") settings.dtype = PGL_DIRECTIONAL_DISTRIBUTION_QUADTREE;
     else throw std::runtime_error("Unknown dtype: " + dtype);
 
