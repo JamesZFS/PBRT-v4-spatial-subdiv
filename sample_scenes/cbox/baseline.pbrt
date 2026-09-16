@@ -1,0 +1,33 @@
+Integrator "guidedpath"
+	"bool usenee" true
+	"string dtype" "pavmm"
+	"bool deterministic" false
+	"string treeknntype" "isknn2"
+	"bool knnlookup" false
+	"integer treesamplecountthreshold" 32000	    # the sample count threshold
+	"integer treeminsamplescandidatesplit" 1000
+	"integer treeminsamplespromotion" 1000
+	"integer treeinitializingiters" 32768   		# before this iteration, the tree will be split using the sample-count-based subdivision. So setting this to a number greater than SPP will make the tree always use the sample-count-based subdivision.
+	"bool storeGuidingCache" true
+	"string guidingCacheFileName" "baseline.field"
+	"integer maxdepth" 20
+	"integer minrrdepth" 20
+	"string surfaceguidingtype" "ris"
+	"integer treemaxdepth" 32
+	"integer numtrainingwaves" 128
+	"bool regularize" true
+	"float regGamma" 0.125
+	"bool rrguiding" true
+
+Sampler "independent"
+
+PixelFilter "box"
+    "float xradius" [ 1 ]
+    "float yradius" [ 1 ]
+Film "guidedgbuffer"
+    "string filename" [ "baseline.exr" ]
+    "integer yresolution" [ 1024 ]
+    "integer xresolution" [ 1024 ]
+
+
+Include "cbox-classic_auto.pbrt"

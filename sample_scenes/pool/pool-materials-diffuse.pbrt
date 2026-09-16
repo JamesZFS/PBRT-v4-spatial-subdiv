@@ -1,0 +1,156 @@
+
+
+###################
+# Textures
+
+Texture "rgb:textures/00000000A3268300" "spectrum" "imagemap"
+    "string filename" "textures/00000000A3268300.png" 
+Texture "rgb:textures/00000000A32683C0" "spectrum" "imagemap"
+    "string filename" "textures/00000000A32683C0.png" 
+Texture "rgb:textures/00000000A3268280" "spectrum" "imagemap"
+    "string filename" "textures/00000000A3268280.png" 
+
+####################
+# Materials (17) total
+
+
+# - Material 1: DefaultMaterial
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 0
+MakeNamedMaterial "DefaultMaterial" "string type" "diffuse"
+#    "float roughness" 1
+    "rgb reflectance" [ 0.600000024 0.600000024 0.600000024 ]
+
+# - Material 2: mat_Arch_056_035_13
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 0
+MakeNamedMaterial "mat_Arch_056_035_13" "string type" "diffuse"
+#    "float roughness" 1
+    "rgb reflectance" [ 0.5 0.5 0.5 ]
+
+# - Material 3: mat_Arch_056_035_14
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_Arch_056_035_14" "string type" "diffuse"
+#    "float roughness" 0.85
+    "rgb reflectance" [ 0.0918380022 0.294647992 0.420924991 ]
+
+# - Material 4: mat_Arch_056_049_02
+#   - Number of Material Properties: 14
+#   - Non-Zero Texture Type Counts: Diffuse: 1 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_Arch_056_049_02" "string type" "diffuse"
+#    "float roughness" 0.285
+    "texture reflectance" "rgb:textures/00000000A3268300"
+
+# - Material 5: mat_Arch_056_053_02
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_Arch_056_053_02" "string type" "diffuse"
+#    "float roughness" 0.85
+    "rgb reflectance" [ 0.625316024 0.537036002 0.0809229985 ]
+
+# - Material 6: mat_Arch_056_053_12
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_Arch_056_053_12" "string type" "diffuse"
+#    "float roughness" 0.85
+    "rgb reflectance" [ 0.0156859998 0.0156859998 0.0156859998 ]
+
+# - Material 7: mat_Arch_056_053_14
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_Arch_056_053_14" "string type" "diffuse"
+#    "float roughness" 0.85
+    "rgb reflectance" [ 0.625316024 0.353119999 0 ]
+
+# - Material 8: mat_Material28
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 0 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 0
+MakeNamedMaterial "mat_Material28" "string type" "dielectric"
+    "float roughness" 0
+    "float eta" 1.45
+#    "rgb reflectance" [ 0 0 0 ]
+
+# - Material 9: mat__01Default
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat__01Default" "string type" "diffuse"
+#    "float roughness" 0.5776
+    "rgb reflectance" [ 0.674510002 0.674510002 0.674510002 ]
+
+# - Material 10: mat__02Default
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat__02Default" "string type" "diffuse"
+#    "float roughness" 0.285
+    "rgb reflectance" [ 0.0235290006 0.0235290006 0.0235290006 ]
+
+# - Material 11: mat_clay
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 0
+MakeNamedMaterial "mat_clay" "string type" "diffuse"
+#    "float roughness" 1
+    "rgb reflectance" [ 0 0 0 ]
+
+# - Material 12: mat_cr
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_cr" "string type" "conductor"
+    "float roughness" 0.005
+    "spectrum eta" [ "metal-Al-eta" ]
+    "spectrum k" [ "metal-Al-k" ]
+#    "rgb reflectance" [ 0.507957995 0.507957995 0.507957995 ]
+
+# - Material 13: mat_glass
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 0 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 0
+MakeNamedMaterial "mat_glass" "string type" "dielectric"
+    "float roughness" 0
+    "float eta" 1.5
+#    "rgb reflectance" [ 0 0 0 ]
+
+# - Material 14: mat_poolframe
+#   - Number of Material Properties: 14
+#   - Non-Zero Texture Type Counts: Diffuse: 1 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_poolframe" "string type" "diffuse"
+#    "float roughness" 0.8
+    "texture reflectance" "rgb:textures/00000000A32683C0"
+
+# - Material 15: mat_poolinside
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 0
+MakeNamedMaterial "mat_poolinside" "string type" "diffuse"
+#    "float roughness" 1
+    "rgb reflectance" [ 0.0313730016 0.478430986 0.76078397 ]
+
+# - Material 16: mat_stonefloor
+#   - Number of Material Properties: 14
+#   - Non-Zero Texture Type Counts: Diffuse: 1 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_stonefloor" "string type" "coateddiffuse"
+    "float roughness" 0.01
+    "texture reflectance" "rgb:textures/00000000A3268280"
+
+# - Material 17: mat_towel
+#   - Number of Material Properties: 12
+#   - Non-Zero Texture Type Counts: 
+#    - Constants: diffuse 1 specular 1 transparency 1 opacity 1 shininess 1 shininess strength 0 eta 1
+MakeNamedMaterial "mat_towel" "string type" "diffuse"
+#    "float roughness" 0.85
+    "rgb reflectance" [ 0.674510002 0.674510002 0.674510002 ]
+

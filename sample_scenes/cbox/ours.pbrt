@@ -1,0 +1,38 @@
+Integrator "guidedpath"
+    "bool usenee" true
+	"string dtype" "pavmm"        # directional distribution type, can be "pavmm", "vmm", or "quadtree"
+	"bool deterministic" false    # if true, the subdivision and rendering will be deterministic, useful for debugging but inefficient for rendering
+	"string treeknntype" "isknn2"
+	"bool knnlookup" false
+	"bool treereproject" false
+	"integer treeminsamplescandidatesplit" 1000
+	"integer treeminsamplespromotion" 1000
+	"integer treeinitializingiters" 0       # before this iteration, the tree will be split using the sample-count-based subdivision. So setting this to 0 will make the tree always use our adaptive subdivision.
+	"integer treelookaheaddepth" 6          # 6 levels of lookahead for the tree, see paper Sec. 3.1
+	"float treeadaptivethreshold" 0.05      # mean radiance threshold
+	"float treefpsplitproba" 0.0001			# alpha of the mean radiance threshold
+	"bool treeenableangular" true
+	"float treeangulardistancethreshold" 3  # mean direction threshold in degrees. The alpha of the mean direction threshold is hardcoded to 0.0001 since we use a 1D lookup table (Sec. 5.3)
+	"bool storeGuidingCache" true 			# stores the guiding cache to a file after rendering, useful for checkpointing and visualization
+	"string guidingCacheFileName" "ours.field"
+	"integer maxdepth" 20					# maximum path depth used by the path tracer
+	"integer minrrdepth" 20					# performing Russian Roulette after this depth
+	"string surfaceguidingtype" "ris"
+	"integer treemaxdepth" 32
+	"integer numtrainingwaves" 128
+	"bool regularize" true					# path regularization
+	"float regGamma" 0.125					# regularization parameter gamma
+	"bool rrguiding" true					# guided Russian Roulette, overriding the minrrdepth to 1 when enabled
+
+Sampler "independent"
+
+PixelFilter "box"
+    "float xradius" [ 1 ]
+    "float yradius" [ 1 ]
+Film "guidedgbuffer"  					    # use "guidedgbuffer" to output AoVs (RGB, tree depth, mean radiance, number of samples, etc.) for debugging, and "rgb" to output only the rendering result
+    "string filename" [ "ours.exr" ]
+    "integer yresolution" [ 1024 ]
+    "integer xresolution" [ 1024 ]
+
+
+Include "cbox-classic_auto.pbrt"

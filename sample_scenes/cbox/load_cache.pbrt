@@ -1,0 +1,26 @@
+Integrator "guidedpath"
+    "bool usenee" true
+	"string dtype" "pavmm"
+	"bool deterministic" false
+	"bool loadGuidingCache" true   # if true, the guiding cache will be loaded from a file before rendering, useful for evaluating the rendering quality of a pre-trained guiding cache
+	"string guidingCacheFileName" "ours.field"
+	"integer maxdepth" 20
+	"integer minrrdepth" 20
+	"string surfaceguidingtype" "ris"
+	"integer numtrainingwaves" 128
+	"bool regularize" true
+	"float regGamma" 0.125
+	"bool rrguiding" true
+
+Sampler "independent"
+
+PixelFilter "box"
+    "float xradius" [ 1 ]
+    "float yradius" [ 1 ]
+Film "guidedgbuffer"
+    "string filename" [ "ours-evaluate.exr" ]
+    "integer yresolution" [ 1024 ]
+    "integer xresolution" [ 1024 ]
+
+
+Include "cbox-classic_auto.pbrt"

@@ -1,0 +1,9 @@
+Transform [ 1 -0 -0 -0 -0 1 -0 -0 -0 -0 -1 -0 -0 -1 6.8 1  ]
+Camera "perspective"
+    "float fov" [ 19.5 ]
+
+
+WorldBegin
+
+Include "cbox-classic-geometry.pbrt"
+Include "cbox-classic-lights.pbrt"

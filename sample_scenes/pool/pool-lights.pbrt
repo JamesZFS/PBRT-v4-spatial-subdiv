@@ -1,0 +1,20 @@
+#################
+# Lights
+
+#AttributeBegin
+#    # default light
+#    LightSource "infinite" "blackbody L" [6000 1]
+#AttributeEnd
+
+# Light environment_map
+
+AttributeBegin
+    Rotate -90 1 0 0
+    Rotate -45 0 0 1
+    Rotate 190 0 0 1
+    Rotate 25 1 0 0
+#    Rotate -25 0 0 1
+    Rotate 25 1 0 0
+    LightSource "infinite"
+    "string filename" "textures/skydome-equiarea.exr"  "float scale" 0.0625
+AttributeEnd

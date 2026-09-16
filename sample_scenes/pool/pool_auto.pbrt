@@ -1,0 +1,21 @@
+#############################
+# Scene metadata:
+# - SourceAsset_Format :
+#     Blender 3D Importer (http://www.blender3d.org)
+
+###############################
+# Cameras (1) total
+
+# - Camera 1: Camera
+#   - Aspect ratio : 1.33333 (no aspect found, defaulting to 4/3)
+Scale -1 1 1
+LookAt -396.536987 306.955994 690.151001
+       -396.536987 306.354248 689.352295
+       0 0.798687756 -0.601745665
+Camera "perspective" "float fov" [44]
+
+WorldBegin
+
+Include "pool-lights.pbrt"
+Include "pool-materials-diffuse.pbrt"
+Include "pool-geometry-ply.pbrt"
