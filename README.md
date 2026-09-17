@@ -27,7 +27,7 @@ The resulting `pbrt` under `build` is the executable of the renderer.
 
 ## Usage
 
-You can run `path/to/pbrt path/to/scene.pbrt [options]` to render a scene. For ease of invocation, you may run the `setpath.sh` script to add the build directory to your `PATH` environment variable so that you can directly run `pbrt` from any directory.
+You can run `path/to/pbrt path/to/scene.pbrt [options]` to render a scene. For ease of invocation, you may run `source setpath.sh` to add the build directory to your `PATH` environment variable so that you can directly run `pbrt` from any directory.
 
 Options for path guiding and the underlyning spatial subdivision are configured in the scene files. `sample_scenes` provides some examples of how to use the proposed spatial subdivision in PBRT scene files. 
 
